@@ -1,7 +1,7 @@
 # Program CMakeList.txt, "Author": Manzini Alessandro
 # Program specific logic here.
 #
-project("VulkanRasterizer")
+project("Rasterizer")
 
 # create program target WIN32
 add_executable(${PROJECT_NAME}
