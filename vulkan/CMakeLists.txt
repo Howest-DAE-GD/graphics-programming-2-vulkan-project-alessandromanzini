@@ -4,13 +4,14 @@
 project("VulkanEngine")
 
 # create library target
-add_library("${PROJECT_NAME}"
-	"src/test.cpp" )
-		
+add_library(${PROJECT_NAME}
+		include/TriangleApplication.h
+		src/TriangleApplication.cpp )
+
 # the include folder and resources has headers that will be shared to external project.
 # the src folder also need to be included in case we have 
 # headers for internal use.
-target_include_directories("${PROJECT_NAME}"
+target_include_directories(${PROJECT_NAME}
 		PUBLIC "./include"
 		PRIVATE "./src" )
 
