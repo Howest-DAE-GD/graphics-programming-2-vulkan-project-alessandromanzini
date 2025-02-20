@@ -5,8 +5,8 @@ project("VulkanEngine")
 
 # create library target
 add_library(${PROJECT_NAME}
-		include/TriangleApplication.h
-		src/TriangleApplication.cpp )
+		src/TriangleApplication.cpp
+        src/VulkanDeviceQueries.cpp)
 
 # the include folder and resources has headers that will be shared to external project.
 # the src folder also need to be included in case we have 
