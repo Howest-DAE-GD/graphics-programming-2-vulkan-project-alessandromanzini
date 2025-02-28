@@ -49,10 +49,22 @@ namespace engine
 
         VkSwapchainKHR swapchain_{ VK_NULL_HANDLE };
         std::vector<VkImage> swapchain_images_{};
-        VkFormat swapchain_image_format{};
-        VkExtent2D swapchain_extent{};
+        VkFormat swapchain_image_format_{};
+        VkExtent2D swapchain_extent_{};
 
         std::vector<VkImageView> swapchain_image_views_{};
+        std::vector<VkFramebuffer> swapchain_framebuffers_{};
+
+        VkRenderPass render_pass_{ VK_NULL_HANDLE };
+        VkPipelineLayout pipeline_layout_{ VK_NULL_HANDLE };
+        VkPipeline graphics_pipeline_{ VK_NULL_HANDLE };
+
+        VkCommandPool command_pool_{ VK_NULL_HANDLE };
+        VkCommandBuffer command_buffer_{ VK_NULL_HANDLE };
+
+        VkSemaphore image_available_semaphore_{ VK_NULL_HANDLE };
+        VkSemaphore render_finished_semaphore_{ VK_NULL_HANDLE };
+        VkFence in_flight_fence_{ VK_NULL_HANDLE};
 
         void vk_create_instance( );
         void vk_setup_debug_messenger( );
@@ -78,6 +90,17 @@ namespace engine
 
         void vk_create_image_views( );
 
+        void vk_create_render_pass( );
+
+        void vk_create_graphics_pipeline( );
+
+        void vk_create_framebuffers();
+
+        void vk_create_command_pool();
+        void vk_create_command_buffer();
+
+        void vk_create_sync_objects();
+
         static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                                               VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                               const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -89,6 +112,10 @@ namespace engine
                                                              VkDebugUtilsMessengerEXT* pDebugMessenger );
         static void vk_destroy_debug_utils_messenger_EXT( VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
                                                           const VkAllocationCallbacks* pAllocator );
+
+        void record_command_buffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) const;
+
+        void draw_frame() const;
 
         void init_window( );
         void init_vk( );

@@ -8,6 +8,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)  
 message(STATUS "C++20 support has been enabled by default.")
 
+# set maximum warning level and treat warnings as errors
+# add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+# message(STATUS "W4 warning level and treat warnings as errors has been enabled.")
+
 # set the project name
 project (VulkanRasterizer)
 

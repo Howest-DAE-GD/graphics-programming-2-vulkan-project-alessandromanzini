@@ -1,12 +1,13 @@
 # VulkanEngine CMakeList.txt, "Author": Manzini Alessandro
 # Engine specific logic here.
 #
-project("VulkanEngine")
+project("vulkan_engine")
 
 # create library target
 add_library(${PROJECT_NAME}
 		src/TriangleApplication.cpp
-        src/VulkanDeviceQueries.cpp)
+        src/VulkanDeviceQueries.cpp
+		src/ShaderModules.cpp)
 
 # the include folder and resources has headers that will be shared to external project.
 # the src folder also need to be included in case we have 
@@ -19,7 +20,7 @@ target_include_directories(${PROJECT_NAME}
 include(glfw_fetchcontent)
 include(glm_fetchcontent)
 
-target_link_libraries("${PROJECT_NAME}"
+target_link_libraries(${PROJECT_NAME}
 		PUBLIC glfw 
 		PUBLIC glm )
 
@@ -37,3 +38,6 @@ else()
 	target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Vulkan)
 	message(STATUS "Vulkan SDK loaded")
 endif()
+
+# Set the source directories for shaders
+set(SHADERS_SRC_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/shaders" PARENT_SCOPE)
