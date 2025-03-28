@@ -1,11 +1,19 @@
+#include "TriangleApplication.h"
+
+#include <xos/filesystem.h>
+#include <xos/info.h>
+
+#include <filesystem>
 #include <iostream>
 
-#include "TriangleApplication.h"
 
 int main( )
 {
     try
     {
+        xos::info::log_info( std::clog );
+        xos::filesystem::configure_relative_path( );
+
         engine::TriangleApplication app;
         app.run( );
     }

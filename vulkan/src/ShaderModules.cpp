@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <fstream>
+#include <iostream>
 
 using namespace engine::shader;
 
@@ -9,7 +10,7 @@ std::vector<char> engine::shader::read_file( const std::filesystem::path& filena
 {
     assert( std::filesystem::exists( filename ) && "File does not exist!" );
 
-    if ( std::ifstream file( filename, std::ios::binary ); file.is_open( ) )
+    if ( std::ifstream file( std::filesystem::absolute(filename), std::ios::binary ); file.is_open( ) )
     {
         const auto fileSize = file_size( filename );
 

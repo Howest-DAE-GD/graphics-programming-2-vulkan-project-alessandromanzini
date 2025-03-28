@@ -16,7 +16,10 @@ namespace engine::query
         std::optional<uint32_t> graphicsFamily{};
         std::optional<uint32_t> presentFamily{};
 
-        [[nodiscard]] bool is_suitable( ) const { return graphicsFamily.has_value( ) && presentFamily.has_value( ); }
+        [[nodiscard]] bool is_suitable( ) const
+        {
+            return graphicsFamily.has_value( ) && presentFamily.has_value( );
+        }
     };
 
     struct SwapChainSupportDetails
@@ -29,8 +32,13 @@ namespace engine::query
     // +---------------------------+
     // | FUNCTIONS                 |
     // +---------------------------+
-    QueueFamilyIndices find_queue_families( VkPhysicalDevice device, VkSurfaceKHR surface );
-    SwapChainSupportDetails query_swap_chain_support( VkPhysicalDevice device, VkSurfaceKHR surface );
+    QueueFamilyIndices find_queue_families( VkPhysicalDevice physicalDevice, VkSurfaceKHR surface );
+    SwapChainSupportDetails query_swap_chain_support( VkPhysicalDevice physicalDevice, VkSurfaceKHR surface );
+
+    // +---------------------------+
+    // | MEMORY                    |
+    // +---------------------------+
+    uint32_t find_memory_type( VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties );
 }
 
 #endif //VULKANDEVICEQUERIES_H

@@ -1,4 +1,4 @@
-﻿# Master CMakeList.txt : CMake project for VulkanRasterizer, Manzini Alessandro
+﻿# Master CMakeList.txt, "Author": alessandromanzini
 # Project specific logic here.
 #
 cmake_minimum_required (VERSION 3.20)
@@ -27,4 +27,5 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Add subdirectories
 add_subdirectory("vulkan")
+add_subdirectory("xos")
 add_subdirectory("program")

@@ -3,6 +3,7 @@
 // +---------------------------+
 // | STANDARD HEADERS          |
 // +---------------------------+
+#include <chrono>
 #include <functional>
 #include <iostream>
 #include <set>
@@ -11,13 +12,23 @@
 // +---------------------------+
 // | PROJECT HEADERS           |
 // +---------------------------+
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "ShaderModules.h"
+#include "UniformBufferObject.h"
 #include "VulkanDeviceQueries.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <SingleTimeCommand.h>
+#include <stb_image.h>
 
 using namespace engine;
 
+
 constexpr int GLFW_WINDOW_OPEN{ 0 };
+
 
 template<typename vk_property_t>
 bool compare_support_containers( const std::vector<const char*>& required, const std::vector<vk_property_t>& available,
@@ -29,7 +40,7 @@ bool compare_support_containers( const std::vector<const char*>& required, const
         bool found{ false };
         for ( const auto& available_property : available )
         {
-            if ( strcmp( required_property, getName( available_property ) ) == 0 )
+            if ( std::strcmp( required_property, getName( available_property ) ) == 0 )
             {
                 found = true;
                 break;
@@ -43,6 +54,7 @@ bool compare_support_containers( const std::vector<const char*>& required, const
     }
     return true;
 }
+
 
 // +---------------------------+
 // | PUBLIC                    |
@@ -64,6 +76,7 @@ void TriangleApplication::run( )
 
     cleanup( );
 }
+
 
 // +---------------------------+
 // | PRIVATE                   |
@@ -147,6 +160,7 @@ void TriangleApplication::vk_create_instance( )
     }
 }
 
+
 void TriangleApplication::vk_setup_debug_messenger( )
 {
     // Possible different configuration:
@@ -162,6 +176,7 @@ void TriangleApplication::vk_setup_debug_messenger( )
         }
     }
 }
+
 
 void TriangleApplication::vk_populate_debug_messenger_create_info( VkDebugUtilsMessengerCreateInfoEXT& info )
 {
@@ -187,6 +202,7 @@ void TriangleApplication::vk_populate_debug_messenger_create_info( VkDebugUtilsM
     info.pUserData       = nullptr;
 }
 
+
 bool TriangleApplication::vk_check_extension_support( const std::vector<const char*>& extensions )
 {
     // Retrieve a list of supported extensions
@@ -197,10 +213,12 @@ bool TriangleApplication::vk_check_extension_support( const std::vector<const ch
 
     // Check if all the required extensions are supported
     return compare_support_containers<VkExtensionProperties>( extensions, availableExtensions,
-                                                              []( const VkExtensionProperties& extension ) {
-                                                                  return extension.extensionName;
-                                                              } );
+                                                              []( const VkExtensionProperties& extension )
+                                                                  {
+                                                                      return extension.extensionName;
+                                                                  } );
 }
+
 
 bool TriangleApplication::vk_check_validation_layer_support( const std::vector<const char*>& layers )
 {
@@ -211,10 +229,12 @@ bool TriangleApplication::vk_check_validation_layer_support( const std::vector<c
     vkEnumerateInstanceLayerProperties( &layerCount, availableLayers.data( ) );
 
     return compare_support_containers<VkLayerProperties>( layers, availableLayers,
-                                                          []( const VkLayerProperties& layer ) {
-                                                              return layer.layerName;
-                                                          } );
+                                                          []( const VkLayerProperties& layer )
+                                                              {
+                                                                  return layer.layerName;
+                                                              } );
 }
+
 
 void TriangleApplication::vk_pick_physical_device( )
 {
@@ -247,6 +267,7 @@ void TriangleApplication::vk_pick_physical_device( )
     }
 }
 
+
 bool TriangleApplication::vk_is_device_suitable( const VkPhysicalDevice device ) const
 {
     const query::QueueFamilyIndices indices{ query::find_queue_families( device, surface_ ) };
@@ -262,10 +283,14 @@ bool TriangleApplication::vk_is_device_suitable( const VkPhysicalDevice device )
         swapChainAdequate = !swapChainSupport.formats.empty( ) && !swapChainSupport.presentModes.empty( );
     }
 
-    return indices.is_suitable( ) && extensionsSupported && swapChainAdequate;
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures( device, &supportedFeatures );
+
+    return indices.is_suitable( ) && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
-bool TriangleApplication::vk_check_device_extension_support( VkPhysicalDevice device )
+
+bool TriangleApplication::vk_check_device_extension_support( const VkPhysicalDevice device )
 {
     // Check if the device supports the required extensions
     uint32_t extensionCount{};
@@ -283,6 +308,7 @@ bool TriangleApplication::vk_check_device_extension_support( VkPhysicalDevice de
 
     return requiredExtensions.empty( );
 }
+
 
 void TriangleApplication::vk_create_logical_device( )
 {
@@ -310,6 +336,7 @@ void TriangleApplication::vk_create_logical_device( )
     // The next information to specify is the set of device features that we'll be using.
     // These are the features that we queried support for with vkGetPhysicalDeviceFeatures.
     VkPhysicalDeviceFeatures deviceFeatures{};
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
 
     // Create the logical device
     VkDeviceCreateInfo createInfo{};
@@ -355,6 +382,7 @@ void TriangleApplication::vk_create_logical_device( )
     vkGetDeviceQueue( device_, indices.presentFamily.value( ), 0, &present_queue_ );
 }
 
+
 void TriangleApplication::vk_create_surface( )
 {
     // To manage the output window, we need to include a parameter for the instance, surface creation details,
@@ -367,6 +395,7 @@ void TriangleApplication::vk_create_surface( )
         throw std::runtime_error( "Failed to create window surface! Error: " + get_result_string( result ) );
     }
 }
+
 
 void TriangleApplication::vk_create_swap_chain( )
 {
@@ -383,8 +412,8 @@ void TriangleApplication::vk_create_swap_chain( )
     uint32_t imageCount = std::clamp( bufferingAim, swapChainSupport.capabilities.minImageCount,
                                       swapChainSupport.capabilities.maxImageCount );
 
-    // If maxImageCount doesn't have a cap, it will be set to -1, we adjust it to the buffering aim.
-    if ( imageCount == -1 )
+    // If maxImageCount doesn't have a cap, it will be set to 0, we adjust it to the buffering aim.
+    if ( imageCount == 0 )
     {
         imageCount = bufferingAim;
     }
@@ -452,6 +481,7 @@ void TriangleApplication::vk_create_swap_chain( )
     swapchain_extent_       = extent;
 }
 
+
 VkSurfaceFormatKHR TriangleApplication::vk_choose_swap_surface_format(
     const std::vector<VkSurfaceFormatKHR>& availableFormats ) const
 {
@@ -470,6 +500,7 @@ VkSurfaceFormatKHR TriangleApplication::vk_choose_swap_surface_format(
     // If that fails then we can settle with the first format that is specified.
     return availableFormats[0];
 }
+
 
 VkPresentModeKHR TriangleApplication::vk_choose_swap_present_mode(
     const std::vector<VkPresentModeKHR>& availablePresentModes ) const
@@ -492,6 +523,7 @@ VkPresentModeKHR TriangleApplication::vk_choose_swap_present_mode(
     // VK_PRESENT_MODE_FIFO_KHR mode is guaranteed to be available.
     return VK_PRESENT_MODE_FIFO_KHR;
 }
+
 
 VkExtent2D TriangleApplication::vk_choose_swap_extent( const VkSurfaceCapabilitiesKHR& capabilities ) const
 {
@@ -523,43 +555,61 @@ VkExtent2D TriangleApplication::vk_choose_swap_extent( const VkSurfaceCapabiliti
     }
 }
 
+
+void TriangleApplication::vk_recreate_swap_chain( )
+{
+    // In case the window gets minimized, we wait until it gets restored.
+    int width = 0, height = 0;
+    glfwGetFramebufferSize( window_ptr_, &width, &height );
+    // perhaps use thread sleep instead of while
+    while ( width == 0 || height == 0 )
+    {
+        glfwGetFramebufferSize( window_ptr_, &width, &height );
+        glfwWaitEvents( );
+    }
+
+    // It is possible to create a new swap chain while drawing commands on an image from the old swap chain are still
+    // in-flight. You need to pass the previous swap chain to the oldSwapChain field in the VkSwapchainCreateInfoKHR
+    // struct and destroy the old swap chain as soon as you've finished using it.
+    vkDeviceWaitIdle( device_ );
+
+    vk_cleanup_swap_chain( );
+
+    vk_create_swap_chain( );
+    vk_create_image_views( );
+    vk_create_frame_buffers( );
+}
+
+
+void TriangleApplication::vk_cleanup_swap_chain( ) const
+{
+    for ( const auto framebuffer : swapchain_frame_buffers_ )
+    {
+        vkDestroyFramebuffer( device_, framebuffer, nullptr );
+    }
+
+    for ( const auto imageView : swapchain_image_views_ )
+    {
+        // Unlike images, the image views were explicitly created by us, so we need to destroy them.
+        vkDestroyImageView( device_, imageView, nullptr );
+    }
+
+    vkDestroySwapchainKHR( device_, swapchain_, nullptr );
+}
+
+
 void TriangleApplication::vk_create_image_views( )
 {
     // To use any VkImage, in the render pipeline we have to create a VkImageView object. An image view is a view into
     // an image. It describes how to access the image and which part of the image to access.
     swapchain_image_views_.resize( swapchain_images_.size( ) );
-    for ( size_t i = 0; i < swapchain_images_.size( ); i++ )
+
+    for ( uint32_t i = 0; i < swapchain_images_.size( ); i++ )
     {
-        // Populate a create info struct for every image view
-        VkImageViewCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = swapchain_images_[i];
-
-        // The viewType and format fields specify how the image data should be interpreted.
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format   = swapchain_image_format_;
-
-        // The components field allows you to swizzle the color channels around.
-        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-        // The subresourceRange field describes what the image's purpose is and which part of the image should be
-        // accessed.
-        createInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        createInfo.subresourceRange.baseMipLevel   = 0;
-        createInfo.subresourceRange.levelCount     = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        createInfo.subresourceRange.layerCount     = 1;
-
-        if ( const auto result = vkCreateImageView( device_, &createInfo, nullptr, &swapchain_image_views_[i] );
-            result != VK_SUCCESS )
-        {
-            throw std::runtime_error( "Failed to create image views! Error: " + get_result_string( result ) );
-        }
+        swapchain_image_views_[i] = vk_create_image_view( swapchain_images_[i], swapchain_image_format_ );
     }
 }
+
 
 void TriangleApplication::vk_create_render_pass( )
 {
@@ -622,6 +672,44 @@ void TriangleApplication::vk_create_render_pass( )
     }
 }
 
+
+void TriangleApplication::vk_create_descriptor_set_layout( )
+{
+    VkDescriptorSetLayoutBinding uboLayoutBinding{};
+
+    // The first two fields specify the binding used in the shader and the type of descriptor, which is a uniform buffer
+    // object. It is possible for the shader variable to represent an array of uniform buffer objects, and
+    // descriptorCount specifies the number of values in the array.
+    uboLayoutBinding.binding         = 0;
+    uboLayoutBinding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.descriptorCount = 1;
+
+    uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+    samplerLayoutBinding.binding            = 1;
+    samplerLayoutBinding.descriptorCount    = 1;
+    samplerLayoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    const std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboLayoutBinding, samplerLayoutBinding };
+
+    // We need to specify the descriptor set layout during pipeline creation to tell Vulkan which descriptors the
+    // shaders will be using.
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = static_cast<uint32_t>( bindings.size( ) );
+    layoutInfo.pBindings    = bindings.data( );
+
+    if ( const auto result = vkCreateDescriptorSetLayout( device_, &layoutInfo, nullptr, &descriptor_set_layout_ );
+        result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to create descriptor set layout! " + get_result_string( result ) );
+    }
+}
+
+
 void TriangleApplication::vk_create_graphics_pipeline( )
 {
     const auto vertShaderCode = shader::read_file( "shaders/shader.vert.spv" );
@@ -655,12 +743,15 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     // 1. Bindings: spacing between data and whether the data is per-vertex or per-instance.
     // 2. Attribute descriptions: type of the attributes passed to the vertex shader, which binding to load them from
     // and at which offset.
+    auto bindingDescription    = Vertex::get_binding_description( );
+    auto attributeDescriptions = Vertex::get_attribute_descriptions( );
+
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount   = 0;
-    vertexInputInfo.pVertexBindingDescriptions      = nullptr; // Optional
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions    = nullptr; // Optional
+    vertexInputInfo.pVertexBindingDescriptions      = &bindingDescription;
+    vertexInputInfo.vertexBindingDescriptionCount   = 1;
+    vertexInputInfo.pVertexAttributeDescriptions    = attributeDescriptions.data( );
+    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>( attributeDescriptions.size( ) );
 
     // The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn from
     // the vertices and if primitive restart should be enabled.
@@ -669,7 +760,7 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     inputAssembly.topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
 
-    // At last we specify their count at pipeline creation time.
+    // At last, we specify their count at pipeline creation time.
     VkPipelineViewportStateCreateInfo viewportState{};
     viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
@@ -692,6 +783,10 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     rasterizer.cullMode                = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace               = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable         = VK_FALSE;
+
+    // Culling
+    rasterizer.cullMode  = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     // The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform
     // antialiasing.
@@ -749,11 +844,9 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     // at drawing time to alter the behavior of your shaders without having to recreate them. They are commonly used to
     // pass the transformation matrix to the vertex shader, or to create texture samplers in the fragment shader.
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount         = 0;       // Optional
-    pipelineLayoutInfo.pSetLayouts            = nullptr; // Optional
-    pipelineLayoutInfo.pushConstantRangeCount = 0;       // Optional
-    pipelineLayoutInfo.pPushConstantRanges    = nullptr; // Optional
+    pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts    = &descriptor_set_layout_;
 
     if ( const auto result = vkCreatePipelineLayout( device_, &pipelineLayoutInfo, nullptr, &pipeline_layout_ );
         result != VK_SUCCESS )
@@ -775,7 +868,7 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     pipelineInfo.stageCount = 2;
     pipelineInfo.pStages    = shaderStages;
 
-    // 2. Then we reference all of the structures describing the fixed-function stage.
+    // 2. Then we reference all the structures describing the fixed-function stage.
     pipelineInfo.pVertexInputState   = &vertexInputInfo;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
     pipelineInfo.pViewportState      = &viewportState;
@@ -817,9 +910,398 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     vkDestroyShaderModule( device_, vertShaderModule, nullptr );
 }
 
-void TriangleApplication::vk_create_framebuffers( )
+
+void TriangleApplication::vk_create_buffer( const VkDeviceSize size, const VkBufferUsageFlags usage,
+                                            const VkMemoryPropertyFlags properties, VkBuffer& buffer,
+                                            VkDeviceMemory& bufferMemory ) const
 {
-    swapchain_framebuffers_.resize( swapchain_image_views_.size( ) );
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size        = size;
+    bufferInfo.usage       = usage;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if ( const auto result = vkCreateBuffer( device_, &bufferInfo, nullptr, &buffer ); result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to create buffer! " + get_result_string( result ) );
+    }
+
+    // The first step of allocating memory for the buffer is to query its memory requirements.
+    // The VkMemoryRequirements struct has three fields:
+    // 1. size: The size of the required amount of memory in bytes, may differ from bufferInfo.size.
+    // 2. alignment: The offset in bytes where the buffer begins in the allocated region of memory, depends on
+    //    bufferInfo.usage and bufferInfo.flags
+    // 3. memoryTypeBits: Bit field of the memory types that are suitable for the buffer.
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements( device_, buffer, &memRequirements );
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize  = memRequirements.size;
+    allocInfo.memoryTypeIndex = query::find_memory_type( physical_device_, memRequirements.memoryTypeBits, properties );
+
+    if ( const auto result = vkAllocateMemory( device_, &allocInfo, nullptr, &bufferMemory ); result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to allocate buffer memory! " + get_result_string( result ) );
+    }
+
+    // If memory allocation was successful, then we can now associate this memory with the buffer.
+    // Since this memory is allocated specifically for this vertex buffer, the offset is simply 0. If the offset is
+    // non-zero, then it is required to be divisible by memRequirements.alignment.
+    vkBindBufferMemory( device_, buffer, bufferMemory, 0 );
+}
+
+
+void TriangleApplication::vk_copy_buffer( const VkBuffer srcBuffer, const VkBuffer dstBuffer,
+                                          const VkDeviceSize size ) const
+{
+    VkCommandBuffer commandBuffer{ begin_single_time_commands( device_, command_pool_ ) };
+
+    VkBufferCopy copyRegion{};
+    copyRegion.size = size;
+    vkCmdCopyBuffer( commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion );
+
+    end_single_time_commands( device_, command_pool_, commandBuffer, graphics_queue_ );
+}
+
+
+void TriangleApplication::vk_create_image( const uint32_t width, const uint32_t height, const VkFormat format,
+                                           const VkImageTiling tiling, const VkImageUsageFlags usage,
+                                           const VkMemoryPropertyFlags properties,
+                                           VkImage& image, VkDeviceMemory& imageMemory ) const
+{
+    // Create texture image
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType     = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width  = width;
+    imageInfo.extent.height = height;
+    imageInfo.extent.depth  = 1;
+    imageInfo.mipLevels     = 1;
+    imageInfo.arrayLayers   = 1;
+
+    // Tell vulkan what kind of texels we are going to use
+    imageInfo.format = format;
+
+    // The tiling field can have one of two values:
+    // 1. VK_IMAGE_TILING_LINEAR: Texels are laid out in row major order like our pixels array.
+    // 2. VK_IMAGE_TILING_OPTIMAL: Texels are laid out in an implementation defined order for optimal access.
+    imageInfo.tiling = tiling;
+
+    // There are only two possible values for the initialLayout of an image:
+    // 1. VK_IMAGE_LAYOUT_UNDEFINED: Not usable by the GPU and the very first transition will discard the texels.
+    // 2. VK_IMAGE_LAYOUT_PREINITIALIZED: Not usable by the GPU, but the first transition will preserve the texels.
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    imageInfo.usage       = usage;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples     = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.flags       = 0; // Optional
+
+    if ( const auto result = vkCreateImage( device_, &imageInfo, nullptr, &image ); result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to create image! " + get_result_string( result ) );
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements( device_, image, &memRequirements );
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize  = memRequirements.size;
+    allocInfo.memoryTypeIndex = query::find_memory_type( physical_device_, memRequirements.memoryTypeBits,
+                                                         properties );
+
+    if ( vkAllocateMemory( device_, &allocInfo, nullptr, &imageMemory ) != VK_SUCCESS )
+    {
+        throw std::runtime_error( "failed to allocate image memory!" );
+    }
+
+    vkBindImageMemory( device_, image, imageMemory, 0 );
+}
+
+
+VkImageView TriangleApplication::vk_create_image_view( const VkImage image, const VkFormat format ) const
+{
+    // Populate a create info struct for every image view
+    VkImageViewCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = image;
+
+    // The viewType and format fields specify how the image data should be interpreted.
+    createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    createInfo.format   = format;
+
+    // The components field allows you to swizzle the color channels around.
+    createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+    // The subresourceRange field describes what the image's purpose is and which part of the image should be
+    // accessed.
+    createInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    createInfo.subresourceRange.baseMipLevel   = 0;
+    createInfo.subresourceRange.levelCount     = 1;
+    createInfo.subresourceRange.baseArrayLayer = 0;
+    createInfo.subresourceRange.layerCount     = 1;
+
+    VkImageView imageView;
+    if ( const auto result = vkCreateImageView( device_, &createInfo, nullptr, &imageView ); result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to create texture image view! Result: " + get_result_string( result ) );
+    }
+
+    return imageView;
+}
+
+
+void TriangleApplication::vk_create_texture_image( )
+{
+    int texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load( "resources/texture.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha );
+    const VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+    if ( not pixels )
+    {
+        throw std::runtime_error( "Failed to load texture image!" );
+    }
+
+    vk_create_buffer( imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer_,
+                      staging_buffer_memory_ );
+
+    void* data;
+    vkMapMemory( device_, staging_buffer_memory_, 0, imageSize, 0, &data );
+    memcpy( data, pixels, static_cast<size_t>( imageSize ) );
+    vkUnmapMemory( device_, staging_buffer_memory_ );
+
+    // Cleanup original pixel data
+    stbi_image_free( pixels );
+
+    vk_create_image( static_cast<uint32_t>( texWidth ), static_cast<uint32_t>( texHeight ), VK_FORMAT_R8G8B8A8_SRGB,
+                     VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture_image_, texture_image_memory_ );
+
+    vk_transition_image_layout( texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
+                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+    vk_copy_buffer_to_image( staging_buffer_, texture_image_, static_cast<uint32_t>( texWidth ),
+                             static_cast<uint32_t>( texHeight ) );
+    vk_transition_image_layout( texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+
+    vkDestroyBuffer( device_, staging_buffer_, nullptr );
+    vkFreeMemory( device_, staging_buffer_memory_, nullptr );
+}
+
+
+void TriangleApplication::vk_create_texture_image_view( )
+{
+    texture_image_view_ = vk_create_image_view( texture_image_, VK_FORMAT_R8G8B8A8_SRGB );
+}
+
+
+void TriangleApplication::vk_create_texture_sampler( )
+{
+    VkSamplerCreateInfo samplerInfo{};
+
+    // The magFilter and minFilter fields specify how to interpolate texels that are magnified or minified.
+    samplerInfo.sType     = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties( physical_device_, &properties );
+
+    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.maxAnisotropy    = properties.limits.maxSamplerAnisotropy;
+
+    // samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable           = VK_FALSE;
+    samplerInfo.compareOp               = VK_COMPARE_OP_ALWAYS;
+
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.minLod     = 0.0f;
+    samplerInfo.maxLod     = 0.0f;
+
+    if ( const auto result = vkCreateSampler( device_, &samplerInfo, nullptr, &texture_sampler_ );
+        result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to create texture sampler! Error: " + get_result_string( result ) );
+    }
+}
+
+
+void TriangleApplication::vk_transition_image_layout( const VkImage image, const VkFormat /* format */,
+                                                      const VkImageLayout oldLayout,
+                                                      const VkImageLayout newLayout ) const
+{
+    const VkCommandBuffer commandBuffer = begin_single_time_commands( device_, command_pool_ );
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType     = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+    barrier.image                           = image;
+    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel   = 0;
+    barrier.subresourceRange.levelCount     = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount     = 1;
+
+    barrier.srcAccessMask = 0; // TODO
+    barrier.dstAccessMask = 0; // TODO
+
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+
+    if ( oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL )
+    {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if ( oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout ==
+              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL )
+    {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else
+    {
+        throw std::invalid_argument( "Unsupported layout transition!" );
+    }
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        sourceStage, destinationStage,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
+    );
+
+    end_single_time_commands( device_, command_pool_, commandBuffer, graphics_queue_ );
+}
+
+
+void TriangleApplication::vk_copy_buffer_to_image( const VkBuffer buffer, const VkImage image, const uint32_t width,
+                                                   const uint32_t height ) const
+{
+    const VkCommandBuffer commandBuffer = begin_single_time_commands( device_, command_pool_ );
+
+    VkBufferImageCopy region{};
+    region.bufferOffset      = 0;
+    region.bufferRowLength   = 0;
+    region.bufferImageHeight = 0;
+
+    region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel       = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount     = 1;
+
+    region.imageOffset = { 0, 0, 0 };
+    region.imageExtent = {
+        width,
+        height,
+        1
+    };
+
+    vkCmdCopyBufferToImage(
+        commandBuffer,
+        buffer,
+        image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &region
+    );
+
+    end_single_time_commands( device_, command_pool_, commandBuffer, graphics_queue_ );
+}
+
+
+void TriangleApplication::vk_create_vertex_buffer( )
+{
+    const VkDeviceSize bufferSize = sizeof( vertices_[0] ) * vertices_.size( );
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    // We're now using a new stagingBuffer with stagingBufferMemory for mapping and copying the vertex data. This will
+    // load vertex data from high performance memory.
+    // - VK_BUFFER_USAGE_TRANSFER_SRC_BIT: Buffer can be used as source in a memory transfer operation.
+    // - VK_BUFFER_USAGE_TRANSFER_DST_BIT: Buffer can be used as destination in a memory transfer operation.
+    vk_create_buffer( bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                      stagingBuffer, stagingBufferMemory );
+
+    // It is now time to copy the vertex data to the buffer. This is done by mapping the buffer memory into CPU
+    // accessible memory. memcpy the vertex data to the mapped memory and unmap it again.
+    void* data;
+    vkMapMemory( device_, stagingBufferMemory, 0, bufferSize, 0, &data );
+
+    // ReSharper disable once CppRedundantCastExpression
+    memcpy( data, vertices_.data( ), static_cast<size_t>( bufferSize ) );
+
+    vkUnmapMemory( device_, stagingBufferMemory );
+
+    vk_create_buffer( bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertex_buffer_, vertex_buffer_memory_ );
+
+    vk_copy_buffer( stagingBuffer, vertex_buffer_, bufferSize );
+
+    // We can now destroy the staging buffer and free its memory.
+    vkDestroyBuffer( device_, stagingBuffer, nullptr );
+    vkFreeMemory( device_, stagingBufferMemory, nullptr );
+}
+
+
+void TriangleApplication::vk_create_index_buffer( )
+{
+    const VkDeviceSize bufferSize = sizeof( indices_[0] ) * indices_.size( );
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    vk_create_buffer( bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
+                      stagingBufferMemory );
+
+    void* data;
+    vkMapMemory( device_, stagingBufferMemory, 0, bufferSize, 0, &data );
+
+    // ReSharper disable once CppRedundantCastExpression
+    memcpy( data, indices_.data( ), static_cast<size_t>( bufferSize ) );
+
+    vkUnmapMemory( device_, stagingBufferMemory );
+
+    vk_create_buffer( bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, index_buffer_, index_buffer_memory_ );
+
+    vk_copy_buffer( stagingBuffer, index_buffer_, bufferSize );
+
+    vkDestroyBuffer( device_, stagingBuffer, nullptr );
+    vkFreeMemory( device_, stagingBufferMemory, nullptr );
+}
+
+
+void TriangleApplication::vk_create_frame_buffers( )
+{
+    swapchain_frame_buffers_.resize( swapchain_image_views_.size( ) );
 
     for ( size_t i = 0; i < swapchain_image_views_.size( ); i++ )
     {
@@ -842,13 +1324,110 @@ void TriangleApplication::vk_create_framebuffers( )
         framebufferInfo.height = swapchain_extent_.height;
         framebufferInfo.layers = 1;
 
-        if ( const auto result = vkCreateFramebuffer( device_, &framebufferInfo, nullptr, &swapchain_framebuffers_[i] );
+        if ( const auto result = vkCreateFramebuffer( device_, &framebufferInfo, nullptr, &swapchain_frame_buffers_[i] )
+            ;
             result != VK_SUCCESS )
         {
             throw std::runtime_error( "Failed to create framebuffer! Error: " + get_result_string( result ) );
         }
     }
 }
+
+
+void TriangleApplication::vk_create_uniform_buffers( )
+{
+    uniform_buffers_.resize( MAX_FRAMES_IN_FLIGHT_ );
+    uniform_buffers_memory_.resize( MAX_FRAMES_IN_FLIGHT_ );
+    uniform_buffers_mapped_.resize( MAX_FRAMES_IN_FLIGHT_ );
+
+    // We map the buffer right after creation using vkMapMemory to get a pointer to which we can write the data later on.
+    // The buffer stays mapped to this pointer for the application's whole lifetime. This technique is called
+    // "persistent mapping" and works on all Vulkan implementations.
+    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        constexpr VkDeviceSize bufferSize = sizeof( UniformBufferObject );
+        vk_create_buffer( bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                          uniform_buffers_[i], uniform_buffers_memory_[i] );
+
+        vkMapMemory( device_, uniform_buffers_memory_[i], 0, bufferSize, 0, &uniform_buffers_mapped_[i] );
+    }
+}
+
+
+void TriangleApplication::vk_create_descriptor_pool( )
+{
+    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    poolSizes[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[0].descriptorCount = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
+    poolSizes[1].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    poolSizes[1].descriptorCount = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<uint32_t>( poolSizes.size( ) );
+    poolInfo.pPoolSizes    = poolSizes.data( );
+
+    poolInfo.maxSets = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
+
+    if ( const auto result = vkCreateDescriptorPool( device_, &poolInfo, nullptr, &descriptor_pool_ );
+        result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to create descriptor pool! Error: " + get_result_string( result ) );
+    }
+}
+
+
+void TriangleApplication::vk_create_descriptor_sets( )
+{
+    const std::vector<VkDescriptorSetLayout> layouts( MAX_FRAMES_IN_FLIGHT_, descriptor_set_layout_ );
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool     = descriptor_pool_;
+    allocInfo.descriptorSetCount = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
+    allocInfo.pSetLayouts        = layouts.data( );
+
+    descriptor_sets_.resize( MAX_FRAMES_IN_FLIGHT_ );
+    if ( const auto result = vkAllocateDescriptorSets( device_, &allocInfo, descriptor_sets_.data( ) );
+        result != VK_SUCCESS )
+    {
+        throw std::runtime_error( "Failed to allocate descriptor sets! " + get_result_string( result ) );
+    }
+
+    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = uniform_buffers_[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range  = sizeof( UniformBufferObject );
+
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView   = texture_image_view_;
+        imageInfo.sampler     = texture_sampler_;
+
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+        descriptorWrites[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet          = descriptor_sets_[i];
+        descriptorWrites[0].dstBinding      = 0;
+        descriptorWrites[0].dstArrayElement = 0;
+        descriptorWrites[0].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo     = &bufferInfo;
+
+        descriptorWrites[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet          = descriptor_sets_[i];
+        descriptorWrites[1].dstBinding      = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo      = &imageInfo;
+
+        vkUpdateDescriptorSets( device_, static_cast<uint32_t>( descriptorWrites.size( ) ),
+                                descriptorWrites.data( ), 0, nullptr );
+    }
+}
+
 
 void TriangleApplication::vk_create_command_pool( )
 {
@@ -871,7 +1450,8 @@ void TriangleApplication::vk_create_command_pool( )
     }
 }
 
-void TriangleApplication::vk_create_command_buffer( )
+
+void TriangleApplication::vk_create_command_buffers( )
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -882,13 +1462,15 @@ void TriangleApplication::vk_create_command_buffer( )
     // command buffers.
     // - VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from primary command buffers
     allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
+    allocInfo.commandBufferCount = command_buffers_.size( );
 
-    if ( const auto result = vkAllocateCommandBuffers( device_, &allocInfo, &command_buffer_ ); result != VK_SUCCESS )
+    if ( const auto result = vkAllocateCommandBuffers( device_, &allocInfo, command_buffers_.data( ) );
+        result != VK_SUCCESS )
     {
         throw std::runtime_error( "Failed to allocate command buffers! Error: " + get_result_string( result ) );
     }
 }
+
 
 void TriangleApplication::vk_create_sync_objects( )
 {
@@ -899,34 +1481,47 @@ void TriangleApplication::vk_create_sync_objects( )
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 
     // The VK_FENCE_CREATE_SIGNALED_BIT flag specifies that the fence object is created in the signaled state.
-    // This allows us to skip the first render frame or we would otherwise be stuck waiting at the start.
+    // This allows us to skip the first render frame, or we would otherwise be stuck waiting at the start.
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    if ( const auto result = vkCreateSemaphore( device_, &semaphoreInfo, nullptr, &image_available_semaphore_ );
-        result != VK_SUCCESS )
+    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
-        throw std::runtime_error( "Failed to create image semaphore! Error: " + get_result_string( result ) );
-    }
-
-    if ( const auto result = vkCreateSemaphore( device_, &semaphoreInfo, nullptr, &render_finished_semaphore_ );
-        result != VK_SUCCESS )
-    {
-        throw std::runtime_error( "Failed to create render semaphore! Error: " + get_result_string( result ) );
-    }
-
-    if ( const auto result = vkCreateFence( device_, &fenceInfo, nullptr, &in_flight_fence_ ); result != VK_SUCCESS )
-    {
-        throw std::runtime_error( "Failed to create fence! Error: " + get_result_string( result ) );
+        if ( const auto result = vkCreateSemaphore( device_, &semaphoreInfo, nullptr, &image_available_semaphores_[i] );
+            result != VK_SUCCESS )
+        {
+            throw std::runtime_error( "Failed to create image semaphore! Error: " + get_result_string( result ) );
+        }
+        if ( const auto result = vkCreateSemaphore( device_, &semaphoreInfo, nullptr, &render_finished_semaphores_[i] );
+            result != VK_SUCCESS )
+        {
+            throw std::runtime_error( "Failed to create render semaphore! Error: " + get_result_string( result ) );
+        }
+        if ( const auto result = vkCreateFence( device_, &fenceInfo, nullptr, &in_flight_fences_[i] );
+            result != VK_SUCCESS )
+        {
+            throw std::runtime_error( "Failed to create fence! Error: " + get_result_string( result ) );
+        }
     }
 }
 
+
 VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                                              VkDebugUtilsMessageTypeFlagsEXT messageType,
+                                              VkDebugUtilsMessageTypeFlagsEXT /* messageType */,
                                               const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-                                              void* pUserData )
+                                              void* /* pUserData */ )
 {
     std::string severityColor{};
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
     constexpr std::string resetColor{ "\e[0m" };
+#pragma GCC diagnostic pop
+#else
+#pragma warning(push, 0)
+    constexpr std::string resetColor{ "\e[0m" };
+#pragma warning(pop)
+#endif
 
     switch ( messageSeverity )
     {
@@ -951,6 +1546,14 @@ VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBit
     return VK_FALSE;
 }
 
+
+void TriangleApplication::frame_buffer_size_callback( GLFWwindow* pWindow, int /* width */, int /* height */ )
+{
+    auto* app                  = static_cast<TriangleApplication*>( glfwGetWindowUserPointer( pWindow ) );
+    app->frame_buffer_resized_ = true;
+}
+
+
 VkResult TriangleApplication::vk_create_debug_utils_messenger_EXT( VkInstance instance,
                                                                    const VkDebugUtilsMessengerCreateInfoEXT*
                                                                    pCreateInfo,
@@ -966,19 +1569,23 @@ VkResult TriangleApplication::vk_create_debug_utils_messenger_EXT( VkInstance in
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
+
 void TriangleApplication::vk_destroy_debug_utils_messenger_EXT( VkInstance instance,
                                                                 VkDebugUtilsMessengerEXT debugMessenger,
                                                                 const VkAllocationCallbacks* pAllocator )
 {
-    const auto func = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>( vkGetInstanceProcAddr(
-        instance, "vkDestroyDebugUtilsMessengerEXT" ) );
+    const auto func =
+            reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>( vkGetInstanceProcAddr(
+                instance, "vkDestroyDebugUtilsMessengerEXT" ) );
     if ( func != nullptr )
     {
         func( instance, debugMessenger, pAllocator );
     }
 }
 
-void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBuffer, const uint32_t imageIndex ) const
+
+void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBuffer, // NOLINT(*-misplaced-const)
+                                                 const uint32_t imageIndex ) const
 {
     // We always begin recording a command buffer by calling vkBeginCommandBuffer with a small VkCommandBufferBeginInfo
     // structure as argument that specifies some details about the usage of this specific command buffer.
@@ -1006,14 +1613,14 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass  = render_pass_;
-    renderPassInfo.framebuffer = swapchain_framebuffers_[imageIndex];
+    renderPassInfo.framebuffer = swapchain_frame_buffers_[imageIndex];
 
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapchain_extent_;
 
-    VkClearValue clearColor        = { { { 0.0f, 0.0f, 0.0f, 1.0f } } };
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues    = &clearColor;
+    constexpr VkClearValue clearColor = { { { 0.0f, 0.0f, 0.0f, 1.0f } } };
+    renderPassInfo.clearValueCount    = 1;
+    renderPassInfo.pClearValues       = &clearColor;
 
     // The first parameter for every command is always the command buffer to record the command to. The second parameter
     // specifies the details of the render pass we've just provided. The final parameter controls how the drawing
@@ -1044,12 +1651,19 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
     scissor.extent = swapchain_extent_;
     vkCmdSetScissor( commandBuffer, 0, 1, &scissor );
 
-    // We now issue the draw command. It has the following parameters, aside from the command buffer:
-    // - vertexCount:   Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
-    // - instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-    // - firstVertex:   Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
-    // - firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-    vkCmdDraw( commandBuffer, 3, 1, 0, 0 );
+    const VkBuffer vertexBuffers[]{ vertex_buffer_ };
+    constexpr VkDeviceSize offsets[]{ 0 };
+    vkCmdBindVertexBuffers( commandBuffer, 0, 1, vertexBuffers, offsets );
+
+    vkCmdBindIndexBuffer( commandBuffer, index_buffer_, 0, VK_INDEX_TYPE_UINT32 );
+
+    // Bind the right descriptor set for each frame to the descriptors in the shader.
+    vkCmdBindDescriptorSets( commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1,
+                             &descriptor_sets_[current_frame_], 0, nullptr );
+
+    // We now issue the draw command. The number of indices represents the number of vertices that will be passed to
+    // the vertex shader.
+    vkCmdDrawIndexed( commandBuffer, static_cast<uint32_t>( indices_.size( ) ), 1, 0, 0, 0 );
 
     // After we've finished recording the command buffer, we end the render pass with vkCmdEndRenderPass.
     vkCmdEndRenderPass( commandBuffer );
@@ -1060,7 +1674,28 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
     }
 }
 
-void TriangleApplication::draw_frame( ) const
+
+void TriangleApplication::update_uniform_buffer( const uint32_t currentImage ) const
+{
+    static auto startTime = std::chrono::high_resolution_clock::now( );
+
+    const auto currentTime = std::chrono::high_resolution_clock::now( );
+    const float time = std::chrono::duration<float, std::chrono::seconds::period>( currentTime - startTime ).count( );
+
+    UniformBufferObject ubo{};
+    ubo.model = glm::rotate( glm::mat4( 1.0f ), time * glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
+    ubo.view  = glm::lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ),
+                             glm::vec3( 0.0f, 0.0f, 1.0f ) );
+    ubo.proj = glm::perspective( glm::radians( 45.0f ),
+                                 swapchain_extent_.width / static_cast<float>( swapchain_extent_.height ), 0.1f,
+                                 10.0f );
+    ubo.proj[1][1] *= -1;
+
+    memcpy( uniform_buffers_mapped_[currentImage], &ubo, sizeof( ubo ) );
+}
+
+
+void TriangleApplication::draw_frame( )
 {
     // At a high level, rendering a frame in Vulkan consists of a common set of steps:
     // 1. Wait for the previous frame to finish.
@@ -1089,41 +1724,65 @@ void TriangleApplication::draw_frame( ) const
     // The VK_TRUE we pass here indicates that we want to wait for all fences, but in the case of a single one it
     // doesn't matter. This function also has a timeout parameter set to UINT64_MAX, which effectively disables the
     // timeout.
-    vkWaitForFences( device_, 1, &in_flight_fence_, VK_TRUE, UINT64_MAX );
-
-    // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.
-    vkResetFences( device_, 1, &in_flight_fence_ );
+    vkWaitForFences( device_, 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX );
 
     // The first two parameters of vkAcquireNextImageKHR are the logical device and the swap chain from which we wish
     // to acquire an image.
     uint32_t imageIndex{};
-    vkAcquireNextImageKHR( device_, swapchain_, UINT64_MAX, image_available_semaphore_, VK_NULL_HANDLE, &imageIndex );
+    const auto acquireImageResult = vkAcquireNextImageKHR( device_, swapchain_, UINT64_MAX,
+                                                           image_available_semaphores_[current_frame_],
+                                                           VK_NULL_HANDLE,
+                                                           &imageIndex );
+
+    // If viewport changes, recreate the swap chain.
+    // - VK_ERROR_OUT_OF_DATE_KHR: The swap chain has become incompatible with the surface and can no longer be used for
+    // rendering. Usually happens after a window resize.
+    // - VK_SUBOPTIMAL_KHR: The swap chain can still be used to successfully present to the surface, but the surface
+    // properties are no longer matched exactly.
+    if ( acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR )
+    {
+        // vk_recreate_swap_chain( );
+        return;
+    }
+    if ( acquireImageResult != VK_SUCCESS && acquireImageResult != VK_SUBOPTIMAL_KHR )
+    {
+        throw std::runtime_error( "Failed to acquire image result! Error: " + get_result_string( acquireImageResult ) );
+    }
+
+    // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.
+    // We reset the fence only if there's work to do, which is why we're doing it after the resize check.
+    // You should not return before work is completed or DEADLOCK will occur.
+    vkResetFences( device_, 1, &in_flight_fences_[current_frame_] );
 
     // With the imageIndex specifying the swap chain image to use in hand, we can now record the command buffer.
-    vkResetCommandBuffer( command_buffer_, 0 );
-    record_command_buffer( command_buffer_, imageIndex );
+    vkResetCommandBuffer( command_buffers_[current_frame_], 0 );
+    record_command_buffer( command_buffers_[current_frame_], imageIndex );
+
+    // We need to submit the recorded command buffer to the graphics queue before submitting the image to the swap chain.
+    update_uniform_buffer( current_frame_ );
 
     // Queue submission and synchronization is configured through parameters in the VkSubmitInfo structure.
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo.waitSemaphoreCount     = 1;
-    submitInfo.pWaitSemaphores        = &image_available_semaphore_;
-    submitInfo.pWaitDstStageMask      = waitStages;
+    constexpr VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    submitInfo.waitSemaphoreCount               = 1;
+    submitInfo.pWaitSemaphores                  = &image_available_semaphores_[current_frame_];
+    submitInfo.pWaitDstStageMask                = waitStages;
 
     // Set which command buffers to actually submit for execution.
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers    = &command_buffer_;
+    submitInfo.pCommandBuffers    = &command_buffers_[current_frame_];
 
     // The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command
     // buffer(s) have finished execution
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores    = &render_finished_semaphore_;
+    submitInfo.pSignalSemaphores    = &render_finished_semaphores_[current_frame_];
 
     // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
     // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it inFlightFence.
-    if ( const auto result = vkQueueSubmit( graphics_queue_, 1, &submitInfo, in_flight_fence_ ); result != VK_SUCCESS )
+    if ( const auto result = vkQueueSubmit( graphics_queue_, 1, &submitInfo, in_flight_fences_[current_frame_] );
+        result != VK_SUCCESS )
     {
         throw std::runtime_error( "Failed to submit draw command buffer! Error: " + get_result_string( result ) );
     }
@@ -1135,7 +1794,7 @@ void TriangleApplication::draw_frame( ) const
 
     // These two parameters specify which semaphores to wait on before presentation can happen.
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores    = &render_finished_semaphore_;
+    presentInfo.pWaitSemaphores    = &render_finished_semaphores_[current_frame_];
 
     // These two parameters specify the swap chains to present images to and the index of the image for each swap chain.
     presentInfo.swapchainCount = 1;
@@ -1147,8 +1806,20 @@ void TriangleApplication::draw_frame( ) const
     presentInfo.pResults = nullptr; // Optional
 
     // The vkQueuePresentKHR function submits the request to present an image to the queue.
-    vkQueuePresentKHR( present_queue_, &presentInfo );
+
+    // We check for the callback boolean after the queue presentation to avoid the semaphore to be signaled.
+    if ( const auto queuePresentResult = vkQueuePresentKHR( present_queue_, &presentInfo );
+        queuePresentResult == VK_ERROR_OUT_OF_DATE_KHR || queuePresentResult == VK_SUBOPTIMAL_KHR ||
+        frame_buffer_resized_ )
+    {
+        frame_buffer_resized_ = false;
+        // vk_recreate_swap_chain( );
+    }
+
+    // Next frame
+    current_frame_ = ( current_frame_ + 1 ) % MAX_FRAMES_IN_FLIGHT_;
 }
+
 
 void TriangleApplication::init_window( )
 {
@@ -1158,13 +1829,12 @@ void TriangleApplication::init_window( )
     // Disable OpenGL context creation
     glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
 
-    // Disable window resizing
-    // Needs special handling in Vulkan and will deal with it later
-    glfwWindowHint( GLFW_RESIZABLE, GLFW_FALSE );
-
     // Create the window
     window_ptr_ = glfwCreateWindow( WIDTH_, HEIGHT_, "Vulkan Rasterizer", nullptr, nullptr );
+    glfwSetWindowUserPointer( window_ptr_, this );
+    glfwSetFramebufferSizeCallback( window_ptr_, frame_buffer_size_callback );
 }
+
 
 void TriangleApplication::init_vk( )
 {
@@ -1175,7 +1845,6 @@ void TriangleApplication::init_vk( )
     vk_create_surface( );
 
     vk_pick_physical_device( );
-
     vk_create_logical_device( );
 
     vk_create_swap_chain( );
@@ -1184,16 +1853,29 @@ void TriangleApplication::init_vk( )
 
     vk_create_render_pass( );
 
+    vk_create_descriptor_set_layout( );
+
     vk_create_graphics_pipeline( );
 
-    vk_create_framebuffers( );
+    vk_create_frame_buffers( );
 
     vk_create_command_pool( );
 
-    vk_create_command_buffer( );
+    vk_create_texture_image( );
+    vk_create_texture_image_view( );
+    vk_create_texture_sampler( );
+
+    vk_create_vertex_buffer( );
+    vk_create_index_buffer( );
+    vk_create_uniform_buffers( );
+    vk_create_command_buffers( );
+
+    vk_create_descriptor_pool( );
+    vk_create_descriptor_sets( );
 
     vk_create_sync_objects( );
 }
+
 
 void TriangleApplication::main_loop( )
 {
@@ -1201,6 +1883,7 @@ void TriangleApplication::main_loop( )
 
     draw_frame( );
 }
+
 
 void TriangleApplication::cleanup( ) const
 {
@@ -1211,30 +1894,42 @@ void TriangleApplication::cleanup( ) const
 
     // Allocation and de-allocation functions in Vulkan have an optional allocator callback
     // that we'll ignore by passing nullptr.
-    vkDestroySemaphore( device_, image_available_semaphore_, nullptr );
-    vkDestroySemaphore( device_, render_finished_semaphore_, nullptr );
-    vkDestroyFence( device_, in_flight_fence_, nullptr );
+    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        vkDestroySemaphore( device_, image_available_semaphores_[i], nullptr );
+        vkDestroySemaphore( device_, render_finished_semaphores_[i], nullptr );
+        vkDestroyFence( device_, in_flight_fences_[i], nullptr );
+    }
 
     vkDestroyCommandPool( device_, command_pool_, nullptr );
 
     vkDestroyPipeline( device_, graphics_pipeline_, nullptr );
     vkDestroyPipelineLayout( device_, pipeline_layout_, nullptr );
 
-    // We should delete the framebuffers before the image views and render pass that they are based on.
-    for ( const auto framebuffer : swapchain_framebuffers_ )
-    {
-        vkDestroyFramebuffer( device_, framebuffer, nullptr );
-    }
-
     vkDestroyRenderPass( device_, render_pass_, nullptr );
 
-    for ( const auto imageView : swapchain_image_views_ )
+    vk_cleanup_swap_chain( );
+
+    vkDestroySampler( device_, texture_sampler_, nullptr );
+    vkDestroyImageView( device_, texture_image_view_, nullptr );
+
+    vkDestroyImage( device_, texture_image_, nullptr );
+    vkFreeMemory( device_, texture_image_memory_, nullptr );
+
+    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
-        // Unlike images, the image views were explicitly created by us, so we need to destroy them.
-        vkDestroyImageView( device_, imageView, nullptr );
+        vkDestroyBuffer( device_, uniform_buffers_[i], nullptr );
+        vkFreeMemory( device_, uniform_buffers_memory_[i], nullptr );
     }
 
-    vkDestroySwapchainKHR( device_, swapchain_, nullptr );
+    vkDestroyDescriptorPool( device_, descriptor_pool_, nullptr );
+    vkDestroyDescriptorSetLayout( device_, descriptor_set_layout_, nullptr );
+
+    vkDestroyBuffer( device_, index_buffer_, nullptr );
+    vkFreeMemory( device_, index_buffer_memory_, nullptr );
+
+    vkDestroyBuffer( device_, vertex_buffer_, nullptr );
+    vkFreeMemory( device_, vertex_buffer_memory_, nullptr );
 
     vkDestroyDevice( device_, nullptr );
 
