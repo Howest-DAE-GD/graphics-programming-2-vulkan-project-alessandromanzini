@@ -577,12 +577,17 @@ void TriangleApplication::vk_recreate_swap_chain( )
 
     vk_create_swap_chain( );
     vk_create_image_views( );
+    vk_create_depth_resources( );
     vk_create_frame_buffers( );
 }
 
 
 void TriangleApplication::vk_cleanup_swap_chain( ) const
 {
+    vkDestroyImageView(device_, depth_image_view_, nullptr);
+    vkDestroyImage(device_, depth_image_, nullptr);
+    vkFreeMemory(device_, depth_image_memory_, nullptr);
+
     for ( const auto framebuffer : swapchain_frame_buffers_ )
     {
         vkDestroyFramebuffer( device_, framebuffer, nullptr );
@@ -606,7 +611,8 @@ void TriangleApplication::vk_create_image_views( )
 
     for ( uint32_t i = 0; i < swapchain_images_.size( ); i++ )
     {
-        swapchain_image_views_[i] = vk_create_image_view( swapchain_images_[i], swapchain_image_format_ );
+        swapchain_image_views_[i] = vk_create_image_view( swapchain_images_[i], swapchain_image_format_,
+                                                          VK_IMAGE_ASPECT_COLOR_BIT );
     }
 }
 
@@ -635,10 +641,26 @@ void TriangleApplication::vk_create_render_pass( )
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    // Depth buffer attachment
+    VkAttachmentDescription depthAttachment{};
+    depthAttachment.format         = query::find_depth_format( physical_device_ );
+    depthAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef{};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments    = &colorAttachmentRef;
+    subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount    = 1;
+    subpass.pColorAttachments       = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
     // Remember that the subpasses in a render pass automatically take care of image layout transitions. These
     // transitions are controlled by subpass dependencies, which specify memory and execution dependencies between
@@ -655,15 +677,23 @@ void TriangleApplication::vk_create_render_pass( )
 
     // Now we create a render pass object by filling in the VkRenderPassCreateInfo structure with out attachments and
     // sub-passes.
+    const std::array attachments{ colorAttachment, depthAttachment };
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments    = &colorAttachment;
+    renderPassInfo.attachmentCount = static_cast<uint32_t>( attachments.size( ) );
+    renderPassInfo.pAttachments    = attachments.data( );
     renderPassInfo.subpassCount    = 1;
     renderPassInfo.pSubpasses      = &subpass;
 
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies   = &dependency;
+
+    // Make dependency referer to the attachments
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                              VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                              VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     if ( const auto result = vkCreateRenderPass( device_, &renderPassInfo, nullptr, &render_pass_ );
         result != VK_SUCCESS )
@@ -854,6 +884,22 @@ void TriangleApplication::vk_create_graphics_pipeline( )
         throw std::runtime_error( "Failed to create pipeline layout! Error: " + get_result_string( result ) );
     }
 
+    // Depth stencil creation
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable  = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.minDepthBounds        = 0.0f; // Optional
+    depthStencil.maxDepthBounds        = 1.0f; // Optional
+
+    depthStencil.stencilTestEnable = VK_FALSE;
+    depthStencil.front             = {}; // Optional
+    depthStencil.back              = {}; // Optional
+
     // We can now combine all the structures and objects to create the graphics pipeline.
     // 1. Shader stages: the shader modules that define the functionality of the programmable stages of the
     // graphics pipeline.
@@ -892,6 +938,8 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     // and switching between pipelines from the same parent can also be done quicker.
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
     pipelineInfo.basePipelineIndex  = -1;             // Optional
+
+    pipelineInfo.pDepthStencilState = &depthStencil;
 
     // The vkCreateGraphicsPipelines is designed to take multiple VkGraphicsPipelineCreateInfo objects and create
     // multiple VkPipeline objects in a single call.
@@ -1021,7 +1069,8 @@ void TriangleApplication::vk_create_image( const uint32_t width, const uint32_t 
 }
 
 
-VkImageView TriangleApplication::vk_create_image_view( const VkImage image, const VkFormat format ) const
+VkImageView TriangleApplication::vk_create_image_view( const VkImage image, const VkFormat format,
+                                                       const VkImageAspectFlags aspectFlags ) const
 {
     // Populate a create info struct for every image view
     VkImageViewCreateInfo createInfo{};
@@ -1040,7 +1089,7 @@ VkImageView TriangleApplication::vk_create_image_view( const VkImage image, cons
 
     // The subresourceRange field describes what the image's purpose is and which part of the image should be
     // accessed.
-    createInfo.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+    createInfo.subresourceRange.aspectMask     = aspectFlags;
     createInfo.subresourceRange.baseMipLevel   = 0;
     createInfo.subresourceRange.levelCount     = 1;
     createInfo.subresourceRange.baseArrayLayer = 0;
@@ -1097,7 +1146,7 @@ void TriangleApplication::vk_create_texture_image( )
 
 void TriangleApplication::vk_create_texture_image_view( )
 {
-    texture_image_view_ = vk_create_image_view( texture_image_, VK_FORMAT_R8G8B8A8_SRGB );
+    texture_image_view_ = vk_create_image_view( texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT );
 }
 
 
@@ -1182,6 +1231,15 @@ void TriangleApplication::vk_transition_image_layout( const VkImage image, const
 
         sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
         destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else if ( oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL )
+    {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     }
     else
     {
@@ -1305,8 +1363,9 @@ void TriangleApplication::vk_create_frame_buffers( )
 
     for ( size_t i = 0; i < swapchain_image_views_.size( ); i++ )
     {
-        VkImageView attachments[] = {
-            swapchain_image_views_[i]
+        std::array attachments = {
+            swapchain_image_views_[i],
+            depth_image_view_
         };
 
         VkFramebufferCreateInfo framebufferInfo{};
@@ -1317,8 +1376,8 @@ void TriangleApplication::vk_create_frame_buffers( )
 
         // The attachmentCount and pAttachments parameters specify the VkImageView objects that should be bound to the
         // respective attachment descriptions in the render pass pAttachment array.
-        framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments    = attachments;
+        framebufferInfo.attachmentCount = static_cast<uint32_t>( attachments.size( ) );
+        framebufferInfo.pAttachments    = attachments.data( );
 
         framebufferInfo.width  = swapchain_extent_.width;
         framebufferInfo.height = swapchain_extent_.height;
@@ -1505,7 +1564,21 @@ void TriangleApplication::vk_create_sync_objects( )
 }
 
 
-VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+void TriangleApplication::vk_create_depth_resources( )
+{
+    const VkFormat depthFormat = query::find_depth_format( physical_device_ );
+
+    vk_create_image( swapchain_extent_.width, swapchain_extent_.height, depthFormat, VK_IMAGE_TILING_OPTIMAL,
+                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image_,
+                     depth_image_memory_ );
+    depth_image_view_ = vk_create_image_view( depth_image_, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT );
+
+    // vk_transition_image_layout( depth_image_, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
+    //                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL );
+}
+
+
+VkBool32 TriangleApplication::debug_callback( const VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                                               VkDebugUtilsMessageTypeFlagsEXT /* messageType */,
                                               const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
                                               void* /* pUserData */ )
@@ -1618,9 +1691,14 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = swapchain_extent_;
 
-    constexpr VkClearValue clearColor = { { { 0.0f, 0.0f, 0.0f, 1.0f } } };
-    renderPassInfo.clearValueCount    = 1;
-    renderPassInfo.pClearValues       = &clearColor;
+    // The range of depths in the depth buffer is 0.0 to 1.0 in Vulkan, where 1.0 lies at the far view plane and 0.0 at
+    // the near view plane.
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color        = { { 0.0f, 0.0f, 0.0f, 1.0f } };
+    clearValues[1].depthStencil = { 1.0f, 0 };
+
+    renderPassInfo.clearValueCount = static_cast<uint32_t>( clearValues.size( ) );
+    renderPassInfo.pClearValues    = clearValues.data( );
 
     // The first parameter for every command is always the command buffer to record the command to. The second parameter
     // specifies the details of the render pass we've just provided. The final parameter controls how the drawing
@@ -1857,9 +1935,11 @@ void TriangleApplication::init_vk( )
 
     vk_create_graphics_pipeline( );
 
-    vk_create_frame_buffers( );
-
     vk_create_command_pool( );
+
+    vk_create_depth_resources( );
+
+    vk_create_frame_buffers( );
 
     vk_create_texture_image( );
     vk_create_texture_image_view( );
@@ -1868,10 +1948,11 @@ void TriangleApplication::init_vk( )
     vk_create_vertex_buffer( );
     vk_create_index_buffer( );
     vk_create_uniform_buffers( );
-    vk_create_command_buffers( );
 
     vk_create_descriptor_pool( );
     vk_create_descriptor_sets( );
+
+    vk_create_command_buffers( );
 
     vk_create_sync_objects( );
 }
