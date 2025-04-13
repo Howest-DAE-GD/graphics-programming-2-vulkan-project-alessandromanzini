@@ -356,7 +356,7 @@ void TriangleApplication::vk_create_logical_device( )
     extensions.push_back( "VK_KHR_portability_subset" );
 #endif
 
-    createInfo.enabledExtensionCount   = extensions.size( );
+    createInfo.enabledExtensionCount   = static_cast<uint32_t>( extensions.size( ) );
     createInfo.ppEnabledExtensionNames = extensions.data( );
 
     // Previous implementations of Vulkan made a distinction between instance and device specific validation layers,
@@ -1521,7 +1521,7 @@ void TriangleApplication::vk_create_command_buffers( )
     // command buffers.
     // - VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from primary command buffers
     allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = command_buffers_.size( );
+    allocInfo.commandBufferCount = static_cast<uint32_t>( command_buffers_.size() );
 
     if ( const auto result = vkAllocateCommandBuffers( device_, &allocInfo, command_buffers_.data( ) );
         result != VK_SUCCESS )
