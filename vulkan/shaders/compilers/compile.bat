@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: Set the path to glslc
-set "GLSLC=%VULKAN_SDK%\bin\glslc.exe"
+set "GLSLC=%VULKAN_SDK%\Bin\glslc.exe"
 
 :: Initialize variables
 set "OUTPUT="
