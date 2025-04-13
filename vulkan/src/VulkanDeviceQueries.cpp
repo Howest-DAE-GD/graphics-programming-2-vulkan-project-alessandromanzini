@@ -1,4 +1,5 @@
 #include "VulkanDeviceQueries.h"
+#include <stdexcept>
 
 
 using namespace engine::query;
@@ -37,7 +38,7 @@ QueueFamilyIndices engine::query::find_queue_families(
         }
 
         VkBool32 presentSupport{ false };
-        vkGetPhysicalDeviceSurfaceSupportKHR( physicalDevice, index, surface, &presentSupport );
+        vkGetPhysicalDeviceSurfaceSupportKHR( physicalDevice, static_cast<uint32_t>( index ), surface, &presentSupport );
         if ( presentSupport )
         {
             indices.presentFamily = index;
