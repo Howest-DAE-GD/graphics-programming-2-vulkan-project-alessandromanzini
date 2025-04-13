@@ -4,18 +4,20 @@
 project("xos")
 
 # create library target
-add_library(${PROJECT_NAME} SHARED "src/info.cpp")
+add_library(${PROJECT_NAME} SHARED )
 
 if (APPLE)
     target_sources(${PROJECT_NAME}
-            PUBLIC "src/apple/filesystem.cpp")
+            PUBLIC "src/apple/filesystem.cpp"
+            PUBLIC "src/apple/info.cpp" )
 
     # for apple frameworks
     target_link_libraries(${PROJECT_NAME} PRIVATE "-framework CoreFoundation")
 
 elseif(WIN32)
     target_sources(${PROJECT_NAME}
-            PUBLIC "src/win32/filesystem.cpp")
+            PUBLIC "src/win32/filesystem.cpp"
+            PUBLIC "src/win32/info.cpp" )
 
     # for windows DLLs
     target_compile_definitions(${PROJECT_NAME} PRIVATE MYLIB_EXPORTS)
