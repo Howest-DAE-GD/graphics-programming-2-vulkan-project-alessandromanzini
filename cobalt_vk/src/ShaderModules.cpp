@@ -8,6 +8,8 @@ using namespace engine::shader;
 
 std::vector<char> engine::shader::read_file( const std::filesystem::path& filename )
 {
+    std::cout << "Reading file " << std::filesystem::absolute(filename) << std::endl;
+    std::cout << "This " << std::filesystem::current_path() << std::endl;
     assert( std::filesystem::exists( filename ) && "File does not exist!" );
 
     if ( std::ifstream file( std::filesystem::absolute(filename), std::ios::binary ); file.is_open( ) )

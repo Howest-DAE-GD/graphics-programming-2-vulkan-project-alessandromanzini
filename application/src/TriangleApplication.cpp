@@ -24,6 +24,13 @@
 #include <SingleTimeCommand.h>
 #include <stb_image.h>
 
+#include <xos/filesystem.h>
+#include <xos/info.h>
+
+#include <filesystem>
+#include <iostream>
+
+
 using namespace engine;
 
 
@@ -62,6 +69,8 @@ bool compare_support_containers( const std::vector<const char*>& required, const
 void TriangleApplication::run( )
 {
     init_window( );
+
+    configure_relative_path( );
     init_vk( );
 
     bool keepRunning{ true };
@@ -1819,7 +1828,7 @@ void TriangleApplication::draw_frame( )
     // properties are no longer matched exactly.
     if ( acquireImageResult == VK_ERROR_OUT_OF_DATE_KHR )
     {
-        // vk_recreate_swap_chain( );
+        vk_recreate_swap_chain( );
         return;
     }
     if ( acquireImageResult != VK_SUCCESS && acquireImageResult != VK_SUBOPTIMAL_KHR )
@@ -1891,7 +1900,7 @@ void TriangleApplication::draw_frame( )
         frame_buffer_resized_ )
     {
         frame_buffer_resized_ = false;
-        // vk_recreate_swap_chain( );
+        vk_recreate_swap_chain( );
     }
 
     // Next frame
@@ -1955,6 +1964,13 @@ void TriangleApplication::init_vk( )
     vk_create_command_buffers( );
 
     vk_create_sync_objects( );
+}
+
+
+void TriangleApplication::configure_relative_path( ) const
+{
+    xos::info::log_info( std::clog );
+    xos::filesystem::configure_relative_path( );
 }
 
 

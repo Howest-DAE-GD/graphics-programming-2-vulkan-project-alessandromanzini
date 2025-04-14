@@ -204,6 +204,7 @@ namespace engine
 
         void init_window( );
         void init_vk( );
+        void configure_relative_path( ) const;
         void main_loop( );
         void cleanup( ) const;
 
