@@ -1,5 +1,8 @@
 # shader compilation
 set(COMPILE_SHADERS_COMMAND "compile_shaders")
+
+# Set the src and dest directories for shaders
+set(SHADERS_SRC_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/shaders/")
 set(SHADERS_DST_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/shaders/")
 
 # collect all shader files

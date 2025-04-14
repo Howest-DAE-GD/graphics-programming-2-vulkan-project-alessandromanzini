@@ -1,11 +1,12 @@
 # Program CMakeList.txt, "Author": alessandromanzini
 # Program specific logic here.
 #
-project("rasterizer")
+project("application")
 
 # create program target WIN32
 add_executable(${PROJECT_NAME}
-		"src/main.cpp" )
+		"src/main.cpp"
+		"src/TriangleApplication.cpp" )
 
 # set warning level to W4 and warnings as errors
 if (MSVC)
@@ -19,10 +20,14 @@ target_include_directories(${PROJECT_NAME}
 		PRIVATE "./include"
 		PRIVATE "./src" )
 
+# include stb
+include(stb_fetchcontent)
+
 # link library
 target_link_libraries(${PROJECT_NAME}
-		PRIVATE "vulkan_engine"
-		PRIVATE "xos")
+		PRIVATE "cobalt_vk"
+		PRIVATE "xos"
+		PRIVATE "stb" )
 
 # set the correct relative path for the executable
 if(APPLE)

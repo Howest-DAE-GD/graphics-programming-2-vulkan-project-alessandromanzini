@@ -1,4 +1,4 @@
-#include "TriangleApplication.h"
+#include <TriangleApplication.h>
 
 // +---------------------------+
 // | STANDARD HEADERS          |
@@ -16,9 +16,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "ShaderModules.h"
-#include "UniformBufferObject.h"
-#include "VulkanDeviceQueries.h"
+#include <ShaderModules.h>
+#include <UniformBufferObject.h>
+#include <VulkanDeviceQueries.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <SingleTimeCommand.h>

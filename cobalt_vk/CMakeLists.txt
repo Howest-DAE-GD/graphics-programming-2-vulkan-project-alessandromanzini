@@ -1,17 +1,16 @@
 # VulkanEngine CMakeList.txt, "Author": alessandromanzini
 # Engine specific logic here.
 #
-project("vulkan_engine")
+project("cobalt_vk")
 
 # create library target
 add_library(${PROJECT_NAME}
-		src/TriangleApplication.cpp
         src/VulkanDeviceQueries.cpp
 		src/ShaderModules.cpp
 		src/Vertex.cpp
 		src/UniformBufferObject.cpp
 		include/UniformBufferObject.h
-		include/SingleTimeCommand.h)
+		include/SingleTimeCommand.h )
 
 # set warning level to W4 and warnings as errors
 if (MSVC)
@@ -30,15 +29,10 @@ target_include_directories(${PROJECT_NAME}
 # fetch libraries
 include(glfw_fetchcontent)
 include(glm_fetchcontent)
-include(stb_fetchcontent)
 
 target_link_libraries(${PROJECT_NAME}
 		PUBLIC glfw
-		PUBLIC glm
-		PRIVATE stb )
+		PUBLIC glm )
 
 # require vulkan
 include(vulkan_require)
-
-# Set the source directories for shaders
-set(SHADERS_SRC_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/shaders" PARENT_SCOPE)
