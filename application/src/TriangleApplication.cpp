@@ -1588,11 +1588,11 @@ VkBool32 TriangleApplication::debug_callback( const VkDebugUtilsMessageSeverityF
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-    constexpr std::string resetColor{ "\e[0m" };
+    constexpr std::string_view resetColor{ "\e[0m" };
 #pragma GCC diagnostic pop
 #else
 #pragma warning(push, 0)
-    constexpr std::string resetColor{ "\e[0m" };
+    constexpr std::string_view resetColor{ "\e[0m" };
 #pragma warning(pop)
 #endif
 

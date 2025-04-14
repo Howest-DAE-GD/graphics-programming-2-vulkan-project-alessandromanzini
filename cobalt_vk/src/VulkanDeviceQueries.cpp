@@ -31,7 +31,7 @@ QueueFamilyIndices engine::query::find_queue_families(
     // that are supported and the number of queues that can be created based on that family.
     for ( auto it{ queueFamilies.cbegin( ) }; it != queueFamilies.cend( ); ++it )
     {
-        const auto index{ std::distance( queueFamilies.cbegin( ), it ) };
+        const auto index{ static_cast<uint32_t>( std::distance( queueFamilies.cbegin( ), it ) ) };
         if ( it->queueFlags & VK_QUEUE_GRAPHICS_BIT )
         {
             indices.graphicsFamily = index;
