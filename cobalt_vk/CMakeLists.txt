@@ -12,8 +12,8 @@ add_library(${PROJECT_NAME}
 		include/UniformBufferObject.h
 		include/SingleTimeCommand.h
 
-		"src/artifacts/Buffer.cpp"
-		"src/artifacts/Model.cpp"
+		"src/assets/Buffer.cpp"
+		"src/assets/Model.cpp"
 
 		"src/builders/ModelLoader.cpp"
 
@@ -36,9 +36,9 @@ endif()
 # headers for internal use.
 target_include_directories(${PROJECT_NAME}
 		PUBLIC "./include"
-		PUBLIC "./include/artifacts"
+		PUBLIC "./include/assets"
 		PUBLIC "./include/builders"
-		PUBLIC "include/cleanup"
+		PUBLIC "./include/cleanup"
 		PUBLIC "./include/validation"
 		PRIVATE "./src" )
 

@@ -1,7 +1,7 @@
 #ifndef MODELLOADER_H
 #define MODELLOADER_H
 
-#include <artifacts/Model.h>
+#include <assets/Model.h>
 
 #include <filesystem>
 
