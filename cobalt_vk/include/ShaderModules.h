@@ -5,29 +5,6 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-inline std::string get_result_string( const VkResult& result )
-{
-    switch ( result )
-    {
-        case VK_SUCCESS:
-            return "SUCCESS";
-        case VK_ERROR_OUT_OF_HOST_MEMORY:
-            return "OUT OF HOST MEMORY";
-        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-            return "OUT OF DEVICE MEMORY";
-        case VK_ERROR_INITIALIZATION_FAILED:
-            return "INITIALIZATION FAILED";
-        case VK_ERROR_LAYER_NOT_PRESENT:
-            return "LAYER NOT PRESENT";
-        case VK_ERROR_EXTENSION_NOT_PRESENT:
-            return "EXTENSION NOT PRESENT";
-        case VK_ERROR_INCOMPATIBLE_DRIVER:
-            return "INCOMPATIBLE DRIVER";
-        default:
-            return "UNKNOWN RESULT";
-    }
-}
-
 namespace engine::shader
 {
 

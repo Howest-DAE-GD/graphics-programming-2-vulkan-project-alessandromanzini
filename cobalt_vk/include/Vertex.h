@@ -1,10 +1,14 @@
 #ifndef VERTEX_H
 #define VERTEX_H
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
+#include <glm/gtx/hash.hpp>
+
 #include <vulkan/vulkan_core.h>
 
 #include <array>
+#include <functional>
 
 
 struct Vertex
@@ -12,6 +16,12 @@ struct Vertex
     glm::vec3 position;
     glm::vec3 color;
     glm::vec2 texCoord;
+
+
+    bool operator==( const Vertex& other ) const
+    {
+        return position == other.position && color == other.color && texCoord == other.texCoord;
+    }
 
 
     static VkVertexInputBindingDescription get_binding_description( )
@@ -55,6 +65,20 @@ struct Vertex
         return attributeDescriptions;
     }
 
+};
+
+
+// +---------------------------+
+// | VERTEX HASHING            |
+// +---------------------------+
+template <>
+struct std::hash<Vertex>
+{
+    size_t operator()( const Vertex& vertex ) const noexcept
+    {
+        return ( hash<glm::vec3>( )( vertex.color ) << 1 ^ hash<glm::vec3>( )( vertex.position ) ) >> 1 ^
+               hash<glm::vec2>( )( vertex.texCoord ) << 1;
+    }
 };
 
 

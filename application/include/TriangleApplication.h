@@ -4,8 +4,10 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <filesystem>
 #include <vector>
 
+#include <artifacts/Model.h>
 #include "Vertex.h"
 
 
@@ -41,6 +43,9 @@ namespace engine
         // ahead of the GPU, causing latency.
         static constexpr uint8_t MAX_FRAMES_IN_FLIGHT_{ 2 };
 
+        static constexpr std::string_view TEXTURE_PATH_{ "resources/viking_room.png" };
+        static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
+
         GLFWwindow* window_ptr_{ nullptr };
         VkInstance instance_{ VK_NULL_HANDLE };
         VkDebugUtilsMessengerEXT debug_messenger_{ VK_NULL_HANDLE };
@@ -67,8 +72,8 @@ namespace engine
         VkPipelineLayout pipeline_layout_{ VK_NULL_HANDLE };
         VkPipeline graphics_pipeline_{ VK_NULL_HANDLE };
 
-        VkBuffer vertex_buffer_{ VK_NULL_HANDLE };
-        VkDeviceMemory vertex_buffer_memory_{ VK_NULL_HANDLE };
+        cobalt_vk::Model model_{};
+
         VkBuffer index_buffer_{ VK_NULL_HANDLE };
         VkDeviceMemory index_buffer_memory_{ VK_NULL_HANDLE };
         std::vector<VkBuffer> uniform_buffers_{};
@@ -89,23 +94,6 @@ namespace engine
 
         VkDescriptorPool descriptor_pool_{ VK_NULL_HANDLE };
         std::vector<VkDescriptorSet> descriptor_sets_{};
-
-        std::vector<Vertex> vertices_{
-            { { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { 0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { { 0.5f, 0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -0.5f, 0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } },
-
-            { { -0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f, 0.0f }, { 0.0f, 0.0f } },
-            { { 0.5f, -0.5f, -0.5f }, { 0.0f, 1.0f, 0.0f }, { 1.0f, 0.0f } },
-            { { 0.5f, 0.5f, -0.5f }, { 0.0f, 0.0f, 1.0f }, { 1.0f, 1.0f } },
-            { { -0.5f, 0.5f, -0.5f }, { 1.0f, 1.0f, 1.0f }, { 0.0f, 1.0f } }
-        };
-
-        std::vector<uint32_t> indices_{
-            0, 1, 2, 2, 3, 0,
-            4, 5, 6, 6, 7, 4
-        };
 
         VkCommandPool command_pool_{ VK_NULL_HANDLE };
         std::array<VkCommandBuffer, MAX_FRAMES_IN_FLIGHT_> command_buffers_{ VK_NULL_HANDLE };
@@ -149,10 +137,6 @@ namespace engine
 
         void vk_create_graphics_pipeline( );
 
-        void vk_create_buffer( VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
-                               VkBuffer& buffer, VkDeviceMemory& bufferMemory ) const;
-        void vk_copy_buffer( VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size ) const;
-
         void vk_create_image( uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
                               VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image,
                               VkDeviceMemory& imageMemory ) const;
@@ -165,7 +149,7 @@ namespace engine
         void vk_copy_buffer_to_image( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height ) const;
         [[nodiscard]] VkImageView vk_create_image_view( VkImage image, VkFormat format, VkImageAspectFlags aspectFlags ) const;
 
-        void vk_create_vertex_buffer( );
+        void load_model( );
         void vk_create_index_buffer( );
 
         void vk_create_frame_buffers( );
@@ -206,7 +190,7 @@ namespace engine
         void init_vk( );
         void configure_relative_path( ) const;
         void main_loop( );
-        void cleanup( ) const;
+        void cleanup( );
 
     };
 
