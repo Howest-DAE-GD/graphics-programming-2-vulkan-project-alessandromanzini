@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <vector>
 
-#include <artifacts/Model.h>
+#include <assets/Model.h>
 #include "Vertex.h"
 
 

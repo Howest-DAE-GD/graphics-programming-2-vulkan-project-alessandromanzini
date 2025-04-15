@@ -1,5 +1,7 @@
 #include <validation/dispatch.h>
 
+#include <stdexcept>
+
 
 namespace cobalt_vk::validation
 {

@@ -29,12 +29,9 @@
 #include <xos/info.h>
 
 #include <filesystem>
-#include <iostream>
 
 #include <builders/ModelLoader.h>
 #include <validation/result.h>
-
-#include "../../out/cmake-build-debug-x64/_deps/assimp-src/code/AssetLib/3MF/3MFXmlTags.h"
 
 
 using namespace engine;
