@@ -87,6 +87,8 @@ StyleCopReport.xml
 *.pgc
 *.pgd
 *.rsp
+# Resources
+!application/resources/*.obj
 # but not Directory.Build.rsp, as it configures directory-level build defaults
 !Directory.Build.rsp
 *.sbr
