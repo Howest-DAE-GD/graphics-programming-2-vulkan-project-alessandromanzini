@@ -10,28 +10,40 @@
 #include <stdexcept>
 
 // +---------------------------+
-// | PROJECT HEADERS           |
+// | GLM HEADERS               |
 // +---------------------------+
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <ShaderModules.h>
-#include <UniformBufferObject.h>
-#include <VulkanDeviceQueries.h>
-
+// +---------------------------+
+// | STB HEADERS               |
+// +---------------------------+
 #define STB_IMAGE_IMPLEMENTATION
-#include <Buffer.h>
-#include <SingleTimeCommand.h>
 #include <stb_image.h>
+
+// +---------------------------+
+// | PROJECT HEADERS           |
+// +---------------------------+
+#include <dispatch.h>
+#include <assets/Buffer.h>
+#include <builders/BufferBuilder.h>
+#include <builders/ModelLoader.h>
+#include <queries/queue_family_queries.h>
+#include <queries/swapchain_support_queries.h>
+#include <validation/result.h>
+
+#include <ShaderModules.h>
+#include <SingleTimeCommand.h>
+#include <UniformBufferObject.h>
 
 #include <xos/filesystem.h>
 #include <xos/info.h>
 
 #include <filesystem>
-
-#include <builders/ModelLoader.h>
-#include <validation/result.h>
+#include <ResourcePool.h>
+#include <queries/format_queries.h>
+#include <queries/memory_queries.h>
 
 
 using namespace engine;
@@ -180,8 +192,9 @@ void TriangleApplication::vk_setup_debug_messenger( )
         VkDebugUtilsMessengerCreateInfoEXT createInfo{};
         vk_populate_debug_messenger_create_info( createInfo );
 
-        validation::throw_on_bad_result( vk_create_debug_utils_messenger_EXT( instance_, &createInfo, nullptr, &debug_messenger_ ),
-                                         "Failed to set up debug messenger!" );
+        validation::throw_on_bad_result(
+            vk_create_debug_utils_messenger_EXT( instance_, &createInfo, nullptr, &debug_messenger_ ),
+            "Failed to set up debug messenger!" );
     }
 }
 
@@ -278,7 +291,7 @@ void TriangleApplication::vk_pick_physical_device( )
 
 bool TriangleApplication::vk_is_device_suitable( const VkPhysicalDevice device ) const
 {
-    const query::QueueFamilyIndices indices{ query::find_queue_families( device, surface_ ) };
+    const auto indices{ query::query_queue_families( device, surface_ ) };
 
     const bool extensionsSupported{ vk_check_device_extension_support( device ) };
 
@@ -322,7 +335,7 @@ void TriangleApplication::vk_create_logical_device( )
 {
     // This structure describes the number of queues we want for a single queue family. Right now we're only
     // interested in a queue with graphics capabilities.
-    const query::QueueFamilyIndices indices = query::find_queue_families( physical_device_, surface_ );
+    const auto indices = query::query_queue_families( physical_device_, surface_ );
 
     // Get the unique queue families to load once.
     std::set uniqueQueueFamilies{ indices.graphicsFamily.value( ), indices.presentFamily.value( ) };
@@ -439,8 +452,8 @@ void TriangleApplication::vk_create_swap_chain( )
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    const query::QueueFamilyIndices indices = query::find_queue_families( physical_device_, surface_ );
-    const uint32_t queueFamilyIndices[]     = { indices.graphicsFamily.value( ), indices.presentFamily.value( ) };
+    const auto indices                  = query::query_queue_families( physical_device_, surface_ );
+    const uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value( ), indices.presentFamily.value( ) };
 
     // The imageArrayLayers specifies the amount of layers each image consists of. This is always 1 unless you are
     // developing a stereoscopic 3D application.
@@ -1036,10 +1049,7 @@ VkImageView TriangleApplication::vk_create_image_view( const VkImage image, cons
 
 void TriangleApplication::load_model( )
 {
-    const builders::ModelLoader loader{ MODEL_PATH_ };
-    loader.load( model_ );
-
-    model_.create_vertex_buffer( device_, physical_device_, command_pool_, graphics_queue_ );
+    ResourcePool::get_instance(  ).create_resource<Model>( MODEL_PATH_, device_, physical_device_, command_pool_, graphics_queue_ );
 }
 
 
@@ -1051,17 +1061,17 @@ void TriangleApplication::vk_create_texture_image( )
 
     if ( not pixels )
     {
-        throw std::runtime_error( "Failed to load texture image!" );
+        validation::throw_runtime_error( "Failed to load texture image!" );
     }
 
-    Buffer::vk_create_buffer( device_, physical_device_, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer_,
-                              staging_buffer_memory_ );
+    // Build the staging buffer
+    Buffer stagingBuffer;
+    builders::SrcBufferBuilder{ imageSize }.build( device_, physical_device_, stagingBuffer );
 
     void* data;
-    vkMapMemory( device_, staging_buffer_memory_, 0, imageSize, 0, &data );
-    memcpy( data, pixels, static_cast<size_t>( imageSize ) );
-    vkUnmapMemory( device_, staging_buffer_memory_ );
+    stagingBuffer.map_memory( device_, 0, imageSize, 0, &data );
+    memcpy( data, pixels, imageSize );
+    stagingBuffer.unmap_memory( device_ );
 
     // Cleanup original pixel data
     stbi_image_free( pixels );
@@ -1072,13 +1082,12 @@ void TriangleApplication::vk_create_texture_image( )
 
     vk_transition_image_layout( texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-    vk_copy_buffer_to_image( staging_buffer_, texture_image_, static_cast<uint32_t>( texWidth ),
+    vk_copy_buffer_to_image( stagingBuffer.get_buffer( ), texture_image_, static_cast<uint32_t>( texWidth ),
                              static_cast<uint32_t>( texHeight ) );
     vk_transition_image_layout( texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 
-    vkDestroyBuffer( device_, staging_buffer_, nullptr );
-    vkFreeMemory( device_, staging_buffer_memory_, nullptr );
+    stagingBuffer.release( device_ );
 }
 
 
@@ -1230,30 +1239,10 @@ void TriangleApplication::vk_copy_buffer_to_image( const VkBuffer buffer, const 
 
 void TriangleApplication::vk_create_index_buffer( )
 {
-    const VkDeviceSize bufferSize = sizeof( model_.get_indices(  )[0] ) * model_.get_indices(  ).size( );
-
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    Buffer::vk_create_buffer( device_, physical_device_, bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer,
-                              stagingBufferMemory );
-
-    void* data;
-    vkMapMemory( device_, stagingBufferMemory, 0, bufferSize, 0, &data );
-
-    // ReSharper disable once CppRedundantCastExpression
-    memcpy( data, model_.get_indices(  ).data( ), static_cast<size_t>( bufferSize ) );
-
-    vkUnmapMemory( device_, stagingBufferMemory );
-
-    Buffer::vk_create_buffer( device_, physical_device_, bufferSize,
-                              VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, index_buffer_, index_buffer_memory_ );
-
-    Buffer::vk_copy_buffer( device_, command_pool_, graphics_queue_, stagingBuffer, index_buffer_, bufferSize );
-
-    vkDestroyBuffer( device_, stagingBuffer, nullptr );
-    vkFreeMemory( device_, stagingBufferMemory, nullptr );
+    const builders::DataBufferBuilder indexBufferBuilder{ model_.get_indexes_data( ), model_.get_indexes_size( ) };
+    indexBufferBuilder.build( device_, physical_device_,
+                              builders::transfer_ops::BufferToBuffer{ command_pool_, graphics_queue_ },
+                              index_buffer_ );
 }
 
 
@@ -1301,9 +1290,9 @@ void TriangleApplication::vk_create_uniform_buffers( )
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         constexpr VkDeviceSize bufferSize = sizeof( UniformBufferObject );
-        Buffer::vk_create_buffer( device_, physical_device_,bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                          uniform_buffers_[i], uniform_buffers_memory_[i] );
+        Buffer::vk_create_buffer( device_, physical_device_, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                  uniform_buffers_[i], uniform_buffers_memory_[i] );
 
         vkMapMemory( device_, uniform_buffers_memory_[i], 0, bufferSize, 0, &uniform_buffers_mapped_[i] );
     }
@@ -1341,7 +1330,7 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
     descriptor_sets_.resize( MAX_FRAMES_IN_FLIGHT_ );
     validation::throw_on_bad_result( vkAllocateDescriptorSets( device_, &allocInfo, descriptor_sets_.data( ) ),
-        "Failed to allocate descriptor sets!" );
+                                     "Failed to allocate descriptor sets!" );
 
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
@@ -1393,7 +1382,7 @@ void TriangleApplication::vk_create_command_pool( )
     poolInfo.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value( );
 
-    validation::throw_on_bad_result( vkCreateCommandPool( device_, &poolInfo, nullptr, &command_pool_),
+    validation::throw_on_bad_result( vkCreateCommandPool( device_, &poolInfo, nullptr, &command_pool_ ),
                                      "Failed to create command pool!" );
 }
 
@@ -1552,7 +1541,8 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
     beginInfo.flags            = 0;       // Optional
     beginInfo.pInheritanceInfo = nullptr; // Optional
 
-    validation::throw_on_bad_result( vkBeginCommandBuffer( commandBuffer, &beginInfo ), "Failed to begin recording command buffer!" );
+    validation::throw_on_bad_result( vkBeginCommandBuffer( commandBuffer, &beginInfo ),
+                                     "Failed to begin recording command buffer!" );
 
     // Drawing starts by beginning the render pass with vkCmdBeginRenderPass. The render pass is configured using some
     // parameters in a VkRenderPassBeginInfo struct.

@@ -4,11 +4,12 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <filesystem>
-#include <vector>
-
+#include <assets/Buffer.h>
 #include <assets/Model.h>
 #include "Vertex.h"
+
+#include <filesystem>
+#include <vector>
 
 
 namespace engine
@@ -74,14 +75,11 @@ namespace engine
 
         cobalt_vk::Model model_{};
 
-        VkBuffer index_buffer_{ VK_NULL_HANDLE };
-        VkDeviceMemory index_buffer_memory_{ VK_NULL_HANDLE };
+        cobalt_vk::Buffer index_buffer_{};
+
         std::vector<VkBuffer> uniform_buffers_{};
         std::vector<VkDeviceMemory> uniform_buffers_memory_{};
         std::vector<void*> uniform_buffers_mapped_{};
-
-        VkBuffer staging_buffer_{ VK_NULL_HANDLE };
-        VkDeviceMemory staging_buffer_memory_{ VK_NULL_HANDLE };
 
         VkImage texture_image_{ VK_NULL_HANDLE };
         VkDeviceMemory texture_image_memory_{ VK_NULL_HANDLE };

@@ -11,7 +11,7 @@ namespace cobalt_vk::cleanup
     class Releasable
     {
     public:
-        Releasable( ) = default;
+        Releasable( )          = default;
         virtual ~Releasable( ) = default;
 
         Releasable( const Releasable& )                = delete;
@@ -19,12 +19,13 @@ namespace cobalt_vk::cleanup
         Releasable& operator=( const Releasable& )     = delete;
         Releasable& operator=( Releasable&& ) noexcept = delete;
 
+
         virtual void release( VkDevice device ) = 0;
 
 
-        [[nodiscard]] std::function<void( VkDevice )> get_deletor( )
+        [[nodiscard]] std::function<void( )> get_deletor( VkDevice device )
         {
-            return std::bind( &Releasable::release, this, std::placeholders::_1 );
+            return std::bind( &Releasable::release, this, device );
         }
 
     };

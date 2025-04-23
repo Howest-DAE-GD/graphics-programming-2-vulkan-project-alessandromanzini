@@ -5,7 +5,6 @@ project("cobalt_vk")
 
 # create library target
 add_library(${PROJECT_NAME}
-        src/VulkanDeviceQueries.cpp
 		src/ShaderModules.cpp
 		src/Vertex.cpp
 		src/UniformBufferObject.cpp
@@ -16,12 +15,23 @@ add_library(${PROJECT_NAME}
 		"src/assets/Model.cpp"
 
 		"src/builders/ModelLoader.cpp"
+		"src/builders/BufferBuilder.cpp"
 
-		"include/cleanup/DeletionQueue.cpp"
+		"src/cleanup/DeletionQueue.cpp"
 		"include/cleanup/Releasable.h"
+
+        "src/queries/format_queries.cpp"
+		"src/queries/memory_queries.cpp"
+		"src/queries/swapchain_support_queries.cpp"
+		"src/queries/queue_family_queries.cpp"
 
 		"src/validation/result.cpp"
 		"src/validation/dispatch.cpp"
+
+		"include/views/BufferView.h"
+
+		"src/ResourcePool.cpp"
+		include/views/ModelView.h
 )
 
 # set warning level to W4 and warnings as errors
@@ -40,7 +50,12 @@ target_include_directories(${PROJECT_NAME}
 		PUBLIC "./include/builders"
 		PUBLIC "./include/cleanup"
 		PUBLIC "./include/validation"
-		PRIVATE "./src" )
+		PUBLIC "./include/views"
+		PRIVATE "./src"
+		PRIVATE "./src/assets"
+		PRIVATE "./src/builders"
+		PRIVATE "./src/cleanup"
+		PRIVATE "./src/validation" )
 
 # fetch libraries
 include(glfw_fetchcontent)
