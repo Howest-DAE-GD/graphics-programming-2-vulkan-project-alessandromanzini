@@ -7,21 +7,34 @@ project("cobalt_vk")
 add_library(${PROJECT_NAME}
         src/VulkanDeviceQueries.cpp
 		src/ShaderModules.cpp
-		src/Vertex.cpp
 		src/UniformBufferObject.cpp
-		include/UniformBufferObject.h
-		include/SingleTimeCommand.h
+		include/public/UniformBufferObject.h
+		include/public/SingleTimeCommand.h
 
 		"src/assets/Buffer.cpp"
 		"src/assets/Model.cpp"
 
 		"src/builders/ModelLoader.cpp"
 
-		"include/cleanup/DeletionQueue.cpp"
-		"include/cleanup/Releasable.h"
+		"src/cleanup/DeletionQueue.cpp"
+		"include/public/cleanup/Releasable.h"
 
 		"src/validation/result.cpp"
 		"src/validation/dispatch.cpp"
+
+		"src/instance/CobaltInstance.cpp"
+		"src/instance/VulkanInstance.cpp"
+		"src/validation/compare.cpp"
+		"src/assets/Window.cpp"
+		include/public/event/MulticastDelegate.h
+		src/instance/ValidationLayers.cpp
+		include/public/instance/ValidationLayers.h
+		src/validation/PhysicalDeviceSelector.cpp
+		include/public/validation/PhysicalDeviceSelector.h
+		src/query/queue_family.cpp
+		include/private/query/queue_family.h
+		include/private/query/swapchain_support.cpp
+		include/private/query/swapchain_support.h
 )
 
 # set warning level to W4 and warnings as errors
@@ -35,11 +48,8 @@ endif()
 # the src folder also need to be included in case we have 
 # headers for internal use.
 target_include_directories(${PROJECT_NAME}
-		PUBLIC "./include"
-		PUBLIC "./include/assets"
-		PUBLIC "./include/builders"
-		PUBLIC "./include/cleanup"
-		PUBLIC "./include/validation"
+		PUBLIC "./include/public"
+		PRIVATE "./include/private"
 		PRIVATE "./src" )
 
 # fetch libraries

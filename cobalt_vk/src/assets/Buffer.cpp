@@ -1,7 +1,7 @@
 #include <assets/Buffer.h>
 
 #include <ShaderModules.h>
-#include <SingleTimeCommand.h>
+#include <../../include/public/SingleTimeCommand.h>
 #include <VulkanDeviceQueries.h>
 
 #include <validation/result.h>
@@ -34,7 +34,7 @@ namespace cobalt_vk
         VkMemoryAllocateInfo allocInfo{};
         allocInfo.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         allocInfo.allocationSize  = memRequirements.size;
-        allocInfo.memoryTypeIndex = engine::query::find_memory_type( physicalDevice, memRequirements.memoryTypeBits, properties );
+        allocInfo.memoryTypeIndex = cobalt_vk::query::find_memory_type( physicalDevice, memRequirements.memoryTypeBits, properties );
 
         validation::throw_on_bad_result( vkAllocateMemory( device, &allocInfo, nullptr, &bufferMemory ), "Failed to allocate buffer memory!" );
 
@@ -47,13 +47,13 @@ namespace cobalt_vk
 
     void Buffer::vk_copy_buffer( VkDevice device, VkCommandPool commandPool, VkQueue graphicsQueue, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size )
     {
-        VkCommandBuffer commandBuffer{ engine::begin_single_time_commands( device, commandPool ) };
+        VkCommandBuffer commandBuffer{ cobalt_vk::begin_single_time_commands( device, commandPool ) };
 
         VkBufferCopy copyRegion{};
         copyRegion.size = size;
         vkCmdCopyBuffer( commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion );
 
-        engine::end_single_time_commands( device, commandPool, commandBuffer, graphicsQueue );
+        cobalt_vk::end_single_time_commands( device, commandPool, commandBuffer, graphicsQueue );
     }
 
 

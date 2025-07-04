@@ -1,15 +1,15 @@
-#include "../include/ShaderModules.h"
+#include <ShaderModules.h>
 
 #include <cassert>
 #include <fstream>
 
 #include <validation/result.h>
 
-using namespace engine::shader;
+using namespace cobalt_vk::shader;
 using namespace cobalt_vk;
 
 
-std::vector<char> engine::shader::read_file( const std::filesystem::path& filename )
+std::vector<char> cobalt_vk::shader::read_file( const std::filesystem::path& filename )
 {
     assert( std::filesystem::exists( filename ) && "File does not exist!" );
 
@@ -31,7 +31,7 @@ std::vector<char> engine::shader::read_file( const std::filesystem::path& filena
 }
 
 
-VkShaderModule engine::shader::create_shader_module( const VkDevice device, const std::vector<char>& code )
+VkShaderModule cobalt_vk::shader::create_shader_module( const VkDevice device, const std::vector<char>& code )
 {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;

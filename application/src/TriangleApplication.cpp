@@ -17,13 +17,13 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <ShaderModules.h>
-#include <UniformBufferObject.h>
+#include <../../cobalt_vk/include/public/UniformBufferObject.h>
 #include <VulkanDeviceQueries.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <Buffer.h>
-#include <SingleTimeCommand.h>
+#include <../../cobalt_vk/include/public/SingleTimeCommand.h>
 #include <stb_image.h>
+#include <assets/Buffer.h>
 
 #include <xos/filesystem.h>
 #include <xos/info.h>
@@ -31,61 +31,55 @@
 #include <filesystem>
 
 #include <builders/ModelLoader.h>
+#include <instance/CobaltInstance.h>
+#include <validation/PhysicalDeviceSelector.h>
 #include <validation/result.h>
 
+#include "../../cobalt_vk/include/private/query/queue_family.h"
+#include "../../cobalt_vk/include/private/query/swapchain_support.h"
 
-using namespace engine;
+
 using namespace cobalt_vk;
-
-
-constexpr int GLFW_WINDOW_OPEN{ 0 };
-
-
-template <typename vk_property_t>
-bool compare_support_containers( const std::vector<const char*>& required, const std::vector<vk_property_t>& available,
-                                 const std::function<const char*( const vk_property_t& )>& getName )
-{
-    // Refactor to use the erase method. return boolean but pass vector by reference to keep the not found items.
-    for ( const auto& required_property : required )
-    {
-        bool found{ false };
-        for ( const auto& available_property : available )
-        {
-            if ( std::strcmp( required_property, getName( available_property ) ) == 0 )
-            {
-                found = true;
-                break;
-            }
-        }
-
-        if ( !found )
-        {
-            return false;
-        }
-    }
-    return true;
-}
 
 
 // +---------------------------+
 // | PUBLIC                    |
 // +---------------------------+
+TriangleApplication::TriangleApplication( )
+{
+    // Create Window
+    CVK_INSTANCE.register_window( std::make_unique<Window>( WIDTH_, HEIGHT_, "Vulkan App" ) );
+    window_ptr_ = &CVK_INSTANCE.get_window( );
+
+    // Register VK Instance
+    VkApplicationInfo appInfo{
+        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pApplicationName = "Hello Viking",
+        .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
+        .pEngineName = "CobaltVK",
+        .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
+        .apiVersion = VK_API_VERSION_1_0
+    };
+    CVK_INSTANCE.register_vk_instance(
+        std::make_unique<VulkanInstance>( appInfo, *window_ptr_, VALIDATION_LAYERS_, debug_callback ) );
+    vk_instance_ptr_ = &CVK_INSTANCE.get_vk_instance( );
+    configure_relative_path( );
+}
+
+
 void TriangleApplication::run( )
 {
-    init_window( );
-
-    configure_relative_path( );
     init_vk( );
 
     bool keepRunning{ true };
     while ( keepRunning )
     {
-        keepRunning = glfwWindowShouldClose( window_ptr_ ) == GLFW_WINDOW_OPEN;
+        keepRunning = not window_ptr_->get_should_close( );
         main_loop( );
     }
     // All the operations in drawFrame are asynchronous. When we exit the loop, drawing and presentation operations may
     // still be going on. We solve it by waiting for the logical device to finish operations before exiting.
-    vkDeviceWaitIdle( device_ );
+    vk_instance_ptr_->wait_idle( );
 
     cleanup( );
 }
@@ -94,161 +88,11 @@ void TriangleApplication::run( )
 // +---------------------------+
 // | PRIVATE                   |
 // +---------------------------+
-void TriangleApplication::vk_create_instance( )
-{
-    // This data is technically optional, but it may provide some useful information to the driver
-    // in order to optimize our specific application.
-    VkApplicationInfo appInfo{};
-    appInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName   = "Hello Triangle";
-    appInfo.applicationVersion = VK_MAKE_VERSION( 1, 0, 0 );
-    appInfo.pEngineName        = "No Engine";
-    appInfo.engineVersion      = VK_MAKE_VERSION( 1, 0, 0 );
-    appInfo.apiVersion         = VK_API_VERSION_1_0;
-
-    // Tells the Vulkan driver which global extensions and validation layers we want to use.
-    // Global here means that they apply to the entire program and not a specific device.
-    VkInstanceCreateInfo createInfo{};
-    createInfo.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
-
-    // GLFW has a handy built-in function that returns the extension(s) it needs to do that
-    // which we can pass to the struct.
-    uint32_t glfwExtensionCount{ 0 };
-    const char** glfwExtensions{ glfwGetRequiredInstanceExtensions( &glfwExtensionCount ) };
-
-    std::vector<const char*> requiredExtensions{ glfwExtensions, glfwExtensions + glfwExtensionCount };
-#ifdef __APPLE__
-    // VK_KHR_PORTABILITY_subset extension is necessary on macOS to allow MoltenVK to function properly.
-    requiredExtensions.push_back( VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME );
-    requiredExtensions.push_back( "VK_KHR_get_physical_device_properties2" );
-    createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-#endif
-
-    if constexpr ( ENABLE_VALIDATION_LAYERS_ )
-    {
-        requiredExtensions.push_back( "VK_EXT_debug_utils" );
-    }
-
-    if ( !vk_check_extension_support( requiredExtensions ) )
-    {
-        throw std::runtime_error( "One or more extensions are not supported!" );
-    }
-
-    createInfo.enabledExtensionCount   = static_cast<uint32_t>( requiredExtensions.size( ) );
-    createInfo.ppEnabledExtensionNames = requiredExtensions.data( );
-
-    // The last two members of the struct determine the global validation layers to enable.
-    VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-    if constexpr ( ENABLE_VALIDATION_LAYERS_ )
-    {
-        if ( !vk_check_validation_layer_support( std::vector<const char*>{
-            VALIDATION_LAYERS_.begin( ), VALIDATION_LAYERS_.end( )
-        } ) )
-        {
-            throw std::runtime_error( "Validation layers requested, but not available!" );
-        }
-
-        createInfo.enabledLayerCount   = static_cast<uint32_t>( VALIDATION_LAYERS_.size( ) );
-        createInfo.ppEnabledLayerNames = VALIDATION_LAYERS_.data( );
-
-        // We create a debug messenger specifically for the creation of the instance.
-        // This will also provide validation in the destroy instance as well.
-        vk_populate_debug_messenger_create_info( debugCreateInfo );
-        createInfo.pNext = &debugCreateInfo;
-    }
-    else
-    {
-        // If we're not in debug mode, we can just set the count to 0.
-        createInfo.enabledLayerCount = 0;
-
-        createInfo.pNext = nullptr;
-    }
-
-    // We've now specified everything Vulkan needs to create an instance and we can
-    // finally issue the vkCreateInstance.
-    validation::throw_on_bad_result( vkCreateInstance( &createInfo, nullptr, &instance_ ), "Failed to create Vulkan instance!" );
-}
-
-
-void TriangleApplication::vk_setup_debug_messenger( )
-{
-    // Possible different configuration:
-    // https://docs.vulkan.org/spec/latest/chapters/debugging.html#VK_EXT_debug_utils
-    if constexpr ( ENABLE_VALIDATION_LAYERS_ )
-    {
-        VkDebugUtilsMessengerCreateInfoEXT createInfo{};
-        vk_populate_debug_messenger_create_info( createInfo );
-
-        validation::throw_on_bad_result( vk_create_debug_utils_messenger_EXT( instance_, &createInfo, nullptr, &debug_messenger_ ),
-                                         "Failed to set up debug messenger!" );
-    }
-}
-
-
-void TriangleApplication::vk_populate_debug_messenger_create_info( VkDebugUtilsMessengerCreateInfoEXT& info )
-{
-    // There are a lot more settings for the behavior of validation layers than just the flags specified in the
-    // VkDebugUtilsMessengerCreateInfoEXT struct.
-    // Browse to the Vulkan SDK and go to the Config directory. There you will find a vk_layer_settings.txt
-    // file that explains how to configure the layers.
-    // Fill in a structure with details about the messenger and its callback.
-    info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-
-    // The messageSeverity field allows you to specify all the types of severities you would like
-    // your callback to be called for.
-    info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-                           VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                           VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-
-    // The messageType field lets you filter which types of messages your callback is notified about.
-    // Currently, all types are enabled.
-    info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                       VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                       VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    info.pfnUserCallback = debug_callback;
-    info.pUserData       = nullptr;
-}
-
-
-bool TriangleApplication::vk_check_extension_support( const std::vector<const char*>& extensions )
-{
-    // Retrieve a list of supported extensions
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties( nullptr, &extensionCount, nullptr );
-    std::vector<VkExtensionProperties> availableExtensions( extensionCount );
-    vkEnumerateInstanceExtensionProperties( nullptr, &extensionCount, availableExtensions.data( ) );
-
-    // Check if all the required extensions are supported
-    return compare_support_containers<VkExtensionProperties>( extensions, availableExtensions,
-                                                              []( const VkExtensionProperties& extension )
-                                                                  {
-                                                                      return extension.extensionName;
-                                                                  } );
-}
-
-
-bool TriangleApplication::vk_check_validation_layer_support( const std::vector<const char*>& layers )
-{
-    // Retrieve a list of supported layers
-    uint32_t layerCount;
-    vkEnumerateInstanceLayerProperties( &layerCount, nullptr );
-    std::vector<VkLayerProperties> availableLayers( layerCount );
-    vkEnumerateInstanceLayerProperties( &layerCount, availableLayers.data( ) );
-
-    return compare_support_containers<VkLayerProperties>( layers, availableLayers,
-                                                          []( const VkLayerProperties& layer )
-                                                              {
-                                                                  return layer.layerName;
-                                                              } );
-}
-
-
 void TriangleApplication::vk_pick_physical_device( )
 {
     // The physical device gets implicitly destroyed when we destroy the instance.
     uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices( instance_, &deviceCount, nullptr );
+    vkEnumeratePhysicalDevices( vk_instance_ptr_->get_instance( ), &deviceCount, nullptr );
 
     if ( deviceCount == 0 )
     {
@@ -257,12 +101,14 @@ void TriangleApplication::vk_pick_physical_device( )
 
     // Fetch the physical devices
     std::vector<VkPhysicalDevice> devices( deviceCount );
-    vkEnumeratePhysicalDevices( instance_, &deviceCount, devices.data( ) );
+    vkEnumeratePhysicalDevices( vk_instance_ptr_->get_instance( ), &deviceCount, devices.data( ) );
 
     // Check if any of the physical devices meet the requirements
-    for ( const auto& device : devices )
+
+    for ( const validation::PhysicalDeviceSelector selector{ *vk_instance_ptr_, DEVICE_EXTENSIONS_ };
+          const auto& device : devices )
     {
-        if ( vk_is_device_suitable( device ) )
+        if ( selector.select( device ) )
         {
             physical_device_ = device;
             break;
@@ -276,53 +122,11 @@ void TriangleApplication::vk_pick_physical_device( )
 }
 
 
-bool TriangleApplication::vk_is_device_suitable( const VkPhysicalDevice device ) const
-{
-    const query::QueueFamilyIndices indices{ query::find_queue_families( device, surface_ ) };
-
-    const bool extensionsSupported{ vk_check_device_extension_support( device ) };
-
-    // Swap chain support is sufficient for now if there is at least one supported image format and one supported
-    // presentation mode.
-    bool swapChainAdequate{ false };
-    if ( extensionsSupported )
-    {
-        const query::SwapChainSupportDetails swapChainSupport{ query::query_swap_chain_support( device, surface_ ) };
-        swapChainAdequate = !swapChainSupport.formats.empty( ) && !swapChainSupport.presentModes.empty( );
-    }
-
-    VkPhysicalDeviceFeatures supportedFeatures;
-    vkGetPhysicalDeviceFeatures( device, &supportedFeatures );
-
-    return indices.is_suitable( ) && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
-}
-
-
-bool TriangleApplication::vk_check_device_extension_support( const VkPhysicalDevice device )
-{
-    // Check if the device supports the required extensions
-    uint32_t extensionCount{};
-    vkEnumerateDeviceExtensionProperties( device, nullptr, &extensionCount, nullptr );
-
-    std::vector<VkExtensionProperties> availableExtensions( extensionCount );
-    vkEnumerateDeviceExtensionProperties( device, nullptr, &extensionCount, availableExtensions.data( ) );
-
-    std::set<std::string> requiredExtensions( DEVICE_EXTENSIONS_.begin( ), DEVICE_EXTENSIONS_.end( ) );
-
-    for ( const auto& extension : availableExtensions )
-    {
-        requiredExtensions.erase( extension.extensionName );
-    }
-
-    return requiredExtensions.empty( );
-}
-
-
 void TriangleApplication::vk_create_logical_device( )
 {
     // This structure describes the number of queues we want for a single queue family. Right now we're only
     // interested in a queue with graphics capabilities.
-    const query::QueueFamilyIndices indices = query::find_queue_families( physical_device_, surface_ );
+    const query::QueueFamilyIndices indices = query::find_queue_families( physical_device_, vk_instance_ptr_->get_surface( ) );
 
     // Get the unique queue families to load once.
     std::set uniqueQueueFamilies{ indices.graphicsFamily.value( ), indices.presentFamily.value( ) };
@@ -386,23 +190,14 @@ void TriangleApplication::vk_create_logical_device( )
     // Retrieve the handles for the queues
     vkGetDeviceQueue( device_, indices.graphicsFamily.value( ), 0, &graphics_queue_ );
     vkGetDeviceQueue( device_, indices.presentFamily.value( ), 0, &present_queue_ );
-}
-
-
-void TriangleApplication::vk_create_surface( )
-{
-    // To manage the output window, we need to include a parameter for the instance, surface creation details,
-    // custom allocators and the variable for the surface handle to be stored in.
-    // This is technically OS specific, but GLFW provides a cross-platform way to do this.
-    // The glfwCreateWindowSurface function performs this operation with a different implementation for each platform.
-    validation::throw_on_bad_result( glfwCreateWindowSurface( instance_, window_ptr_, nullptr, &surface_ ),
-                                     "Failed to create window surface!" );
+    vk_instance_ptr_->set_device( device_ );
 }
 
 
 void TriangleApplication::vk_create_swap_chain( )
 {
-    query::SwapChainSupportDetails swapChainSupport = query::query_swap_chain_support( physical_device_, surface_ );
+    query::SwapChainSupportDetails swapChainSupport = query::query_swap_chain_support(
+        physical_device_, vk_instance_ptr_->get_surface( ) );
 
     VkSurfaceFormatKHR surfaceFormat = vk_choose_swap_surface_format( swapChainSupport.formats );
     VkPresentModeKHR presentMode     = vk_choose_swap_present_mode( swapChainSupport.presentModes );
@@ -430,7 +225,7 @@ void TriangleApplication::vk_create_swap_chain( )
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = surface_;
+    createInfo.surface = vk_instance_ptr_->get_surface( );
 
     createInfo.minImageCount    = imageCount;
     createInfo.imageFormat      = surfaceFormat.format;
@@ -439,7 +234,7 @@ void TriangleApplication::vk_create_swap_chain( )
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    const query::QueueFamilyIndices indices = query::find_queue_families( physical_device_, surface_ );
+    const query::QueueFamilyIndices indices = query::find_queue_families( physical_device_, vk_instance_ptr_->get_surface( ) );
     const uint32_t queueFamilyIndices[]     = { indices.graphicsFamily.value( ), indices.presentFamily.value( ) };
 
     // The imageArrayLayers specifies the amount of layers each image consists of. This is always 1 unless you are
@@ -539,8 +334,7 @@ VkExtent2D TriangleApplication::vk_choose_swap_extent( const VkSurfaceCapabiliti
     }
     else
     {
-        int width, height;
-        glfwGetFramebufferSize( window_ptr_, &width, &height );
+        auto [width, height] = window_ptr_->get_framebuffer_size( );
 
         VkExtent2D actualExtent = {
             static_cast<uint32_t>( width ),
@@ -560,12 +354,13 @@ VkExtent2D TriangleApplication::vk_choose_swap_extent( const VkSurfaceCapabiliti
 void TriangleApplication::vk_recreate_swap_chain( )
 {
     // In case the window gets minimized, we wait until it gets restored.
-    int width = 0, height = 0;
-    glfwGetFramebufferSize( window_ptr_, &width, &height );
+    auto [width, height] = window_ptr_->get_framebuffer_size( );
     // perhaps use thread sleep instead of while
     while ( width == 0 || height == 0 )
     {
-        glfwGetFramebufferSize( window_ptr_, &width, &height );
+        auto [tempWidth, tempHeight] = window_ptr_->get_framebuffer_size( );
+        width                        = tempWidth;
+        height                       = tempHeight;
         glfwWaitEvents( );
     }
 
@@ -1036,10 +831,11 @@ VkImageView TriangleApplication::vk_create_image_view( const VkImage image, cons
 
 void TriangleApplication::load_model( )
 {
+    model_ptr_ = &CVK_INSTANCE.create_resource<Model>( );
     const builders::ModelLoader loader{ MODEL_PATH_ };
-    loader.load( model_ );
+    loader.load( *model_ptr_ );
 
-    model_.create_vertex_buffer( device_, physical_device_, command_pool_, graphics_queue_ );
+    model_ptr_->create_vertex_buffer( device_, physical_device_, command_pool_, graphics_queue_ );
 }
 
 
@@ -1230,7 +1026,7 @@ void TriangleApplication::vk_copy_buffer_to_image( const VkBuffer buffer, const 
 
 void TriangleApplication::vk_create_index_buffer( )
 {
-    const VkDeviceSize bufferSize = sizeof( model_.get_indices(  )[0] ) * model_.get_indices(  ).size( );
+    const VkDeviceSize bufferSize = sizeof( model_ptr_->get_indices( )[0] ) * model_ptr_->get_indices( ).size( );
 
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
@@ -1242,7 +1038,7 @@ void TriangleApplication::vk_create_index_buffer( )
     vkMapMemory( device_, stagingBufferMemory, 0, bufferSize, 0, &data );
 
     // ReSharper disable once CppRedundantCastExpression
-    memcpy( data, model_.get_indices(  ).data( ), static_cast<size_t>( bufferSize ) );
+    memcpy( data, model_ptr_->get_indices( ).data( ), static_cast<size_t>( bufferSize ) );
 
     vkUnmapMemory( device_, stagingBufferMemory );
 
@@ -1301,9 +1097,9 @@ void TriangleApplication::vk_create_uniform_buffers( )
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         constexpr VkDeviceSize bufferSize = sizeof( UniformBufferObject );
-        Buffer::vk_create_buffer( device_, physical_device_,bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                          uniform_buffers_[i], uniform_buffers_memory_[i] );
+        Buffer::vk_create_buffer( device_, physical_device_, bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                  uniform_buffers_[i], uniform_buffers_memory_[i] );
 
         vkMapMemory( device_, uniform_buffers_memory_[i], 0, bufferSize, 0, &uniform_buffers_mapped_[i] );
     }
@@ -1341,7 +1137,7 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
     descriptor_sets_.resize( MAX_FRAMES_IN_FLIGHT_ );
     validation::throw_on_bad_result( vkAllocateDescriptorSets( device_, &allocInfo, descriptor_sets_.data( ) ),
-        "Failed to allocate descriptor sets!" );
+                                     "Failed to allocate descriptor sets!" );
 
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
@@ -1380,7 +1176,7 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
 void TriangleApplication::vk_create_command_pool( )
 {
-    const auto queueFamilyIndices = query::find_queue_families( physical_device_, surface_ );
+    const auto queueFamilyIndices = query::find_queue_families( physical_device_, vk_instance_ptr_->get_surface( ) );
 
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1393,7 +1189,7 @@ void TriangleApplication::vk_create_command_pool( )
     poolInfo.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value( );
 
-    validation::throw_on_bad_result( vkCreateCommandPool( device_, &poolInfo, nullptr, &command_pool_),
+    validation::throw_on_bad_result( vkCreateCommandPool( device_, &poolInfo, nullptr, &command_pool_ ),
                                      "Failed to create command pool!" );
 }
 
@@ -1496,43 +1292,6 @@ VkBool32 TriangleApplication::debug_callback( const VkDebugUtilsMessageSeverityF
 }
 
 
-void TriangleApplication::frame_buffer_size_callback( GLFWwindow* pWindow, int /* width */, int /* height */ )
-{
-    auto* app                  = static_cast<TriangleApplication*>( glfwGetWindowUserPointer( pWindow ) );
-    app->frame_buffer_resized_ = true;
-}
-
-
-VkResult TriangleApplication::vk_create_debug_utils_messenger_EXT( VkInstance instance,
-                                                                   const VkDebugUtilsMessengerCreateInfoEXT*
-                                                                   pCreateInfo,
-                                                                   const VkAllocationCallbacks* pAllocator,
-                                                                   VkDebugUtilsMessengerEXT* pDebugMessenger )
-{
-    const auto func = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>( vkGetInstanceProcAddr(
-        instance, "vkCreateDebugUtilsMessengerEXT" ) );
-    if ( func != nullptr )
-    {
-        return func( instance, pCreateInfo, pAllocator, pDebugMessenger );
-    }
-    return VK_ERROR_EXTENSION_NOT_PRESENT;
-}
-
-
-void TriangleApplication::vk_destroy_debug_utils_messenger_EXT( VkInstance instance,
-                                                                VkDebugUtilsMessengerEXT debugMessenger,
-                                                                const VkAllocationCallbacks* pAllocator )
-{
-    const auto func =
-            reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>( vkGetInstanceProcAddr(
-                instance, "vkDestroyDebugUtilsMessengerEXT" ) );
-    if ( func != nullptr )
-    {
-        func( instance, debugMessenger, pAllocator );
-    }
-}
-
-
 void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBuffer, // NOLINT(*-misplaced-const)
                                                  const uint32_t imageIndex ) const
 {
@@ -1552,7 +1311,8 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
     beginInfo.flags            = 0;       // Optional
     beginInfo.pInheritanceInfo = nullptr; // Optional
 
-    validation::throw_on_bad_result( vkBeginCommandBuffer( commandBuffer, &beginInfo ), "Failed to begin recording command buffer!" );
+    validation::throw_on_bad_result( vkBeginCommandBuffer( commandBuffer, &beginInfo ),
+                                     "Failed to begin recording command buffer!" );
 
     // Drawing starts by beginning the render pass with vkCmdBeginRenderPass. The render pass is configured using some
     // parameters in a VkRenderPassBeginInfo struct.
@@ -1602,7 +1362,7 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
     scissor.extent = swapchain_extent_;
     vkCmdSetScissor( commandBuffer, 0, 1, &scissor );
 
-    const VkBuffer vertexBuffers[]{ model_.get_vertex_buffer( ) };
+    const VkBuffer vertexBuffers[]{ model_ptr_->get_vertex_buffer( ) };
     constexpr VkDeviceSize offsets[]{ 0 };
     vkCmdBindVertexBuffers( commandBuffer, 0, 1, vertexBuffers, offsets );
 
@@ -1614,7 +1374,7 @@ void TriangleApplication::record_command_buffer( const VkCommandBuffer commandBu
 
     // We now issue the draw command. The number of indices represents the number of vertices that will be passed to
     // the vertex shader.
-    vkCmdDrawIndexed( commandBuffer, static_cast<uint32_t>( model_.get_indices( ).size( ) ), 1, 0, 0, 0 );
+    vkCmdDrawIndexed( commandBuffer, static_cast<uint32_t>( model_ptr_->get_indices( ).size( ) ), 1, 0, 0, 0 );
 
     // After we've finished recording the command buffer, we end the render pass with vkCmdEndRenderPass.
     vkCmdEndRenderPass( commandBuffer );
@@ -1692,7 +1452,7 @@ void TriangleApplication::draw_frame( )
         vk_recreate_swap_chain( );
         return;
     }
-    validation::throw_on_bad_result( acquireImageResult, { VK_SUBOPTIMAL_KHR }, "Failed to acquire swap chain image!" );
+    validation::throw_on_bad_result( acquireImageResult, "Failed to acquire swap chain image!", { VK_SUBOPTIMAL_KHR } );
 
     // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.
     // We reset the fence only if there's work to do, which is why we're doing it after the resize check.
@@ -1763,29 +1523,8 @@ void TriangleApplication::draw_frame( )
 }
 
 
-void TriangleApplication::init_window( )
-{
-    // Initializes the GLFW library
-    glfwInit( );
-
-    // Disable OpenGL context creation
-    glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
-
-    // Create the window
-    window_ptr_ = glfwCreateWindow( WIDTH_, HEIGHT_, "Vulkan Rasterizer", nullptr, nullptr );
-    glfwSetWindowUserPointer( window_ptr_, this );
-    glfwSetFramebufferSizeCallback( window_ptr_, frame_buffer_size_callback );
-}
-
-
 void TriangleApplication::init_vk( )
 {
-    vk_create_instance( );
-
-    vk_setup_debug_messenger( );
-
-    vk_create_surface( );
-
     vk_pick_physical_device( );
     vk_create_logical_device( );
 
@@ -1839,11 +1578,6 @@ void TriangleApplication::main_loop( )
 
 void TriangleApplication::cleanup( )
 {
-    if constexpr ( ENABLE_VALIDATION_LAYERS_ )
-    {
-        vk_destroy_debug_utils_messenger_EXT( instance_, debug_messenger_, nullptr );
-    }
-
     // Allocation and de-allocation functions in Vulkan have an optional allocator callback
     // that we'll ignore by passing nullptr.
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
@@ -1880,15 +1614,5 @@ void TriangleApplication::cleanup( )
     vkDestroyBuffer( device_, index_buffer_, nullptr );
     vkFreeMemory( device_, index_buffer_memory_, nullptr );
 
-    model_.release( device_ );
-
-    vkDestroyDevice( device_, nullptr );
-
-    vkDestroySurfaceKHR( instance_, surface_, nullptr );
-
-    vkDestroyInstance( instance_, nullptr );
-
-    glfwDestroyWindow( window_ptr_ );
-
-    glfwTerminate( );
+    CVK_INSTANCE.clear_cobalt_instance( );
 }

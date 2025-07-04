@@ -1,7 +1,7 @@
 #ifndef UNIFORMBUFFEROBJECT_H
 #define UNIFORMBUFFEROBJECT_H
 
-#include <glm/glm.hpp>
+#include <../../../out/cmake-build-debug-x64/_deps/glm-src/glm/glm.hpp>
 
 
 struct UniformBufferObject {

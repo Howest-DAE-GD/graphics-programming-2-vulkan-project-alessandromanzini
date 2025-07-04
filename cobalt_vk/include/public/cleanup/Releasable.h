@@ -1,7 +1,7 @@
 #ifndef RELEASABLE_H
 #define RELEASABLE_H
 
-#include <vulkan/vulkan_core.h>
+#include <instance/VulkanInstance.h>
 
 #include <functional>
 
@@ -19,12 +19,12 @@ namespace cobalt_vk::cleanup
         Releasable& operator=( const Releasable& )     = delete;
         Releasable& operator=( Releasable&& ) noexcept = delete;
 
-        virtual void release( VkDevice device ) = 0;
+        virtual void release( VulkanInstance& instance ) = 0;
 
 
-        [[nodiscard]] std::function<void( VkDevice )> get_deletor( )
+        [[nodiscard]] std::function<void( )> get_deleter( VulkanInstance& instance )
         {
-            return std::bind( &Releasable::release, this, std::placeholders::_1 );
+            return std::bind( &Releasable::release, this, std::ref( instance ) );
         }
 
     };

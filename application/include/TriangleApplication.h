@@ -8,15 +8,18 @@
 #include <vector>
 
 #include <assets/Model.h>
+#include <assets/Window.h>
+#include <instance/VulkanInstance.h>
+
 #include "Vertex.h"
 
 
-namespace engine
+namespace cobalt_vk
 {
     class TriangleApplication final
     {
     public:
-        TriangleApplication( )           = default;
+        TriangleApplication( );
         ~TriangleApplication( ) noexcept = default;
 
         TriangleApplication( const TriangleApplication& )                = delete;
@@ -32,12 +35,13 @@ namespace engine
 
 #ifdef NDEBUG
         static constexpr bool ENABLE_VALIDATION_LAYERS_{ false };
-        static constexpr std::array<const char*, 0> VALIDATION_LAYERS_{ };
+        static inline const std::vector<const char*> VALIDATION_LAYERS_{};
 #else
         static constexpr bool ENABLE_VALIDATION_LAYERS_{ true };
-        static constexpr std::array<const char*, 1> VALIDATION_LAYERS_{ "VK_LAYER_KHRONOS_validation" };
+        static inline const std::vector<const char*> VALIDATION_LAYERS_{ "VK_LAYER_KHRONOS_validation" };
 #endif
-        static constexpr std::array<const char*, 1> DEVICE_EXTENSIONS_{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
+        static inline const std::vector<const char*> DEVICE_EXTENSIONS_{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
         // In general, we don't want more than 2 frames in flight at a time. That might cause the cpu to get the CPU
         // ahead of the GPU, causing latency.
@@ -46,17 +50,14 @@ namespace engine
         static constexpr std::string_view TEXTURE_PATH_{ "resources/viking_room.png" };
         static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
 
-        GLFWwindow* window_ptr_{ nullptr };
-        VkInstance instance_{ VK_NULL_HANDLE };
-        VkDebugUtilsMessengerEXT debug_messenger_{ VK_NULL_HANDLE };
+        Window* window_ptr_{ nullptr };
+        VulkanInstance* vk_instance_ptr_{ nullptr };
 
         VkPhysicalDevice physical_device_{ VK_NULL_HANDLE };
         VkDevice device_{ VK_NULL_HANDLE };
 
         VkQueue graphics_queue_{ VK_NULL_HANDLE };
         VkQueue present_queue_{ VK_NULL_HANDLE };
-
-        VkSurfaceKHR surface_{ VK_NULL_HANDLE };
 
         VkSwapchainKHR swapchain_{ VK_NULL_HANDLE };
         std::vector<VkImage> swapchain_images_{};
@@ -72,7 +73,7 @@ namespace engine
         VkPipelineLayout pipeline_layout_{ VK_NULL_HANDLE };
         VkPipeline graphics_pipeline_{ VK_NULL_HANDLE };
 
-        cobalt_vk::Model model_{};
+        Model* model_ptr_{};
 
         VkBuffer index_buffer_{ VK_NULL_HANDLE };
         VkDeviceMemory index_buffer_memory_{ VK_NULL_HANDLE };
@@ -105,10 +106,6 @@ namespace engine
 
         bool frame_buffer_resized_{ false };
 
-        void vk_create_instance( );
-        void vk_setup_debug_messenger( );
-        static void vk_populate_debug_messenger_create_info( VkDebugUtilsMessengerCreateInfoEXT& info );
-
         static bool vk_check_extension_support( const std::vector<const char*>& extensions );
         static bool vk_check_validation_layer_support( const std::vector<const char*>& layers );
 
@@ -117,8 +114,6 @@ namespace engine
         static bool vk_check_device_extension_support( VkPhysicalDevice device );
 
         void vk_create_logical_device( );
-
-        void vk_create_surface( );
 
         void vk_create_swap_chain( );
         [[nodiscard]] VkSurfaceFormatKHR vk_choose_swap_surface_format(
@@ -172,13 +167,6 @@ namespace engine
                                                               void* pUserData );
 
         static void frame_buffer_size_callback( GLFWwindow* pWindow, int width, int height );
-
-        static VkResult vk_create_debug_utils_messenger_EXT( VkInstance instance,
-                                                             const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-                                                             const VkAllocationCallbacks* pAllocator,
-                                                             VkDebugUtilsMessengerEXT* pDebugMessenger );
-        static void vk_destroy_debug_utils_messenger_EXT( VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
-                                                          const VkAllocationCallbacks* pAllocator );
 
         void record_command_buffer( VkCommandBuffer commandBuffer, uint32_t imageIndex ) const;
 

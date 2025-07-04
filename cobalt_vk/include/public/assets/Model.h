@@ -22,8 +22,8 @@ namespace cobalt_vk
     public:
         using index_t = uint32_t;
 
-        Model( )                    = default;
-        ~Model( ) noexcept override = default;
+        Model( )           = default;
+        ~Model( ) override = default;
 
         Model( const Model& )                = delete;
         Model( Model&& ) noexcept            = delete;
@@ -39,7 +39,7 @@ namespace cobalt_vk
         [[nodiscard]] const std::vector<Vertex>& get_vertices( ) const { return vertices_; }
         [[nodiscard]] const std::vector<index_t>& get_indices( ) const { return indices_; }
 
-        void release( VkDevice device ) override;
+        void release( VulkanInstance& instance ) override;
 
     private:
         std::vector<Vertex> vertices_{};

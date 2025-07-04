@@ -7,7 +7,7 @@ int main( )
 {
     try
     {
-        engine::TriangleApplication app{};
+        cobalt_vk::TriangleApplication app{};
         app.run( );
     }
     catch ( const std::exception& e )

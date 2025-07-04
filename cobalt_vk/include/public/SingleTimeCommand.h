@@ -7,7 +7,7 @@
 
 #include <vulkan/vulkan.h>
 
-namespace engine
+namespace cobalt_vk
 {
     [[nodiscard]] inline VkCommandBuffer begin_single_time_commands( const VkDevice device,
                                                                      const VkCommandPool commandPool )
