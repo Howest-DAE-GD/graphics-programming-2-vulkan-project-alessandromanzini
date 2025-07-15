@@ -1,0 +1,72 @@
+# VulkanEngine CMakeList.txt, "Author": alessandromanzini
+# Engine specific logic here.
+#
+project("cobalt")
+
+# create library target
+add_library(${PROJECT_NAME}
+        src/VulkanDeviceQueries.cpp
+		src/ShaderModules.cpp
+		src/UniformBufferObject.cpp
+		include/public/UniformBufferObject.h
+		include/public/SingleTimeCommand.h
+
+		"src/assets/Buffer.cpp"
+		"src/assets/Model.cpp"
+
+		"src/builders/ModelLoader.cpp"
+
+		"src/cleanup/DeletionQueue.cpp"
+
+		"src/validation/result.cpp"
+		"src/validation/dispatch.cpp"
+
+		"src/CobaltVK.cpp"
+		"src/validation/compare.cpp"
+		"src/assets/Window.cpp"
+		include/public/event/MulticastDelegate.h
+		src/validation/PhysicalDeviceSelector.cpp
+		include/public/validation/PhysicalDeviceSelector.h
+
+		include/public/memory/ResourceHandle.h
+		include/public/memory/memory_aliases.h
+		include/public/memory/HandleTable.h
+		include/public/memory/handle_aliases.h
+		include/public/memory/Resource.h
+
+		"src/__context/VkContext.cpp"
+		"src/__context/InstanceBundle.cpp"
+		"src/__context/ValidationLayers.cpp"
+
+		"src/__query/extension_support.cpp"
+		"src/__query/queue_family.cpp"
+		"src/__query/swapchain_support.cpp"
+)
+
+# set warning level to W4 and warnings as errors
+if (MSVC)
+	target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
+else()
+	target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
+# the include folder and resources has headers that will be shared to external project.
+# the src folder also need to be included in case we have 
+# headers for internal use.
+target_include_directories(${PROJECT_NAME}
+		PUBLIC "./include/public"
+		PRIVATE "./include/private"
+		PRIVATE "./src" )
+
+# fetch libraries
+include(glfw_fetchcontent)
+include(glm_fetchcontent)
+include(assimp_fetchcontent)
+
+target_link_libraries(${PROJECT_NAME}
+		PUBLIC glfw
+		PUBLIC glm
+		PRIVATE assimp )
+
+# require vulkan
+include(vulkan_require)

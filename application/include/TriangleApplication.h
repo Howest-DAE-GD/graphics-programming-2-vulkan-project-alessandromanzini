@@ -4,17 +4,19 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <CobaltVK.h>
+
 #include <filesystem>
 #include <vector>
 
 #include <assets/Model.h>
 #include <assets/Window.h>
-#include <instance/VulkanInstance.h>
+#include <__context/VkContext.h>
 
 #include "Vertex.h"
 
 
-namespace cobalt_vk
+namespace cobalt
 {
     class TriangleApplication final
     {
@@ -22,9 +24,9 @@ namespace cobalt_vk
         TriangleApplication( );
         ~TriangleApplication( ) noexcept = default;
 
-        TriangleApplication( const TriangleApplication& )                = delete;
+        TriangleApplication( TriangleApplication const& )                = delete;
         TriangleApplication( TriangleApplication&& ) noexcept            = delete;
-        TriangleApplication& operator=( const TriangleApplication& )     = delete;
+        TriangleApplication& operator=( TriangleApplication const& )     = delete;
         TriangleApplication& operator=( TriangleApplication&& ) noexcept = delete;
 
         void run( );
@@ -35,13 +37,13 @@ namespace cobalt_vk
 
 #ifdef NDEBUG
         static constexpr bool ENABLE_VALIDATION_LAYERS_{ false };
-        static inline const std::vector<const char*> VALIDATION_LAYERS_{};
+        static inline std::vector<char const*> VALIDATION_LAYERS_{};
 #else
         static constexpr bool ENABLE_VALIDATION_LAYERS_{ true };
-        static inline const std::vector<const char*> VALIDATION_LAYERS_{ "VK_LAYER_KHRONOS_validation" };
+        static inline std::vector<char const*> VALIDATION_LAYERS_{ "VK_LAYER_KHRONOS_validation" };
 #endif
 
-        static inline const std::vector<const char*> DEVICE_EXTENSIONS_{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+        static inline std::vector<char const*> DEVICE_EXTENSIONS_{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
         // In general, we don't want more than 2 frames in flight at a time. That might cause the cpu to get the CPU
         // ahead of the GPU, causing latency.
@@ -50,14 +52,8 @@ namespace cobalt_vk
         static constexpr std::string_view TEXTURE_PATH_{ "resources/viking_room.png" };
         static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
 
-        Window* window_ptr_{ nullptr };
-        VulkanInstance* vk_instance_ptr_{ nullptr };
-
-        VkPhysicalDevice physical_device_{ VK_NULL_HANDLE };
-        VkDevice device_{ VK_NULL_HANDLE };
-
-        VkQueue graphics_queue_{ VK_NULL_HANDLE };
-        VkQueue present_queue_{ VK_NULL_HANDLE };
+        WindowHandle window_{};
+        VkContextHandle vk_context_{};
 
         VkSwapchainKHR swapchain_{ VK_NULL_HANDLE };
         std::vector<VkImage> swapchain_images_{};
@@ -73,7 +69,7 @@ namespace cobalt_vk
         VkPipelineLayout pipeline_layout_{ VK_NULL_HANDLE };
         VkPipeline graphics_pipeline_{ VK_NULL_HANDLE };
 
-        Model* model_ptr_{};
+        ModelHandle model_{};
 
         VkBuffer index_buffer_{ VK_NULL_HANDLE };
         VkDeviceMemory index_buffer_memory_{ VK_NULL_HANDLE };
@@ -106,21 +102,12 @@ namespace cobalt_vk
 
         bool frame_buffer_resized_{ false };
 
-        static bool vk_check_extension_support( const std::vector<const char*>& extensions );
-        static bool vk_check_validation_layer_support( const std::vector<const char*>& layers );
-
-        void vk_pick_physical_device( );
-        bool vk_is_device_suitable( VkPhysicalDevice device ) const;
-        static bool vk_check_device_extension_support( VkPhysicalDevice device );
-
-        void vk_create_logical_device( );
-
         void vk_create_swap_chain( );
         [[nodiscard]] VkSurfaceFormatKHR vk_choose_swap_surface_format(
-            const std::vector<VkSurfaceFormatKHR>& availableFormats ) const;
+            std::vector<VkSurfaceFormatKHR> const& available_formats ) const;
         [[nodiscard]] VkPresentModeKHR vk_choose_swap_present_mode(
-            const std::vector<VkPresentModeKHR>& availablePresentModes ) const;
-        [[nodiscard]] VkExtent2D vk_choose_swap_extent( const VkSurfaceCapabilitiesKHR& capabilities ) const;
+            std::vector<VkPresentModeKHR> const& available_present_modes ) const;
+        [[nodiscard]] VkExtent2D vk_choose_swap_extent( VkSurfaceCapabilitiesKHR const& capabilities ) const;
         void vk_recreate_swap_chain( );
         void vk_cleanup_swap_chain( ) const;
 
@@ -134,15 +121,15 @@ namespace cobalt_vk
 
         void vk_create_image( uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
                               VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image,
-                              VkDeviceMemory& imageMemory ) const;
+                              VkDeviceMemory& image_memory ) const;
 
         void vk_create_texture_image( );
         void vk_create_texture_image_view( );
         void vk_create_texture_sampler( );
-        void vk_transition_image_layout( VkImage image, VkFormat format, VkImageLayout oldLayout,
-                                         VkImageLayout newLayout ) const;
+        void vk_transition_image_layout( VkImage image, VkFormat format, VkImageLayout old_layout,
+                                         VkImageLayout new_layout ) const;
         void vk_copy_buffer_to_image( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height ) const;
-        [[nodiscard]] VkImageView vk_create_image_view( VkImage image, VkFormat format, VkImageAspectFlags aspectFlags ) const;
+        [[nodiscard]] VkImageView vk_create_image_view( VkImage image, VkFormat format, VkImageAspectFlags aspect_flags ) const;
 
         void load_model( );
         void vk_create_index_buffer( );
@@ -161,16 +148,14 @@ namespace cobalt_vk
 
         void vk_create_depth_resources();
 
-        static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                                                              VkDebugUtilsMessageTypeFlagsEXT messageType,
-                                                              const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-                                                              void* pUserData );
+        static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+                                                              VkDebugUtilsMessageTypeFlagsEXT message_type,
+                                                              VkDebugUtilsMessengerCallbackDataEXT const* p_callback_data,
+                                                              void* p_user_data );
 
-        static void frame_buffer_size_callback( GLFWwindow* pWindow, int width, int height );
+        void record_command_buffer( VkCommandBuffer command_buffer, uint32_t image_index ) const;
 
-        void record_command_buffer( VkCommandBuffer commandBuffer, uint32_t imageIndex ) const;
-
-        void update_uniform_buffer( uint32_t currentImage ) const;
+        void update_uniform_buffer( uint32_t current_image ) const;
 
         void draw_frame( );
 

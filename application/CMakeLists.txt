@@ -25,7 +25,7 @@ include(stb_fetchcontent)
 
 # link library
 target_link_libraries(${PROJECT_NAME}
-		PRIVATE "cobalt_vk"
+		PRIVATE "cobalt"
 		PRIVATE "xos"
 		PRIVATE "stb" )
 

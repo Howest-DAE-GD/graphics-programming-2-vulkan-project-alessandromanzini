@@ -26,6 +26,6 @@ endif()
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Add subdirectories
-add_subdirectory("cobalt_vk")
+add_subdirectory("cobalt")
 add_subdirectory("xos")
 add_subdirectory("application")

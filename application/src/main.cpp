@@ -7,10 +7,10 @@ int main( )
 {
     try
     {
-        cobalt_vk::TriangleApplication app{};
+        cobalt::TriangleApplication app{};
         app.run( );
     }
-    catch ( const std::exception& e )
+    catch ( std::exception const& e )
     {
         std::cerr << e.what( ) << std::endl;
         return EXIT_FAILURE;

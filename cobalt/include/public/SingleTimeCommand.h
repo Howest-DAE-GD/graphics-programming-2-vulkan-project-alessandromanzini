@@ -1,0 +1,51 @@
+//
+// Created by Alessandro Manzini on 25/03/25.
+//
+
+#ifndef SINGLETIMECOMMAND_H
+#define SINGLETIMECOMMAND_H
+
+#include <vulkan/vulkan.h>
+
+namespace cobalt
+{
+    [[nodiscard]] inline VkCommandBuffer begin_single_time_commands( VkDevice const device,
+                                                                     VkCommandPool const commandPool )
+    {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool        = commandPool;
+        allocInfo.commandBufferCount = 1;
+
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers( device, &allocInfo, &commandBuffer );
+
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer( commandBuffer, &beginInfo );
+
+        return commandBuffer;
+    }
+
+
+    inline void end_single_time_commands( VkDevice const device, VkCommandPool const commandPool,
+                                          VkCommandBuffer const commandBuffer, VkQueue const graphicsQueue )
+    {
+        vkEndCommandBuffer( commandBuffer );
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers    = &commandBuffer;
+
+        vkQueueSubmit( graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE );
+        vkQueueWaitIdle( graphicsQueue );
+
+        vkFreeCommandBuffers( device, commandPool, 1, &commandBuffer );
+    }
+}
+
+#endif //SINGLETIMECOMMAND_H
