@@ -54,7 +54,7 @@ TriangleApplication::TriangleApplication( )
         .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
         .pApplicationName = "Hello Viking",
         .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
-        .pEngineName = "CobaltVK",
+        .pEngineName = "Cobalt",
         .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
         .apiVersion = VK_API_VERSION_1_3
     };

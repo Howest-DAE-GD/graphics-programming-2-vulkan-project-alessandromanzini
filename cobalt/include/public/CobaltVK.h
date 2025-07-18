@@ -2,10 +2,10 @@
 #define COBALTVK_H
 
 #include <cleanup/DeletionQueue.h>
-#include <memory/HandleTable.h>
-#include <memory/handle_aliases.h>
-#include <memory/ResourceHandle.h>
 #include <__context/VkContext.h>
+#include <__memory/handle/HandleTable.h>
+#include <__memory/handle/handle_aliases.h>
+#include <__memory/handle/ResourceHandle.h>
 
 #include <cassert>
 #include <MacTypes.h>
@@ -87,11 +87,11 @@ namespace cobalt
             resource            = static_cast<resource_t*>( resource_uptr.get( ) );
         }
 
-        auto const table_info = resources_table_.insert( resource );
+        auto const table_info = resources_table_.insert( *resource );
         ResourceHandle<resource_t, memory::Resource> handle{ resources_table_, table_info };
         deletion_queue_.push( [this, resource, table_info]
             {
-                resources_table_.erase( table_info.index, table_info.generation );
+                resources_table_.erase( table_info );
                 std::erase_if( resources_, [resource]( auto const& uptr ) { return uptr.get( ) == resource; } );
             } );
         return handle;

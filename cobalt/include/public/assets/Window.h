@@ -2,7 +2,7 @@
 #define WINDOW_H
 
 #include <event/MulticastDelegate.h>
-#include <memory/Resource.h>
+#include <__memory/Resource.h>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

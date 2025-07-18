@@ -2,7 +2,7 @@
 #define MODEL_H
 
 #include <Vertex.h>
-#include <memory/Resource.h>
+#include <__memory/Resource.h>
 
 #include <vulkan/vulkan_core.h>
 

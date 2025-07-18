@@ -8,12 +8,13 @@
 
 namespace cobalt
 {
+    // todo: handle resource destruction in ResourceHandle for table.
     template <typename resource_t, typename table_resource_t = resource_t>
     class ResourceHandle final
     {
     public:
+        explicit ResourceHandle( HandleTable<table_resource_t>&, memory::RedirectionInfo );
         ResourceHandle( ) = default;
-        explicit ResourceHandle( HandleTable<table_resource_t>& table, memory::RedirectionInfo handle_info );
 
         resource_t* get( );
         resource_t const* get( ) const;
@@ -26,7 +27,7 @@ namespace cobalt
 
     private:
         HandleTable<table_resource_t>* table_ptr_{ nullptr };
-        memory::RedirectionInfo handle_info_{ .index = NULL_HANDLE_INDEX, .generation = 0 };
+        memory::RedirectionInfo handle_info_{ NULL_HANDLE_INDEX };
 
     };
 
@@ -42,7 +43,7 @@ namespace cobalt
     resource_t* ResourceHandle<resource_t, table_resource_t>::get( )
     {
         assert( table_ptr_ != nullptr && "ResourceHandle::get: table_ptr_ is null!" );
-        return static_cast<resource_t*>( table_ptr_->at( handle_info_.index, handle_info_.generation ) );
+        return static_cast<resource_t*>( &table_ptr_->at( handle_info_ ) );
     }
 
 
@@ -50,7 +51,7 @@ namespace cobalt
     resource_t const* ResourceHandle<resource_t, table_resource_t>::get( ) const
     {
         assert( table_ptr_ != nullptr && "ResourceHandle::get: table_ptr_ is null!" );
-        return static_cast<resource_t*>( table_ptr_->at( handle_info_.index, handle_info_.generation ) );
+        return static_cast<resource_t*>( &table_ptr_->at( handle_info_ ) );
     }
 
 

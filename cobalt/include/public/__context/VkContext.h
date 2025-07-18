@@ -1,7 +1,7 @@
 #ifndef DEVICE_H
 #define DEVICE_H
 
-#include <memory/Resource.h>
+#include <__memory/Resource.h>
 
 #include <__context/InstanceBundle.h>
 #include <__context/ValidationLayers.h>
