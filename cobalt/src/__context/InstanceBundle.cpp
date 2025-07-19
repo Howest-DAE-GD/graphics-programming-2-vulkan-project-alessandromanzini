@@ -24,13 +24,13 @@ namespace cobalt
     }
 
 
-    VkInstance InstanceBundle::get_instance( ) const
+    VkInstance InstanceBundle::instance( ) const
     {
         return instance_;
     }
 
 
-    VkSurfaceKHR InstanceBundle::get_surface( ) const
+    VkSurfaceKHR InstanceBundle::surface( ) const
     {
         return surface_;
     }

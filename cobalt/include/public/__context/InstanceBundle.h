@@ -22,8 +22,8 @@ namespace cobalt
         InstanceBundle& operator=( InstanceBundle const& )     = delete;
         InstanceBundle& operator=( InstanceBundle&& ) noexcept = delete;
 
-        [[nodiscard]] VkInstance get_instance( ) const;
-        [[nodiscard]] VkSurfaceKHR get_surface( ) const;
+        [[nodiscard]] VkInstance instance( ) const;
+        [[nodiscard]] VkSurfaceKHR surface( ) const;
 
     private:
         VkInstance instance_{ VK_NULL_HANDLE };

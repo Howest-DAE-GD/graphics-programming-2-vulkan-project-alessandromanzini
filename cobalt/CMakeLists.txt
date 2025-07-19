@@ -28,19 +28,22 @@ add_library(${PROJECT_NAME}
 		src/validation/PhysicalDeviceSelector.cpp
 		include/public/validation/PhysicalDeviceSelector.h
 
-		include/public/memory/ResourceHandle.h
-		include/public/memory/memory_aliases.h
-		include/public/memory/HandleTable.h
-		include/public/memory/handle_aliases.h
-		include/public/memory/Resource.h
+		include/public/__memory/handle/ResourceHandle.h
+		include/public/__memory/handle/handle_aliases.h
+		include/public/__memory/memory_aliases.h
+		include/public/__memory/Resource.h
+		"src/__memory/handle/HandleTable.cpp"
 
-		"src/__context/VkContext.cpp"
+		"src/__context/DeviceSet.cpp"
 		"src/__context/InstanceBundle.cpp"
+		"src/__context/VkContext.cpp"
 		"src/__context/ValidationLayers.cpp"
 
 		"src/__query/extension_support.cpp"
 		"src/__query/queue_family.cpp"
 		"src/__query/swapchain_support.cpp"
+
+		"src/log.cpp"
 )
 
 # set warning level to W4 and warnings as errors

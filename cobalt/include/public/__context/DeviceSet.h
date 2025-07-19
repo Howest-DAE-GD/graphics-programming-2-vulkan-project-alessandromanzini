@@ -1,0 +1,50 @@
+#ifndef DEVICESET_H
+#define DEVICESET_H
+
+#include <vulkan/vulkan_core.h>
+
+#include <vector>
+
+
+namespace cobalt
+{
+    class ValidationLayers;
+    class InstanceBundle;
+
+    class DeviceSet final
+    {
+    public:
+        explicit DeviceSet( InstanceBundle const& instance, std::vector<char const*> extensions, ValidationLayers const* validation_layers = nullptr );
+        ~DeviceSet( );
+
+        DeviceSet( const DeviceSet& )                = delete;
+        DeviceSet( DeviceSet&& ) noexcept            = delete;
+        DeviceSet& operator=( const DeviceSet& )     = delete;
+        DeviceSet& operator=( DeviceSet&& ) noexcept = delete;
+
+        [[nodiscard]] VkDevice logical() const;
+        [[nodiscard]] VkPhysicalDevice physical() const;
+        [[nodiscard]] VkQueue graphics_queue() const;
+        [[nodiscard]] VkQueue present_queue() const;
+
+        void wait_idle() const;
+
+    private:
+        InstanceBundle const& instance_ref_;
+        std::vector<char const*> const device_extensions_{};
+
+        VkDevice device_{ VK_NULL_HANDLE };
+        VkPhysicalDevice physical_device_{ VK_NULL_HANDLE };
+
+        VkQueue graphics_queue_{ VK_NULL_HANDLE };
+        VkQueue present_queue_{ VK_NULL_HANDLE };
+
+        void pick_physical_device( );
+        void create_logical_device( ValidationLayers const* validation_layers );
+
+    };
+
+}
+
+
+#endif //!DEVICESET_H
