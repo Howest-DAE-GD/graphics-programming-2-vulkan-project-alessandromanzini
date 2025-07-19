@@ -3,7 +3,7 @@
 
 #include <__memory/memory_aliases.h>
 
-#include <format>
+#include <string_view>
 #include <vector>
 
 
@@ -19,6 +19,17 @@ namespace cobalt
     }
 
 
+    namespace handle_log
+    {
+        void logerr_on_invalid_table_index( std::string_view const& src, memory::handle_index_t index, size_t table_size );
+        void logerr_on_invalid_resource_index( std::string_view const& src, memory::handle_index_t index );
+        void logerr_on_generation_mismatch( std::string_view const& src, memory::handle_index_t gen1,
+                                            memory::handle_index_t gen2 );
+    }
+
+
+    // todo: destroy resource and entry when owner count goes to 0
+    // todo: manager log error as actual exceptions
     template <typename resource_t>
     class HandleTable final
     {
@@ -67,13 +78,6 @@ namespace cobalt
 
         [[nodiscard]] memory::handle_index_t find_empty_slot( );
 
-        // todo: create a separate library for exceptions and error handling communication.
-        void throw_on_invalid_table_index( std::string_view src, memory::handle_index_t index ) const;
-        void throw_on_invalid_resource_index( std::string_view src, memory::handle_index_t index ) const;
-        void throw_on_generation_mismatch( std::string_view src, memory::handle_index_t gen1, memory::handle_index_t gen2 ) const;
-
-        static std::string_view get_source_name( );
-
     };
 
 
@@ -103,10 +107,10 @@ namespace cobalt
     template <typename resource_t>
     resource_t& HandleTable<resource_t>::at( memory::RedirectionInfo const& info ) const
     {
-        throw_on_invalid_table_index( "at", info.index );
+        handle_log::logerr_on_invalid_table_index( "at", info.index, table_.size( ) );
 
         auto const& slot = table_[info.index];
-        throw_on_generation_mismatch( "at", slot.info.generation, info.generation );
+        handle_log::logerr_on_generation_mismatch( "at", slot.info.generation, info.generation );
 
         return *slot.resource;
     }
@@ -115,10 +119,10 @@ namespace cobalt
     template <typename resource_t>
     void HandleTable<resource_t>::erase( memory::RedirectionInfo const& info )
     {
-        throw_on_invalid_table_index( "erase", info.index );
+        handle_log::logerr_on_invalid_table_index( "erase", info.index, table_.size( ) );
 
         auto& slot = table_[info.index];
-        throw_on_generation_mismatch( "erase", slot.info.generation, info.generation );
+        handle_log::logerr_on_generation_mismatch( "erase", slot.info.generation, info.generation );
 
         // 1. Invalidate the resource entry
         slot.info.index = NULL_HANDLE_INDEX;
@@ -138,46 +142,6 @@ namespace cobalt
         auto const index = empty_slots_.back( );
         empty_slots_.pop_back( );
         return index;
-    }
-
-
-    template <typename resource_t>
-    void HandleTable<resource_t>::throw_on_invalid_table_index( std::string_view src, memory::handle_index_t const index ) const
-    {
-        if ( index >= table_.size( ) )
-        {
-            throw std::range_error( std::format( "{}::{}: table_index out of bounds.", get_source_name( ), src ) );
-        }
-    }
-
-
-    template <typename resource_t>
-    void HandleTable<resource_t>::throw_on_invalid_resource_index( std::string_view src,
-                                                                   memory::handle_index_t const index ) const
-    {
-        if ( index == NULL_HANDLE_INDEX )
-        {
-            throw std::runtime_error( std::format( "{}::{}: resource index is NULL_HANDLE_INDEX.", get_source_name( ), src ) );
-        }
-    }
-
-
-    template <typename resource_t>
-    void HandleTable<resource_t>::throw_on_generation_mismatch( std::string_view src, memory::handle_index_t const gen1,
-                                                                memory::handle_index_t const gen2 ) const
-    {
-        if ( gen1 != gen2 )
-        {
-            throw std::runtime_error( std::format( "{}::{}: generation mismatch.", get_source_name( ), src ) );
-        }
-    }
-
-
-    template <typename resource_t>
-    std::string_view HandleTable<resource_t>::get_source_name( )
-    {
-        static std::string const SOURCE_NAME = std::format( "HandleTable<{}>", std::string( typeid( resource_t ).name( ) ) );
-        return SOURCE_NAME;
     }
 
 }

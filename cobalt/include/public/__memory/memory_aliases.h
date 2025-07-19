@@ -2,6 +2,7 @@
 #define MEMORY_ALIASES_H
 
 #include <cstdint>
+#include <limits>
 
 
 namespace cobalt
