@@ -9,7 +9,7 @@
 
 namespace cobalt::validation
 {
-    PhysicalDeviceSelector::PhysicalDeviceSelector( InstanceBundle& instance,
+    PhysicalDeviceSelector::PhysicalDeviceSelector( InstanceBundle const& instance,
                                                     std::vector<char const*> const& required_extensions )
         : instance_ref_{ instance }
         , required_extensions_( required_extensions ) { }

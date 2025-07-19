@@ -1,14 +1,13 @@
 #ifndef COBALTVK_H
 #define COBALTVK_H
 
+#include <log.h>
 #include <cleanup/DeletionQueue.h>
 #include <__context/VkContext.h>
 #include <__memory/handle/HandleTable.h>
 #include <__memory/handle/handle_aliases.h>
 #include <__memory/handle/ResourceHandle.h>
 
-#include <cassert>
-#include <MacTypes.h>
 #include <stack>
 
 
@@ -55,10 +54,10 @@ namespace cobalt
     {
         if ( vk_instance_ptr_ )
         {
-            fprintf( stderr, "Vulkan instance is already set up. Call reset_instance() first!\n" );
+            log::logerr<CobaltVK>( "create_instance", "vulkan instance is already set up. call reset_instance() first!" );
             return VkContextHandle{};
         }
-        auto handle = create_resource<VkContext>( std::forward<args_t>(args)... );
+        auto handle      = create_resource<VkContext>( std::forward<args_t>( args )... );
         vk_instance_ptr_ = handle.get( );
         return handle;
     }
@@ -74,7 +73,7 @@ namespace cobalt
         {
             if ( not vk_instance_ptr_ )
             {
-                fprintf( stderr, "Vulkan instance is not set up. Call setup_vulkan_instance() first!\n" );
+                log::logerr<CobaltVK>( "create_resource", "vulkan instance is not set up!" );
                 return ResourceHandle<resource_t>{};
             }
             auto& resource_uptr = resources_.emplace_back( *vk_instance_ptr_,

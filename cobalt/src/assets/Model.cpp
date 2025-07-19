@@ -13,11 +13,11 @@ namespace cobalt
         auto const& instance = CVK.get_vk_instance( );
         if ( vertex_buffer_ != VK_NULL_HANDLE )
         {
-            vkDestroyBuffer( instance.get_device( ), vertex_buffer_, nullptr );
+            vkDestroyBuffer( instance.device( ).logical( ), vertex_buffer_, nullptr );
         }
         if ( vertex_buffer_memory_ != VK_NULL_HANDLE )
         {
-            vkFreeMemory( instance.get_device( ), vertex_buffer_memory_, nullptr );
+            vkFreeMemory( instance.device( ).logical( ), vertex_buffer_memory_, nullptr );
         }
     }
 

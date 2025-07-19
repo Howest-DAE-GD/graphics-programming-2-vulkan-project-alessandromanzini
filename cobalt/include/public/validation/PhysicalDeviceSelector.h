@@ -16,11 +16,11 @@ namespace cobalt::validation
     class PhysicalDeviceSelector final
     {
     public:
-        PhysicalDeviceSelector( InstanceBundle& instance, std::vector<char const*> const& required_extensions );
+        PhysicalDeviceSelector( InstanceBundle const& instance, std::vector<char const*> const& required_extensions );
         bool select( VkPhysicalDevice device ) const;
 
     private:
-        InstanceBundle& instance_ref_;
+        InstanceBundle const& instance_ref_;
         std::vector<char const*> const& required_extensions_{};
 
         bool check_extension_support( VkPhysicalDevice device ) const;

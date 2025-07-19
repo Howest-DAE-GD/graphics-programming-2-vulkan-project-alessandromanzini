@@ -8,7 +8,7 @@ namespace cobalt
 
     CobaltVK::~CobaltVK( )
     {
-        assert( deletion_queue_.is_flushed( ) && "CobaltVK::~CobaltVK: instance has not been cleared!" );
+        log::logerr<CobaltVK>( "~CobaltVK", "instance has not been cleared!", not deletion_queue_.is_flushed( ) );
     }
 
 

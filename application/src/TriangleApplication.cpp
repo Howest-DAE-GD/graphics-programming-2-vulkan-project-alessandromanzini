@@ -59,12 +59,11 @@ TriangleApplication::TriangleApplication( )
         .apiVersion = VK_API_VERSION_1_3
     };
     vk_context_ = CVK.create_instance( ContextCreateInfo{
-        .app_info = &app_info,
-        .window = window_.get( ),
+        .app_info = app_info,
+        .window = *window_,
         .validation_layers = ValidationLayers{ VALIDATION_LAYERS_, debug_callback }
     } );
-    vk_context_->pick_physical_device( DEVICE_EXTENSIONS_ );
-    vk_context_->create_logical_device( );
+    vk_context_->create_device( DEVICE_EXTENSIONS_ );
 
     // 3. Set the proper root directory to find shader modules and textures.
     configure_relative_path( );
@@ -83,7 +82,7 @@ void TriangleApplication::run( )
     }
     // All the operations in drawFrame are asynchronous. When we exit the loop, drawing and presentation operations may
     // still be going on. We solve it by waiting for the logical device to finish operations before exiting.
-    vk_context_->wait_idle( );
+    vk_context_->device( ).wait_idle( );
 
     cleanup( );
 }
@@ -97,7 +96,7 @@ void TriangleApplication::run( )
 void TriangleApplication::vk_create_swap_chain( )
 {
     auto const [capabilities, formats, present_modes] = query::check_swap_chain_support(
-        vk_context_->get_physical_device( ), vk_context_->get_instance( ) );
+        vk_context_->device( ).physical( ), vk_context_->instance( ) );
 
     auto const [format, colorSpace]     = vk_choose_swap_surface_format( formats );
     VkPresentModeKHR const present_mode = vk_choose_swap_present_mode( present_modes );
@@ -125,7 +124,7 @@ void TriangleApplication::vk_create_swap_chain( )
 
     VkSwapchainCreateInfoKHR create_info{};
     create_info.sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    create_info.surface = vk_context_->get_instance( ).get_surface( );
+    create_info.surface = vk_context_->instance( ).surface( );
 
     create_info.minImageCount    = image_count;
     create_info.imageFormat      = format;
@@ -134,8 +133,8 @@ void TriangleApplication::vk_create_swap_chain( )
     create_info.imageArrayLayers = 1;
     create_info.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    query::QueueFamilyIndices const indices = query::find_queue_families( vk_context_->get_physical_device( ),
-                                                                          vk_context_->get_instance( ) );
+    query::QueueFamilyIndices const indices = query::find_queue_families( vk_context_->device( ).physical( ),
+                                                                          vk_context_->instance( ) );
     uint32_t const queue_family_indices[] = { indices.graphics_family.value( ), indices.present_family.value( ) };
 
     // The imageArrayLayers specifies the amount of layers each image consists of. This is always 1 unless you are
@@ -165,13 +164,13 @@ void TriangleApplication::vk_create_swap_chain( )
     create_info.clipped        = VK_TRUE;
     create_info.oldSwapchain   = VK_NULL_HANDLE;
 
-    validation::throw_on_bad_result( vkCreateSwapchainKHR( vk_context_->get_device( ), &create_info, nullptr, &swapchain_ ),
+    validation::throw_on_bad_result( vkCreateSwapchainKHR( vk_context_->device( ).logical( ), &create_info, nullptr, &swapchain_ ),
                                      "Failed to create swap chain!" );
 
     // Query image handles
-    vkGetSwapchainImagesKHR( vk_context_->get_device( ), swapchain_, &image_count, nullptr );
+    vkGetSwapchainImagesKHR( vk_context_->device( ).logical( ), swapchain_, &image_count, nullptr );
     swapchain_images_.resize( image_count );
-    vkGetSwapchainImagesKHR( vk_context_->get_device( ), swapchain_, &image_count, swapchain_images_.data( ) );
+    vkGetSwapchainImagesKHR( vk_context_->device( ).logical( ), swapchain_, &image_count, swapchain_images_.data( ) );
 
     // Store the swap chain image format and extent for later use
     swapchain_image_format_ = format;
@@ -268,7 +267,7 @@ void TriangleApplication::vk_recreate_swap_chain( )
     // It is possible to create a new swap chain while drawing commands on an image from the old swap chain are still
     // in-flight. You need to pass the previous swap chain to the oldSwapChain field in the VkSwapchainCreateInfoKHR
     // struct and destroy the old swap chain as soon as you've finished using it.
-    vkDeviceWaitIdle( vk_context_->get_device( ) );
+    vkDeviceWaitIdle( vk_context_->device( ).logical( ) );
 
     vk_cleanup_swap_chain( );
 
@@ -281,22 +280,22 @@ void TriangleApplication::vk_recreate_swap_chain( )
 
 void TriangleApplication::vk_cleanup_swap_chain( ) const
 {
-    vkDestroyImageView( vk_context_->get_device( ), depth_image_view_, nullptr );
-    vkDestroyImage( vk_context_->get_device( ), depth_image_, nullptr );
-    vkFreeMemory( vk_context_->get_device( ), depth_image_memory_, nullptr );
+    vkDestroyImageView( vk_context_->device( ).logical( ), depth_image_view_, nullptr );
+    vkDestroyImage( vk_context_->device( ).logical( ), depth_image_, nullptr );
+    vkFreeMemory( vk_context_->device( ).logical( ), depth_image_memory_, nullptr );
 
     for ( auto const framebuffer : swapchain_frame_buffers_ )
     {
-        vkDestroyFramebuffer( vk_context_->get_device( ), framebuffer, nullptr );
+        vkDestroyFramebuffer( vk_context_->device( ).logical( ), framebuffer, nullptr );
     }
 
     for ( auto const image_view : swapchain_image_views_ )
     {
         // Unlike images, the image views were explicitly created by us, so we need to destroy them.
-        vkDestroyImageView( vk_context_->get_device( ), image_view, nullptr );
+        vkDestroyImageView( vk_context_->device( ).logical( ), image_view, nullptr );
     }
 
-    vkDestroySwapchainKHR( vk_context_->get_device( ), swapchain_, nullptr );
+    vkDestroySwapchainKHR( vk_context_->device( ).logical( ), swapchain_, nullptr );
 }
 
 
@@ -340,7 +339,7 @@ void TriangleApplication::vk_create_render_pass( )
 
     // Depth buffer attachment
     VkAttachmentDescription depth_attachment{};
-    depth_attachment.format         = query::find_depth_format( vk_context_->get_physical_device( ) );
+    depth_attachment.format         = query::find_depth_format( vk_context_->device( ).physical( ) );
     depth_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
     depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -393,7 +392,7 @@ void TriangleApplication::vk_create_render_pass( )
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     validation::throw_on_bad_result(
-        vkCreateRenderPass( vk_context_->get_device( ), &render_pass_info, nullptr, &render_pass_ ),
+        vkCreateRenderPass( vk_context_->device( ).logical( ), &render_pass_info, nullptr, &render_pass_ ),
         "Failed to create render pass!" );
 }
 
@@ -428,7 +427,7 @@ void TriangleApplication::vk_create_descriptor_set_layout( )
     layout_info.pBindings    = bindings.data( );
 
     validation::throw_on_bad_result(
-        vkCreateDescriptorSetLayout( vk_context_->get_device( ), &layout_info, nullptr, &descriptor_set_layout_ ),
+        vkCreateDescriptorSetLayout( vk_context_->device( ).logical( ), &layout_info, nullptr, &descriptor_set_layout_ ),
         "Failed to create descriptor set layout!" );
 }
 
@@ -440,8 +439,8 @@ void TriangleApplication::vk_create_graphics_pipeline( )
 
     // Shader modules are just a thin wrapper around the shader bytecode that we've previously loaded from a file and
     // the functions defined in it.
-    VkShaderModule vert_shader_module = shader::create_shader_module( vk_context_->get_device( ), vert_shader_code );
-    VkShaderModule frag_shader_module = shader::create_shader_module( vk_context_->get_device( ), frag_shader_code );
+    VkShaderModule vert_shader_module = shader::create_shader_module( vk_context_->device( ).logical( ), vert_shader_code );
+    VkShaderModule frag_shader_module = shader::create_shader_module( vk_context_->device( ).logical( ), frag_shader_code );
 
     // We assign the shaders to specific pipelines stages through the shaderStages member of the
     // VkPipelineShaderStageCreateInfo
@@ -569,7 +568,7 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     pipeline_layout_info.pSetLayouts    = &descriptor_set_layout_;
 
     validation::throw_on_bad_result(
-        vkCreatePipelineLayout( vk_context_->get_device( ), &pipeline_layout_info, nullptr, &pipeline_layout_ ),
+        vkCreatePipelineLayout( vk_context_->device( ).logical( ), &pipeline_layout_info, nullptr, &pipeline_layout_ ),
         "Failed to create pipeline layout!" );
 
     // Depth stencil creation
@@ -634,15 +633,15 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     // The second parameter references an optional VkPipelineCache object. A pipeline cache can be used to store and
     // reuse data relevant to pipeline creation across multiple calls to vkCreateGraphicsPipelines.
     validation::throw_on_bad_result(
-        vkCreateGraphicsPipelines( vk_context_->get_device( ), VK_NULL_HANDLE, 1, &pipeline_info, nullptr,
+        vkCreateGraphicsPipelines( vk_context_->device( ).logical( ), VK_NULL_HANDLE, 1, &pipeline_info, nullptr,
                                    &graphics_pipeline_ ),
         "Failed to create graphics pipeline!" );
 
     // The compilation and linking of the SPIR-V bytecode to machine code for execution
     // by the GPU doesn't happen until the graphics pipeline is created. That means that we're allowed to destroy the
     // shader modules again as soon as pipeline creation is finished.
-    vkDestroyShaderModule( vk_context_->get_device( ), frag_shader_module, nullptr );
-    vkDestroyShaderModule( vk_context_->get_device( ), vert_shader_module, nullptr );
+    vkDestroyShaderModule( vk_context_->device( ).logical( ), frag_shader_module, nullptr );
+    vkDestroyShaderModule( vk_context_->device( ).logical( ), vert_shader_module, nullptr );
 }
 
 
@@ -679,23 +678,23 @@ void TriangleApplication::vk_create_image( uint32_t const width, uint32_t const 
     image_info.samples     = VK_SAMPLE_COUNT_1_BIT;
     image_info.flags       = 0; // Optional
 
-    validation::throw_on_bad_result( vkCreateImage( vk_context_->get_device( ), &image_info, nullptr, &image ),
+    validation::throw_on_bad_result( vkCreateImage( vk_context_->device( ).logical( ), &image_info, nullptr, &image ),
                                      "Failed to create image!" );
 
     VkMemoryRequirements mem_requirements;
-    vkGetImageMemoryRequirements( vk_context_->get_device( ), image, &mem_requirements );
+    vkGetImageMemoryRequirements( vk_context_->device( ).logical( ), image, &mem_requirements );
 
     VkMemoryAllocateInfo alloc_info{};
     alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize  = mem_requirements.size;
-    alloc_info.memoryTypeIndex = query::find_memory_type( vk_context_->get_physical_device( ),
+    alloc_info.memoryTypeIndex = query::find_memory_type( vk_context_->device( ).physical( ),
                                                           mem_requirements.memoryTypeBits,
                                                           properties );
 
-    validation::throw_on_bad_result( vkAllocateMemory( vk_context_->get_device( ), &alloc_info, nullptr, &image_memory ),
+    validation::throw_on_bad_result( vkAllocateMemory( vk_context_->device( ).logical( ), &alloc_info, nullptr, &image_memory ),
                                      "Failed to allocate image memory!" );
 
-    vkBindImageMemory( vk_context_->get_device( ), image, image_memory, 0 );
+    vkBindImageMemory( vk_context_->device( ).logical( ), image, image_memory, 0 );
 }
 
 
@@ -726,7 +725,7 @@ VkImageView TriangleApplication::vk_create_image_view( VkImage const image, VkFo
     create_info.subresourceRange.layerCount     = 1;
 
     VkImageView image_view;
-    validation::throw_on_bad_result( vkCreateImageView( vk_context_->get_device( ), &create_info, nullptr, &image_view ),
+    validation::throw_on_bad_result( vkCreateImageView( vk_context_->device( ).logical( ), &create_info, nullptr, &image_view ),
                                      "Failed to create image view!" );
 
     return image_view;
@@ -739,8 +738,8 @@ void TriangleApplication::load_model( )
     builders::ModelLoader const loader{ MODEL_PATH_ };
     loader.load( *model_ );
 
-    model_->create_vertex_buffer( vk_context_->get_device( ), vk_context_->get_physical_device( ), command_pool_,
-                                  vk_context_->get_graphics_queue( ) );
+    model_->create_vertex_buffer( vk_context_->device( ).logical( ), vk_context_->device( ).physical( ), command_pool_,
+                                  vk_context_->device( ).graphics_queue( ) );
 }
 
 
@@ -755,15 +754,15 @@ void TriangleApplication::vk_create_texture_image( )
         throw std::runtime_error( "Failed to load texture image!" );
     }
 
-    Buffer::vk_create_buffer( vk_context_->get_device( ), vk_context_->get_physical_device( ), image_size,
+    Buffer::vk_create_buffer( vk_context_->device( ).logical( ), vk_context_->device( ).physical( ), image_size,
                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer_,
                               staging_buffer_memory_ );
 
     void* data;
-    vkMapMemory( vk_context_->get_device( ), staging_buffer_memory_, 0, image_size, 0, &data );
+    vkMapMemory( vk_context_->device( ).logical( ), staging_buffer_memory_, 0, image_size, 0, &data );
     memcpy( data, pixels, static_cast<size_t>( image_size ) );
-    vkUnmapMemory( vk_context_->get_device( ), staging_buffer_memory_ );
+    vkUnmapMemory( vk_context_->device( ).logical( ), staging_buffer_memory_ );
 
     // Cleanup original pixel data
     stbi_image_free( pixels );
@@ -779,8 +778,8 @@ void TriangleApplication::vk_create_texture_image( )
     vk_transition_image_layout( texture_image_, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
 
-    vkDestroyBuffer( vk_context_->get_device( ), staging_buffer_, nullptr );
-    vkFreeMemory( vk_context_->get_device( ), staging_buffer_memory_, nullptr );
+    vkDestroyBuffer( vk_context_->device( ).logical( ), staging_buffer_, nullptr );
+    vkFreeMemory( vk_context_->device( ).logical( ), staging_buffer_memory_, nullptr );
 }
 
 
@@ -804,7 +803,7 @@ void TriangleApplication::vk_create_texture_sampler( )
     sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties( vk_context_->get_physical_device( ), &properties );
+    vkGetPhysicalDeviceProperties( vk_context_->device( ).physical( ), &properties );
 
     sampler_info.anisotropyEnable = VK_TRUE;
     sampler_info.maxAnisotropy    = properties.limits.maxSamplerAnisotropy;
@@ -821,7 +820,7 @@ void TriangleApplication::vk_create_texture_sampler( )
     sampler_info.maxLod     = 0.0f;
 
     validation::throw_on_bad_result(
-        vkCreateSampler( vk_context_->get_device( ), &sampler_info, nullptr, &texture_sampler_ ),
+        vkCreateSampler( vk_context_->device( ).logical( ), &sampler_info, nullptr, &texture_sampler_ ),
         "Failed to create texture sampler!" );
 }
 
@@ -830,7 +829,7 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
                                                       VkImageLayout const old_layout,
                                                       VkImageLayout const new_layout ) const
 {
-    VkCommandBuffer const command_buffer = begin_single_time_commands( vk_context_->get_device( ), command_pool_ );
+    VkCommandBuffer const command_buffer = begin_single_time_commands( vk_context_->device( ).logical( ), command_pool_ );
 
     VkImageMemoryBarrier barrier{};
     barrier.sType     = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -892,15 +891,15 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
         0, nullptr,
         1, &barrier );
 
-    end_single_time_commands( vk_context_->get_device( ), command_pool_, command_buffer,
-                              vk_context_->get_graphics_queue( ) );
+    end_single_time_commands( vk_context_->device( ).logical( ), command_pool_, command_buffer,
+                              vk_context_->device( ).graphics_queue( ) );
 }
 
 
 void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, VkImage const image, uint32_t const width,
                                                    uint32_t const height ) const
 {
-    VkCommandBuffer const command_buffer = begin_single_time_commands( vk_context_->get_device( ), command_pool_ );
+    VkCommandBuffer const command_buffer = begin_single_time_commands( vk_context_->device( ).logical( ), command_pool_ );
 
     VkBufferImageCopy region{};
     region.bufferOffset      = 0;
@@ -928,8 +927,8 @@ void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, VkImag
         &region
     );
 
-    end_single_time_commands( vk_context_->get_device( ), command_pool_, command_buffer,
-                              vk_context_->get_graphics_queue( ) );
+    end_single_time_commands( vk_context_->device( ).logical( ), command_pool_, command_buffer,
+                              vk_context_->device( ).graphics_queue( ) );
 }
 
 
@@ -939,29 +938,29 @@ void TriangleApplication::vk_create_index_buffer( )
 
     VkBuffer staging_buffer;
     VkDeviceMemory staging_buffer_memory;
-    Buffer::vk_create_buffer( vk_context_->get_device( ), vk_context_->get_physical_device( ), buffer_size,
+    Buffer::vk_create_buffer( vk_context_->device( ).logical( ), vk_context_->device( ).physical( ), buffer_size,
                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer,
                               staging_buffer_memory );
 
     void* data;
-    vkMapMemory( vk_context_->get_device( ), staging_buffer_memory, 0, buffer_size, 0, &data );
+    vkMapMemory( vk_context_->device( ).logical( ), staging_buffer_memory, 0, buffer_size, 0, &data );
 
     // ReSharper disable once CppRedundantCastExpression
     memcpy( data, model_->get_indices( ).data( ), static_cast<size_t>( buffer_size ) );
 
-    vkUnmapMemory( vk_context_->get_device( ), staging_buffer_memory );
+    vkUnmapMemory( vk_context_->device( ).logical( ), staging_buffer_memory );
 
-    Buffer::vk_create_buffer( vk_context_->get_device( ), vk_context_->get_physical_device( ), buffer_size,
+    Buffer::vk_create_buffer( vk_context_->device( ).logical( ), vk_context_->device( ).physical( ), buffer_size,
                               VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, index_buffer_, index_buffer_memory_ );
 
-    Buffer::vk_copy_buffer( vk_context_->get_device( ), command_pool_, vk_context_->get_graphics_queue( ),
+    Buffer::vk_copy_buffer( vk_context_->device( ).logical( ), command_pool_, vk_context_->device( ).graphics_queue( ),
                             staging_buffer, index_buffer_,
                             buffer_size );
 
-    vkDestroyBuffer( vk_context_->get_device( ), staging_buffer, nullptr );
-    vkFreeMemory( vk_context_->get_device( ), staging_buffer_memory, nullptr );
+    vkDestroyBuffer( vk_context_->device( ).logical( ), staging_buffer, nullptr );
+    vkFreeMemory( vk_context_->device( ).logical( ), staging_buffer_memory, nullptr );
 }
 
 
@@ -992,7 +991,7 @@ void TriangleApplication::vk_create_frame_buffers( )
         framebuffer_info.layers = 1;
 
         validation::throw_on_bad_result(
-            vkCreateFramebuffer( vk_context_->get_device( ), &framebuffer_info, nullptr, &swapchain_frame_buffers_[i] ),
+            vkCreateFramebuffer( vk_context_->device( ).logical( ), &framebuffer_info, nullptr, &swapchain_frame_buffers_[i] ),
             "Failed to create framebuffer!" );
     }
 }
@@ -1010,12 +1009,12 @@ void TriangleApplication::vk_create_uniform_buffers( )
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         constexpr VkDeviceSize buffer_size = sizeof( UniformBufferObject );
-        Buffer::vk_create_buffer( vk_context_->get_device( ), vk_context_->get_physical_device( ), buffer_size,
+        Buffer::vk_create_buffer( vk_context_->device( ).logical( ), vk_context_->device( ).physical( ), buffer_size,
                                   VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                   uniform_buffers_[i], uniform_buffers_memory_[i] );
 
-        vkMapMemory( vk_context_->get_device( ), uniform_buffers_memory_[i], 0, buffer_size, 0,
+        vkMapMemory( vk_context_->device( ).logical( ), uniform_buffers_memory_[i], 0, buffer_size, 0,
                      &uniform_buffers_mapped_[i] );
     }
 }
@@ -1037,7 +1036,7 @@ void TriangleApplication::vk_create_descriptor_pool( )
     pool_info.maxSets = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
 
     validation::throw_on_bad_result(
-        vkCreateDescriptorPool( vk_context_->get_device( ), &pool_info, nullptr, &descriptor_pool_ ),
+        vkCreateDescriptorPool( vk_context_->device( ).logical( ), &pool_info, nullptr, &descriptor_pool_ ),
         "Failed to create descriptor pool!" );
 }
 
@@ -1053,7 +1052,7 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
     descriptor_sets_.resize( MAX_FRAMES_IN_FLIGHT_ );
     validation::throw_on_bad_result(
-        vkAllocateDescriptorSets( vk_context_->get_device( ), &alloc_info, descriptor_sets_.data( ) ),
+        vkAllocateDescriptorSets( vk_context_->device( ).logical( ), &alloc_info, descriptor_sets_.data( ) ),
         "Failed to allocate descriptor sets!" );
 
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
@@ -1085,7 +1084,7 @@ void TriangleApplication::vk_create_descriptor_sets( )
         descriptor_writes[1].descriptorCount = 1;
         descriptor_writes[1].pImageInfo      = &image_info;
 
-        vkUpdateDescriptorSets( vk_context_->get_device( ), static_cast<uint32_t>( descriptor_writes.size( ) ),
+        vkUpdateDescriptorSets( vk_context_->device( ).logical( ), static_cast<uint32_t>( descriptor_writes.size( ) ),
                                 descriptor_writes.data( ), 0, nullptr );
     }
 }
@@ -1093,8 +1092,8 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
 void TriangleApplication::vk_create_command_pool( )
 {
-    auto const queue_family_indices = query::find_queue_families( vk_context_->get_physical_device( ),
-                                                                  vk_context_->get_instance( ) );
+    auto const queue_family_indices = query::find_queue_families( vk_context_->device( ).physical( ),
+                                                                  vk_context_->instance( ) );
 
     VkCommandPoolCreateInfo pool_info{};
     pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1107,7 +1106,7 @@ void TriangleApplication::vk_create_command_pool( )
     pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     pool_info.queueFamilyIndex = queue_family_indices.graphics_family.value( );
 
-    validation::throw_on_bad_result( vkCreateCommandPool( vk_context_->get_device( ), &pool_info, nullptr, &command_pool_ ),
+    validation::throw_on_bad_result( vkCreateCommandPool( vk_context_->device( ).logical( ), &pool_info, nullptr, &command_pool_ ),
                                      "Failed to create command pool!" );
 }
 
@@ -1126,7 +1125,7 @@ void TriangleApplication::vk_create_command_buffers( )
     alloc_info.commandBufferCount = static_cast<uint32_t>( command_buffers_.size( ) );
 
     validation::throw_on_bad_result(
-        vkAllocateCommandBuffers( vk_context_->get_device( ), &alloc_info, command_buffers_.data( ) ),
+        vkAllocateCommandBuffers( vk_context_->device( ).logical( ), &alloc_info, command_buffers_.data( ) ),
         "Failed to allocate command buffers!" );
 }
 
@@ -1146,13 +1145,13 @@ void TriangleApplication::vk_create_sync_objects( )
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         validation::throw_on_bad_result(
-            vkCreateSemaphore( vk_context_->get_device( ), &semaphore_info, nullptr, &image_available_semaphores_[i] ),
+            vkCreateSemaphore( vk_context_->device( ).logical( ), &semaphore_info, nullptr, &image_available_semaphores_[i] ),
             "Failed to create image semaphore!" );
         validation::throw_on_bad_result(
-            vkCreateSemaphore( vk_context_->get_device( ), &semaphore_info, nullptr, &render_finished_semaphores_[i] ),
+            vkCreateSemaphore( vk_context_->device( ).logical( ), &semaphore_info, nullptr, &render_finished_semaphores_[i] ),
             "Failed to create render semaphore!" );
         validation::throw_on_bad_result(
-            vkCreateFence( vk_context_->get_device( ), &fence_info, nullptr, &in_flight_fences_[i] ),
+            vkCreateFence( vk_context_->device( ).logical( ), &fence_info, nullptr, &in_flight_fences_[i] ),
             "Failed to create fence!" );
     }
 }
@@ -1160,7 +1159,7 @@ void TriangleApplication::vk_create_sync_objects( )
 
 void TriangleApplication::vk_create_depth_resources( )
 {
-    VkFormat const depth_format = query::find_depth_format( vk_context_->get_physical_device( ) );
+    VkFormat const depth_format = query::find_depth_format( vk_context_->device( ).physical( ) );
 
     vk_create_image( swapchain_extent_.width, swapchain_extent_.height, depth_format, VK_IMAGE_TILING_OPTIMAL,
                      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depth_image_,
@@ -1355,12 +1354,12 @@ void TriangleApplication::draw_frame( )
     // The VK_TRUE we pass here indicates that we want to wait for all fences, but in the case of a single one it
     // doesn't matter. This function also has a timeout parameter set to UINT64_MAX, which effectively disables the
     // timeout.
-    vkWaitForFences( vk_context_->get_device( ), 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX );
+    vkWaitForFences( vk_context_->device( ).logical( ), 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX );
 
     // The first two parameters of vkAcquireNextImageKHR are the logical device and the swap chain from which we wish
     // to acquire an image.
     uint32_t image_index{};
-    auto const acquire_image_result = vkAcquireNextImageKHR( vk_context_->get_device( ), swapchain_, UINT64_MAX,
+    auto const acquire_image_result = vkAcquireNextImageKHR( vk_context_->device( ).logical( ), swapchain_, UINT64_MAX,
                                                              image_available_semaphores_[current_frame_],
                                                              VK_NULL_HANDLE,
                                                              &image_index );
@@ -1380,7 +1379,7 @@ void TriangleApplication::draw_frame( )
     // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.
     // We reset the fence only if there's work to do, which is why we're doing it after the resize check.
     // You should not return before work is completed or DEADLOCK will occur.
-    vkResetFences( vk_context_->get_device( ), 1, &in_flight_fences_[current_frame_] );
+    vkResetFences( vk_context_->device( ).logical( ), 1, &in_flight_fences_[current_frame_] );
 
     // With the imageIndex specifying the swap chain image to use in hand, we can now record the command buffer.
     vkResetCommandBuffer( command_buffers_[current_frame_], 0 );
@@ -1410,7 +1409,7 @@ void TriangleApplication::draw_frame( )
     // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
     // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it inFlightFence.
     validation::throw_on_bad_result(
-        vkQueueSubmit( vk_context_->get_graphics_queue( ), 1, &submit_info, in_flight_fences_[current_frame_] ),
+        vkQueueSubmit( vk_context_->device( ).graphics_queue( ), 1, &submit_info, in_flight_fences_[current_frame_] ),
         "Failed to submit draw command buffer!" );
 
     // The last step of drawing a frame is submitting the result back to the swap chain to have it eventually show up
@@ -1434,7 +1433,7 @@ void TriangleApplication::draw_frame( )
     // The vkQueuePresentKHR function submits the request to present an image to the queue.
 
     // We check for the callback boolean after the queue presentation to avoid the semaphore to be signaled.
-    if ( auto const queue_present_result = vkQueuePresentKHR( vk_context_->get_present_queue( ), &present_info );
+    if ( auto const queue_present_result = vkQueuePresentKHR( vk_context_->device( ).graphics_queue( ), &present_info );
         queue_present_result == VK_ERROR_OUT_OF_DATE_KHR || queue_present_result == VK_SUBOPTIMAL_KHR ||
         frame_buffer_resized_ )
     {
@@ -1503,37 +1502,37 @@ void TriangleApplication::cleanup( )
     // that we'll ignore by passing nullptr.
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
-        vkDestroySemaphore( vk_context_->get_device( ), image_available_semaphores_[i], nullptr );
-        vkDestroySemaphore( vk_context_->get_device( ), render_finished_semaphores_[i], nullptr );
-        vkDestroyFence( vk_context_->get_device( ), in_flight_fences_[i], nullptr );
+        vkDestroySemaphore( vk_context_->device( ).logical( ), image_available_semaphores_[i], nullptr );
+        vkDestroySemaphore( vk_context_->device( ).logical( ), render_finished_semaphores_[i], nullptr );
+        vkDestroyFence( vk_context_->device( ).logical( ), in_flight_fences_[i], nullptr );
     }
 
-    vkDestroyCommandPool( vk_context_->get_device( ), command_pool_, nullptr );
+    vkDestroyCommandPool( vk_context_->device( ).logical( ), command_pool_, nullptr );
 
-    vkDestroyPipeline( vk_context_->get_device( ), graphics_pipeline_, nullptr );
-    vkDestroyPipelineLayout( vk_context_->get_device( ), pipeline_layout_, nullptr );
+    vkDestroyPipeline( vk_context_->device( ).logical( ), graphics_pipeline_, nullptr );
+    vkDestroyPipelineLayout( vk_context_->device( ).logical( ), pipeline_layout_, nullptr );
 
-    vkDestroyRenderPass( vk_context_->get_device( ), render_pass_, nullptr );
+    vkDestroyRenderPass( vk_context_->device( ).logical( ), render_pass_, nullptr );
 
     vk_cleanup_swap_chain( );
 
-    vkDestroySampler( vk_context_->get_device( ), texture_sampler_, nullptr );
-    vkDestroyImageView( vk_context_->get_device( ), texture_image_view_, nullptr );
+    vkDestroySampler( vk_context_->device( ).logical( ), texture_sampler_, nullptr );
+    vkDestroyImageView( vk_context_->device( ).logical( ), texture_image_view_, nullptr );
 
-    vkDestroyImage( vk_context_->get_device( ), texture_image_, nullptr );
-    vkFreeMemory( vk_context_->get_device( ), texture_image_memory_, nullptr );
+    vkDestroyImage( vk_context_->device( ).logical( ), texture_image_, nullptr );
+    vkFreeMemory( vk_context_->device( ).logical( ), texture_image_memory_, nullptr );
 
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
-        vkDestroyBuffer( vk_context_->get_device( ), uniform_buffers_[i], nullptr );
-        vkFreeMemory( vk_context_->get_device( ), uniform_buffers_memory_[i], nullptr );
+        vkDestroyBuffer( vk_context_->device( ).logical( ), uniform_buffers_[i], nullptr );
+        vkFreeMemory( vk_context_->device( ).logical( ), uniform_buffers_memory_[i], nullptr );
     }
 
-    vkDestroyDescriptorPool( vk_context_->get_device( ), descriptor_pool_, nullptr );
-    vkDestroyDescriptorSetLayout( vk_context_->get_device( ), descriptor_set_layout_, nullptr );
+    vkDestroyDescriptorPool( vk_context_->device( ).logical( ), descriptor_pool_, nullptr );
+    vkDestroyDescriptorSetLayout( vk_context_->device( ).logical( ), descriptor_set_layout_, nullptr );
 
-    vkDestroyBuffer( vk_context_->get_device( ), index_buffer_, nullptr );
-    vkFreeMemory( vk_context_->get_device( ), index_buffer_memory_, nullptr );
+    vkDestroyBuffer( vk_context_->device( ).logical( ), index_buffer_, nullptr );
+    vkFreeMemory( vk_context_->device( ).logical( ), index_buffer_memory_, nullptr );
 
     CVK.reset_instance( );
 }

@@ -5,9 +5,9 @@
 
 namespace cobalt::query
 {
-    SwapChainSupportDetails check_swap_chain_support( VkPhysicalDevice physical_device, InstanceBundle const& instance )
+    SwapChainSupportDetails check_swap_chain_support( VkPhysicalDevice const physical_device, InstanceBundle const& instance )
     {
-        VkSurfaceKHR const surface = instance.get_surface( );
+        VkSurfaceKHR const surface = instance.surface( );
 
         // There are basically three kinds of properties we need to check:
         // 1. Basic surface capabilities ( min/max number of images in swap chain, min/max width and height of images )

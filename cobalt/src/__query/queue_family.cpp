@@ -5,7 +5,7 @@
 
 namespace cobalt::query
 {
-    QueueFamilyIndices find_queue_families( VkPhysicalDevice physical_device, InstanceBundle const& instance )
+    QueueFamilyIndices find_queue_families( VkPhysicalDevice const physical_device, InstanceBundle const& instance )
     {
         QueueFamilyIndices indices;
 
@@ -36,7 +36,7 @@ namespace cobalt::query
             }
 
             VkBool32 present_support{ false };
-            vkGetPhysicalDeviceSurfaceSupportKHR( physical_device, static_cast<uint32_t>( index ), instance.get_surface( ),
+            vkGetPhysicalDeviceSurfaceSupportKHR( physical_device, static_cast<uint32_t>( index ), instance.surface( ),
                                                   &present_support );
             if ( present_support )
             {

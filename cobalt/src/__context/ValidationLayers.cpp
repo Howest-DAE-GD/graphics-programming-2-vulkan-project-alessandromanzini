@@ -51,12 +51,12 @@ namespace cobalt
 
         auto const func =
                 reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-                    vkGetInstanceProcAddr( instance.get_instance( ), "vkCreateDebugUtilsMessengerEXT" ) );
+                    vkGetInstanceProcAddr( instance.instance( ), "vkCreateDebugUtilsMessengerEXT" ) );
 
         VkResult result;
         if ( func != nullptr )
         {
-            result = func( instance.get_instance( ), &debug_info, nullptr, &debug_messenger_ );
+            result = func( instance.instance( ), &debug_info, nullptr, &debug_messenger_ );
         }
         else
         {
@@ -71,10 +71,10 @@ namespace cobalt
     {
         auto const func =
                 reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>( vkGetInstanceProcAddr(
-                    instance.get_instance( ), "vkDestroyDebugUtilsMessengerEXT" ) );
+                    instance.instance( ), "vkDestroyDebugUtilsMessengerEXT" ) );
         if ( func != nullptr )
         {
-            func( instance.get_instance( ), debug_messenger_, nullptr );
+            func( instance.instance( ), debug_messenger_, nullptr );
         }
     }
 
