@@ -24,10 +24,4 @@ namespace cobalt
         deletion_queue_.flush( );
     }
 
-
-    VkContext& CobaltVK::get_vk_instance( ) const
-    {
-        return *vk_instance_ptr_;
-    }
-
 }
