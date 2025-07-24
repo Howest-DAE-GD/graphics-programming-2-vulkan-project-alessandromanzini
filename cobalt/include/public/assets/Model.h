@@ -15,7 +15,11 @@ namespace cobalt
     {
         class ModelLoader;
     }
+    class DeviceSet;
+}
 
+namespace cobalt
+{
     class Model final : public memory::Resource
     {
         friend class builders::ModelLoader;
@@ -23,7 +27,7 @@ namespace cobalt
     public:
         using index_t = uint32_t;
 
-        Model( ) = default;
+        explicit Model( DeviceSet const& device );
         ~Model( ) override;
 
         Model( Model const& )                = delete;
@@ -31,8 +35,7 @@ namespace cobalt
         Model& operator=( Model const& )     = delete;
         Model& operator=( Model&& ) noexcept = delete;
 
-        void create_vertex_buffer( VkDevice device, VkPhysicalDevice physical_device, VkCommandPool command_pool,
-                                   VkQueue graphics_queue );
+        void create_vertex_buffer( VkCommandPool command_pool, VkQueue graphics_queue );
 
         [[nodiscard]] VkBuffer get_vertex_buffer( ) const { return vertex_buffer_; }
         [[nodiscard]] VkDeviceMemory get_vertex_buffer_memory( ) const { return vertex_buffer_memory_; }
@@ -41,6 +44,8 @@ namespace cobalt
         [[nodiscard]] std::vector<index_t> const& get_indices( ) const { return indices_; }
 
     private:
+        DeviceSet const& device_ref_;
+
         std::vector<Vertex> vertices_{};
         std::vector<index_t> indices_{};
 
