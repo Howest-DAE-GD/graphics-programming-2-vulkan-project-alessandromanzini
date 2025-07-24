@@ -14,30 +14,44 @@ add_library(${PROJECT_NAME}
 		"src/assets/Buffer.cpp"
 		"src/assets/Model.cpp"
 
-		"src/builders/ModelLoader.cpp"
-
 		"src/cleanup/DeletionQueue.cpp"
 
-		"src/validation/result.cpp"
-		"src/validation/dispatch.cpp"
-
 		"src/CobaltVK.cpp"
-		"src/validation/compare.cpp"
 		"src/assets/Window.cpp"
-		include/public/event/MulticastDelegate.h
-		src/validation/PhysicalDeviceSelector.cpp
-		include/public/validation/PhysicalDeviceSelector.h
 
-		include/public/__memory/handle/ResourceHandle.h
-		include/public/__memory/handle/handle_aliases.h
-		include/public/__memory/memory_aliases.h
-		include/public/__memory/Resource.h
-		"src/__memory/handle/HandleTable.cpp"
+		"src/__buffer/FrameBuffer.cpp"
+
+		"include/public/__builder/VkBuilder.h"
+		"src/__builder/ModelLoader.cpp"
+		"src/__builder/VkSwapchainBuilder.cpp"
+		"src/__builder/PhysicalDeviceSelector.cpp"
 
 		"src/__context/DeviceSet.cpp"
 		"src/__context/InstanceBundle.cpp"
 		"src/__context/VkContext.cpp"
 		"src/__context/ValidationLayers.cpp"
+
+		"include/public/__event/multicast_delegate/MulticastDelegate.h"
+		"include/public/__event/multicast_delegate/Dispatcher.h"
+
+		"src/__image/Image.cpp"
+		"src/__image/ImageView.cpp"
+
+		"include/public/__memory/handle/ResourceHandle.h"
+		"include/public/__memory/handle/handle_aliases.h"
+		"include/public/__memory/memory_aliases.h"
+		"include/public/__memory/Resource.h"
+		"src/__memory/handle/HandleTable.cpp"
+
+		"include/public/__meta/crtp.h"
+		"include/public/__meta/function_traits.h"
+		"include/public/__meta/vk_function_traits.h"
+
+		"src/__swapchain/Swapchain.cpp"
+
+		"src/__validation/result.cpp"
+		"src/__validation/dispatch.cpp"
+		"src/__validation/compare.cpp"
 
 		"src/__query/extension_support.cpp"
 		"src/__query/queue_family.cpp"

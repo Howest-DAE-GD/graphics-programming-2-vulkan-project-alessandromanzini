@@ -1,7 +1,7 @@
 #include <ShaderModules.h>
 
-#include <validation/dispatch.h>
-#include <validation/result.h>
+#include <__validation/dispatch.h>
+#include <__validation/result.h>
 
 #include <cassert>
 #include <fstream>

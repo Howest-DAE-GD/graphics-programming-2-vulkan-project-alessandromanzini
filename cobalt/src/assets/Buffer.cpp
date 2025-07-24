@@ -4,7 +4,7 @@
 #include <../../include/public/SingleTimeCommand.h>
 #include <VulkanDeviceQueries.h>
 
-#include <validation/result.h>
+#include <__validation/result.h>
 
 #include <stdexcept>
 
