@@ -6,21 +6,15 @@
 
 namespace cobalt
 {
-    namespace memory
-    {
-        class Resource;
-    }
-    class VkContext;
-    class Window;
-    class Model;
-
     template <typename resource_t>
-    using DefaultHandle = ResourceHandle<resource_t, memory::Resource>;
+    using DefaultHandle = ResourceHandle<resource_t, class memory::Resource>;
 
-    using VkContextHandle = DefaultHandle<VkContext>;
-    using WindowHandle = DefaultHandle<Window>;
+    using VkContextHandle = DefaultHandle<class VkContext>;
+    using WindowHandle = DefaultHandle<class Window>;
 
-    using ModelHandle = DefaultHandle<Model>;
+    using SwapchainHandle = DefaultHandle<class Swapchain>;
+
+    using ModelHandle = DefaultHandle<class Model>;
 
 }
 

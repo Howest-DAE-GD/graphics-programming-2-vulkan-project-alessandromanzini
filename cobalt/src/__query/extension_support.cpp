@@ -1,7 +1,7 @@
 #include <__query/extension_support.h>
 
-#include <validation/compare.h>
-#include <validation/dispatch.h>
+#include <__validation/compare.h>
+#include <__validation/dispatch.h>
 
 #include <vulkan/vulkan_core.h>
 
