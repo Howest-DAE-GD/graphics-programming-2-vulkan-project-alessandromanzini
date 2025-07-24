@@ -1,11 +1,11 @@
 #include <set>
 #include <__context/DeviceSet.h>
 
-#include <validation/PhysicalDeviceSelector.h>
-#include <validation/result.h>
+#include <__builder/PhysicalDeviceSelector.h>
 #include <__context/InstanceBundle.h>
 #include <__context/ValidationLayers.h>
 #include <__query/queue_family.h>
+#include <__validation/result.h>
 
 
 namespace cobalt
@@ -89,6 +89,7 @@ namespace cobalt
     }
 
 
+    // todo: ask for options to be passed in, like queue priorities, etc.
     void DeviceSet::create_logical_device( ValidationLayers const* validation_layers )
     {
         // This structure describes the number of queues we want for a single queue family. Right now we're only

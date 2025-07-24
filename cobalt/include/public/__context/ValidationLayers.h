@@ -9,6 +9,10 @@
 namespace cobalt
 {
     class InstanceBundle;
+}
+
+namespace cobalt
+{
     class ValidationLayers final
     {
     public:

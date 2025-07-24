@@ -1,7 +1,7 @@
 #include <__context/ValidationLayers.h>
 
-#include <validation/compare.h>
-#include <validation/result.h>
+#include <__validation/compare.h>
+#include <__validation/result.h>
 #include <__context/InstanceBundle.h>
 #include <__query/extension_support.h>
 

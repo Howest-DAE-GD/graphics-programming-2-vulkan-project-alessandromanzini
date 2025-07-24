@@ -1,6 +1,8 @@
 #ifndef DEVICESET_H
 #define DEVICESET_H
 
+#include <__memory/Resource.h>
+
 #include <vulkan/vulkan_core.h>
 
 #include <vector>
@@ -11,11 +13,11 @@ namespace cobalt
     class ValidationLayers;
     class InstanceBundle;
 
-    class DeviceSet final
+    class DeviceSet final : public memory::Resource
     {
     public:
         explicit DeviceSet( InstanceBundle const& instance, std::vector<char const*> extensions, ValidationLayers const* validation_layers = nullptr );
-        ~DeviceSet( );
+        ~DeviceSet( ) override;
 
         DeviceSet( const DeviceSet& )                = delete;
         DeviceSet( DeviceSet&& ) noexcept            = delete;

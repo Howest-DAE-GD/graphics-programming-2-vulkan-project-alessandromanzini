@@ -10,6 +10,10 @@ namespace cobalt
 {
     class Window;
     class ValidationLayers;
+}
+
+namespace cobalt
+{
     class InstanceBundle final
     {
     public:

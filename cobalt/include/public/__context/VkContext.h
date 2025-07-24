@@ -14,14 +14,14 @@
 
 namespace cobalt
 {
-    struct ContextCreateInfo final
+    struct ContextCreateInfo
     {
-        VkApplicationInfo const& app_info;
-        Window const& window;
+        VkApplicationInfo const* app_info;
+        Window const* window;
         std::optional<ValidationLayers> validation_layers{ std::nullopt };
     };
 
-    class Window;
+
     class VkContext final : public memory::Resource
     {
     public:

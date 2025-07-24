@@ -1,11 +1,8 @@
 #include <__context/VkContext.h>
 
 #include <log.h>
-#include <validation/PhysicalDeviceSelector.h>
-#include <validation/result.h>
 #include <__query/queue_family.h>
 
-#include <cassert>
 #include <set>
 
 
@@ -13,15 +10,26 @@ namespace cobalt
 {
     VkContext::VkContext( ContextCreateInfo const& create_info )
     {
+        if ( not create_info.app_info )
+        {
+            log::logerr<VkContext>( "VkContext", "app_info cannot be nullptr!" );
+            return;
+        }
+        if ( not create_info.window )
+        {
+            log::logerr<VkContext>( "VkContext", "window cannot be nullptr!" );
+            return;
+        }
+
         if ( create_info.validation_layers.has_value( ) )
         {
             validation_layers_ptr_ = std::make_unique<ValidationLayers>( *create_info.validation_layers );
-            instance_bundle_ptr_   = std::make_unique<InstanceBundle>( create_info.app_info, create_info.window,
-                                                                     validation_layers_ptr_.get( ) );
+            instance_bundle_ptr_   =
+                    std::make_unique<InstanceBundle>( *create_info.app_info, *create_info.window, validation_layers_ptr_.get( ) );
         }
         else
         {
-            instance_bundle_ptr_ = std::make_unique<InstanceBundle>( create_info.app_info, create_info.window );
+            instance_bundle_ptr_ = std::make_unique<InstanceBundle>( *create_info.app_info, *create_info.window );
         }
     }
 
@@ -50,7 +58,7 @@ namespace cobalt
 
     DeviceSet& VkContext::device( ) const
     {
-        log::logerr<VkContext>( "get_device", "device set not initialized!", not device_set_ptr_ );
+        log::logerr<VkContext>( "device", "device set not initialized!", not device_set_ptr_ );
         return *device_set_ptr_;
     }
 
