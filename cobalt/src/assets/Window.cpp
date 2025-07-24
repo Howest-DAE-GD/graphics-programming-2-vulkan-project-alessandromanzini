@@ -4,8 +4,6 @@
 namespace cobalt
 {
     Window::Window( uint32_t const width, uint32_t const height, char const* title )
-        : window_width_{ width }
-        , window_height_{ height }
     {
         // Initializes the GLFW library
         glfwInit( );
@@ -14,11 +12,11 @@ namespace cobalt
         glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
 
         // Create the window
-        window_ptr_ = glfwCreateWindow( static_cast<int>( window_width_ ), static_cast<int>( window_height_ ),
+        window_ptr_ = glfwCreateWindow( static_cast<int>( width ), static_cast<int>( height ),
                                         title, nullptr, nullptr );
 
         // Set callback pointer to dispatcher
-        glfwSetWindowUserPointer( window_ptr_, &on_framebuffer_resize_ );
+        glfwSetWindowUserPointer( window_ptr_, &framebuffer_resize_dispatcher_ );
         glfwSetFramebufferSizeCallback( window_ptr_, frame_buffer_size_callback );
     }
 
@@ -30,18 +28,19 @@ namespace cobalt
     }
 
 
-    bool Window::get_should_close( ) const
+    bool Window::should_close( ) const
     {
         constexpr int GLFW_WINDOW_OPEN{ 0 };
         return glfwWindowShouldClose( window_ptr_ ) != GLFW_WINDOW_OPEN;
     }
 
 
-    std::pair<int, int> Window::get_framebuffer_size( ) const
+    VkExtent2D Window::extent( ) const
     {
-        int width{}, height{};
+        int width{};
+        int height{};
         glfwGetFramebufferSize( window_ptr_, &width, &height );
-        return std::make_pair( width, height );
+        return { static_cast<uint32_t>( width ), static_cast<uint32_t>( height ) };
     }
 
 
@@ -67,8 +66,9 @@ namespace cobalt
 
     void Window::frame_buffer_size_callback( GLFWwindow* window, int const width, int const height )
     {
-        auto dispatcher = static_cast<MulticastDelegate<uint32_t, uint32_t> const*>( glfwGetWindowUserPointer( window ) );
-        dispatcher->broadcast( static_cast<uint32_t>( width ), static_cast<uint32_t>( height ) );
+        auto const dispatcher =
+                static_cast<decltype(framebuffer_resize_dispatcher_) const*>( glfwGetWindowUserPointer( window ) );
+        dispatcher->broadcast( { static_cast<uint32_t>( width ), static_cast<uint32_t>( height ) } );
     }
 
 }
