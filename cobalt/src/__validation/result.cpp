@@ -1,6 +1,6 @@
-#include <validation/result.h>
+#include <__validation/result.h>
 
-#include <validation/dispatch.h>
+#include <__validation/dispatch.h>
 
 #include <sstream>
 #include <string>
