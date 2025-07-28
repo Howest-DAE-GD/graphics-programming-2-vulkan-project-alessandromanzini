@@ -16,14 +16,21 @@ namespace cobalt::meta
     struct function_traits_info
     {
         using return_t = _return_t;
-        using params_t = std::tuple<_params_t...>;
 
         using raw_fn_t = _raw_fn_t;
 
         using sig_fn_t = _return_t( _params_t... );
         using std_fn_t = std::function<sig_fn_t>;
 
+        template <template <typename...> class container_t>
+        using rebind_params = container_t<_params_t...>;
+        using params_tuple_t = rebind_params<std::tuple>;
+
+        template <std::size_t index>
+        using param_t = std::tuple_element_t<index, params_tuple_t>;
+
         static constexpr std::size_t ARITY = sizeof...( _params_t );
+
     };
 
 

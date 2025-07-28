@@ -5,6 +5,24 @@
 
 namespace cobalt::query
 {
+    // +---------------------------+
+    // | QUEUE FAMILY INDICES      |
+    // +---------------------------+
+    bool QueueFamilyIndices::is_suitable( ) const
+    {
+        return graphics_family.has_value( ) && present_family.has_value( );
+    }
+
+
+    QueueFamilyIndices::operator bool( ) const
+    {
+        return is_suitable( );
+    }
+
+
+    // +---------------------------+
+    // | QUERIES                   |
+    // +---------------------------+
     QueueFamilyIndices find_queue_families( VkPhysicalDevice const physical_device, InstanceBundle const& instance )
     {
         QueueFamilyIndices indices;

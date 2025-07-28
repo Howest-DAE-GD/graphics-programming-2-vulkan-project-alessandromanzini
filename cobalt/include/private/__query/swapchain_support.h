@@ -16,18 +16,21 @@ namespace cobalt::query
     // +---------------------------+
     // | STRUCTS                   |
     // +---------------------------+
-    struct SwapChainSupportDetails
+    struct SwapchainSupportDetails
     {
         VkSurfaceCapabilitiesKHR capabilities{};
         std::vector<VkSurfaceFormatKHR> formats{};
         std::vector<VkPresentModeKHR> present_modes{};
+
+        [[nodiscard]] bool is_adequate( ) const;
+        explicit operator bool( ) const;
     };
 
 
     // +---------------------------+
     // | FUNCTIONS                 |
     // +---------------------------+
-    [[nodiscard]] SwapChainSupportDetails check_swap_chain_support( VkPhysicalDevice physical_device, InstanceBundle const& instance );
+    [[nodiscard]] SwapchainSupportDetails check_swapchain_support( VkPhysicalDevice physical_device, InstanceBundle const& instance );
 
 }
 

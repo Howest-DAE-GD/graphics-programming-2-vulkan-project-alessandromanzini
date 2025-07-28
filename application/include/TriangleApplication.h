@@ -39,7 +39,6 @@ namespace cobalt
 #else
         static inline std::vector<char const*> validation_layers_{ "VK_LAYER_KHRONOS_validation" };
 #endif
-        static inline std::vector<char const*> device_extensions_{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
         static constexpr uint32_t WIDTH_{ 800 };
         static constexpr uint32_t HEIGHT_{ 600 };

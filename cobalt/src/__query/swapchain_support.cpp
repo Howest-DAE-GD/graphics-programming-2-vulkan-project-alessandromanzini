@@ -5,7 +5,25 @@
 
 namespace cobalt::query
 {
-    SwapChainSupportDetails check_swap_chain_support( VkPhysicalDevice const physical_device, InstanceBundle const& instance )
+    // +---------------------------+
+    // | SWAPCHAIN SUPPORT DETAILS |
+    // +---------------------------+
+    bool SwapchainSupportDetails::is_adequate( ) const
+    {
+        return !formats.empty( ) && !present_modes.empty( );
+    }
+
+
+    SwapchainSupportDetails::operator bool( ) const
+    {
+        return is_adequate( );
+    }
+
+
+    // +---------------------------+
+    // | QUERIES                   |
+    // +---------------------------+
+    SwapchainSupportDetails check_swapchain_support( VkPhysicalDevice const physical_device, InstanceBundle const& instance )
     {
         VkSurfaceKHR const surface = instance.surface( );
 
@@ -13,7 +31,7 @@ namespace cobalt::query
         // 1. Basic surface capabilities ( min/max number of images in swap chain, min/max width and height of images )
         // 2. Surface formats( pixel format, color space )
         // 3. Available presentation modes
-        SwapChainSupportDetails details{};
+        SwapchainSupportDetails details{};
 
         // 1.
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device, surface, &details.capabilities );

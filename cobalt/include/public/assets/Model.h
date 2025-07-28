@@ -11,7 +11,7 @@
 
 namespace cobalt
 {
-    namespace builders
+    namespace builder
     {
         class ModelLoader;
     }
@@ -22,7 +22,7 @@ namespace cobalt
 {
     class Model final : public memory::Resource
     {
-        friend class builders::ModelLoader;
+        friend class builder::ModelLoader;
 
     public:
         using index_t = uint32_t;

@@ -17,12 +17,8 @@ namespace cobalt::query
         std::optional<uint32_t> graphics_family{};
         std::optional<uint32_t> present_family{};
 
-
-        [[nodiscard]] bool is_suitable( ) const
-        {
-            return graphics_family.has_value( ) && present_family.has_value( );
-        }
-
+        [[nodiscard]] bool is_suitable( ) const;
+        explicit operator bool( ) const;
     };
 
 

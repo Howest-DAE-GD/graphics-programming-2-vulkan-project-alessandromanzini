@@ -53,20 +53,20 @@ TriangleApplication::TriangleApplication( )
     window_ = CVK.create_resource<Window>( WIDTH_, HEIGHT_, "Vulkan App" );
 
     // 2. Register VK Instance
-    constexpr VkApplicationInfo app_info{
-        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = "Hello Viking",
-        .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
-        .pEngineName = "Cobalt",
-        .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
-        .apiVersion = VK_API_VERSION_1_3
-    };
     context_ = CVK.create_resource<VkContext>( ContextCreateInfo{
-        .app_info = &app_info,
         .window = window_.get( ),
+        .app_info = VkApplicationInfo{
+            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+            .pApplicationName = "Hello Viking",
+            .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
+            .pEngineName = "Cobalt",
+            .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
+            .apiVersion = VK_API_VERSION_1_3
+        },
         .validation_layers = ValidationLayers{ validation_layers_, debug_callback }
     } );
-    context_->create_device( device_extensions_ );
+    context_->create_device( DeviceFeatureFlags::SWAPCHAIN_EXTENSION | DeviceFeatureFlags::ANISOTROPIC_SAMPLING
+                             | DeviceFeatureFlags::DYNAMIC_RENDERING_EXTENSION );
 
     // 3. Set the proper root directory to find shader modules and textures.
     configure_relative_path( );
@@ -122,7 +122,6 @@ void TriangleApplication::vk_recreate_swap_chain( )
     vk_create_depth_resources( );
     vk_create_frame_buffers( );
 }
-
 
 
 void TriangleApplication::vk_create_render_pass( )
@@ -460,7 +459,7 @@ void TriangleApplication::vk_create_graphics_pipeline( )
 void TriangleApplication::load_model( )
 {
     model_ = CVK.create_resource<Model>( context_->device( ) );
-    builders::ModelLoader const loader{ MODEL_PATH_ };
+    builder::ModelLoader const loader{ MODEL_PATH_ };
     loader.load( *model_ );
 
     model_->create_vertex_buffer( command_pool_, context_->device( ).graphics_queue( ) );
@@ -492,13 +491,15 @@ void TriangleApplication::vk_create_texture_image( )
     stbi_image_free( pixels );
 
     texture_image_ptr_ = std::make_unique<Image>( context_->device( ), ImageCreateInfo{
-        .extent = { static_cast<uint32_t>( tex_width ), static_cast<uint32_t>( tex_height ) },
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-    } );
+                                                      .extent = {
+                                                          static_cast<uint32_t>( tex_width ), static_cast<uint32_t>( tex_height )
+                                                      },
+                                                      .format = VK_FORMAT_R8G8B8A8_SRGB,
+                                                      .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                                      .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                                      .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                      .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+                                                  } );
     vk_transition_image_layout( texture_image_ptr_->handle( ), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
     vk_copy_buffer_to_image( staging_buffer_, texture_image_ptr_->handle( ), static_cast<uint32_t>( tex_width ),
@@ -693,11 +694,13 @@ void TriangleApplication::vk_create_frame_buffers( )
         for ( auto const& image : swapchain_ptr_->images( ) )
         {
             swapchain_framebuffers_.emplace_back( context_->device( ), FramebufferCreateInfo{
-                .usage_type = FramebufferUsageType::RENDER_PASS,
-                .render_pass = render_pass_,
-                .extent = swapchain_ptr_->extent( ),
-                .attachments = { image.view( ).handle( ), swapchain_depth_image_ptr_->view( ).handle( ) }
-            } );
+                                                      .usage_type = FramebufferUsageType::RENDER_PASS,
+                                                      .render_pass = render_pass_,
+                                                      .extent = swapchain_ptr_->extent( ),
+                                                      .attachments = {
+                                                          image.view( ).handle( ), swapchain_depth_image_ptr_->view( ).handle( )
+                                                      }
+                                                  } );
         }
     }
 }
@@ -866,14 +869,14 @@ void TriangleApplication::vk_create_sync_objects( )
 void TriangleApplication::vk_create_depth_resources( )
 {
     VkFormat const depth_format = query::find_depth_format( context_->device( ).physical( ) );
-    swapchain_depth_image_ptr_ = std::make_unique<Image>( context_->device( ), ImageCreateInfo{
-        .extent = swapchain_ptr_->extent( ),
-        .format = depth_format,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
-    } );
+    swapchain_depth_image_ptr_  = std::make_unique<Image>( context_->device( ), ImageCreateInfo{
+                                                               .extent = swapchain_ptr_->extent( ),
+                                                               .format = depth_format,
+                                                               .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                                               .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                                                               .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                               .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
+                                                           } );
     // vk_transition_image_layout( swapchain_depth_image_ptr_->handle( ), depth_format, VK_IMAGE_LAYOUT_UNDEFINED,
     //                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL );
 }
@@ -1024,7 +1027,8 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
     ubo.view  = glm::lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ),
                              glm::vec3( 0.0f, 0.0f, 1.0f ) );
     ubo.proj = glm::perspective( glm::radians( 45.0f ),
-                                 static_cast<float>( swapchain_ptr_->extent( ).width ) / static_cast<float>( swapchain_ptr_->extent( ).height ),
+                                 static_cast<float>( swapchain_ptr_->extent( ).width ) / static_cast<float>( swapchain_ptr_->
+                                     extent( ).height ),
                                  0.1f,
                                  10.0f );
     ubo.proj[1][1] *= -1;
@@ -1067,7 +1071,8 @@ void TriangleApplication::draw_frame( )
     // The first two parameters of vkAcquireNextImageKHR are the logical device and the swap chain from which we wish
     // to acquire an image.
     uint32_t image_index{};
-    auto const acquire_image_result = vkAcquireNextImageKHR( context_->device( ).logical( ), swapchain_ptr_->handle( ), UINT64_MAX,
+    auto const acquire_image_result = vkAcquireNextImageKHR( context_->device( ).logical( ), swapchain_ptr_->handle( ),
+                                                             UINT64_MAX,
                                                              image_available_semaphores_[current_frame_],
                                                              VK_NULL_HANDLE,
                                                              &image_index );
@@ -1157,10 +1162,12 @@ void TriangleApplication::draw_frame( )
 void TriangleApplication::init_vk( )
 {
     swapchain_ptr_ = std::make_unique<Swapchain>( *context_, *window_, SwapchainCreateInfo{
-        .image_count = 3,
-        .present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
-        .surface_format = { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR }
-    } );
+                                                      .image_count = 3,
+                                                      .present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
+                                                      .surface_format = {
+                                                          VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+                                                      }
+                                                  } );
 
     vk_create_render_pass( );
 

@@ -10,7 +10,7 @@
 #include <utility>
 
 
-namespace cobalt::builders
+namespace cobalt::builder
 {
     // +---------------------------+
     // | HELPERS FORWARD DECL      |

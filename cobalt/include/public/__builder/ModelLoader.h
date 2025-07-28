@@ -6,7 +6,7 @@
 #include <filesystem>
 
 
-namespace cobalt::builders
+namespace cobalt::builder
 {
     class ModelLoader final
     {

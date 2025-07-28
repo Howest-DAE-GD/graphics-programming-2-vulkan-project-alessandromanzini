@@ -24,12 +24,17 @@ add_library(${PROJECT_NAME}
 		"include/public/__builder/VkBuilder.h"
 		"src/__builder/ModelLoader.cpp"
 		"src/__builder/VkSwapchainBuilder.cpp"
-		"src/__builder/PhysicalDeviceSelector.cpp"
+
+		"include/public/__command/Command.h"
+		"include/public/__command/ValidationCommandBind.h"
+		"src/__command/ValidationCommand.cpp"
 
 		"src/__context/DeviceSet.cpp"
 		"src/__context/InstanceBundle.cpp"
 		"src/__context/VkContext.cpp"
 		"src/__context/ValidationLayers.cpp"
+
+		"src/__enum/DeviceFeatureFlags.cpp"
 
 		"include/public/__event/multicast_delegate/MulticastDelegate.h"
 		"include/public/__event/multicast_delegate/Dispatcher.h"
@@ -50,9 +55,12 @@ add_library(${PROJECT_NAME}
 		"src/__swapchain/Swapchain.cpp"
 
 		"src/__validation/result.cpp"
+		"src/__validation/device_features.cpp"
 		"src/__validation/dispatch.cpp"
 		"src/__validation/compare.cpp"
+		"src/__validation/selector/PhysicalDeviceSelector.cpp"
 
+		"src/__query/device_features_support.cpp"
 		"src/__query/extension_support.cpp"
 		"src/__query/queue_family.cpp"
 		"src/__query/swapchain_support.cpp"

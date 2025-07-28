@@ -10,7 +10,7 @@ namespace cobalt
     VkSwapchainBuilder::VkSwapchainBuilder( VkContext const& context )
         : VkBuilder{ context.device( ).logical( ), &vkCreateSwapchainKHR }
         , context_ref_{ context }
-        , support_details_{ query::check_swap_chain_support( context.device( ).physical( ), context.instance( ) ) } { }
+        , support_details_{ query::check_swapchain_support( context.device( ).physical( ), context.instance( ) ) } { }
 
 
     VkSwapchainBuilder& VkSwapchainBuilder::set_image_buffering_aim( uint32_t const aim )
@@ -84,7 +84,7 @@ namespace cobalt
     }
 
 
-    query::SwapChainSupportDetails const& VkSwapchainBuilder::support_details( ) const
+    query::SwapchainSupportDetails const& VkSwapchainBuilder::support_details( ) const
     {
         return support_details_;
     }

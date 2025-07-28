@@ -38,11 +38,11 @@ namespace cobalt
 
         VkSwapchainPopulateDetail populate_create_info( VkSwapchainCreateInfoKHR& create_info ) const;
 
-        [[nodiscard]] query::SwapChainSupportDetails const& support_details( ) const;
+        [[nodiscard]] query::SwapchainSupportDetails const& support_details( ) const;
 
     private:
         VkContext const& context_ref_;
-        query::SwapChainSupportDetails const support_details_{};
+        query::SwapchainSupportDetails const support_details_{};
 
         uint32_t image_buffering_aim_{ 1 };
         VkExtent2D extent_{};
