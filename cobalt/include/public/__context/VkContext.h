@@ -16,8 +16,8 @@ namespace cobalt
 {
     struct ContextCreateInfo
     {
-        VkApplicationInfo const* app_info;
         Window const* window;
+        VkApplicationInfo app_info;
         std::optional<ValidationLayers> validation_layers{ std::nullopt };
     };
 
@@ -36,7 +36,7 @@ namespace cobalt
         [[nodiscard]] InstanceBundle& instance( ) const;
         [[nodiscard]] DeviceSet& device( ) const;
 
-        void create_device( std::vector<char const*> extensions );
+        void create_device( DeviceFeatureFlags features );
 
     private:
         std::unique_ptr<ValidationLayers> validation_layers_ptr_{};

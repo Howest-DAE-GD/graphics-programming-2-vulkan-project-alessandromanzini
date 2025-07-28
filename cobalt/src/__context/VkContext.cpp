@@ -10,11 +10,6 @@ namespace cobalt
 {
     VkContext::VkContext( ContextCreateInfo const& create_info )
     {
-        if ( not create_info.app_info )
-        {
-            log::logerr<VkContext>( "VkContext", "app_info cannot be nullptr!" );
-            return;
-        }
         if ( not create_info.window )
         {
             log::logerr<VkContext>( "VkContext", "window cannot be nullptr!" );
@@ -25,11 +20,11 @@ namespace cobalt
         {
             validation_layers_ptr_ = std::make_unique<ValidationLayers>( *create_info.validation_layers );
             instance_bundle_ptr_   =
-                    std::make_unique<InstanceBundle>( *create_info.app_info, *create_info.window, validation_layers_ptr_.get( ) );
+                    std::make_unique<InstanceBundle>( create_info.app_info, *create_info.window, validation_layers_ptr_.get( ) );
         }
         else
         {
-            instance_bundle_ptr_ = std::make_unique<InstanceBundle>( *create_info.app_info, *create_info.window );
+            instance_bundle_ptr_ = std::make_unique<InstanceBundle>( create_info.app_info, *create_info.window );
         }
     }
 
@@ -63,9 +58,9 @@ namespace cobalt
     }
 
 
-    void VkContext::create_device( std::vector<const char*> extensions )
+    void VkContext::create_device( DeviceFeatureFlags features )
     {
-        device_set_ptr_ = std::make_unique<DeviceSet>( instance( ), std::move( extensions ) );
+        device_set_ptr_ = std::make_unique<DeviceSet>( instance( ), features );
     }
 
 }

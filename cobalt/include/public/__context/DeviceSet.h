@@ -6,6 +6,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include <vector>
+#include <__enum/DeviceFeatureFlags.h>
 
 
 namespace cobalt
@@ -16,7 +17,7 @@ namespace cobalt
     class DeviceSet final : public memory::Resource
     {
     public:
-        explicit DeviceSet( InstanceBundle const& instance, std::vector<char const*> extensions, ValidationLayers const* validation_layers = nullptr );
+        explicit DeviceSet( InstanceBundle const& instance, DeviceFeatureFlags features, ValidationLayers const* validation_layers = nullptr );
         ~DeviceSet( ) override;
 
         DeviceSet( const DeviceSet& )                = delete;
@@ -33,7 +34,8 @@ namespace cobalt
 
     private:
         InstanceBundle const& instance_ref_;
-        std::vector<char const*> const device_extensions_{};
+        DeviceFeatureFlags feature_flags_{};
+        std::vector<char const*> extensions_{};
 
         VkDevice device_{ VK_NULL_HANDLE };
         VkPhysicalDevice physical_device_{ VK_NULL_HANDLE };

@@ -17,7 +17,7 @@ namespace cobalt::query
         vkEnumerateInstanceExtensionProperties( nullptr, &extension_count, available_extensions.data( ) );
 
         // Check if all the required extensions are supported
-        return validation::compare_support_containers( extensions, available_extensions,
+        return validation::contains_required( extensions, available_extensions,
                                                        std::mem_fn( &VkExtensionProperties::extensionName ) );
     }
 
@@ -37,7 +37,7 @@ namespace cobalt::query
         std::vector<VkLayerProperties> available_layers( layer_count );
         vkEnumerateInstanceLayerProperties( &layer_count, available_layers.data( ) );
 
-        return validation::compare_support_containers( layers, available_layers, std::mem_fn( &VkLayerProperties::layerName ) );
+        return validation::contains_required( layers, available_layers, std::mem_fn( &VkLayerProperties::layerName ) );
     }
 
 

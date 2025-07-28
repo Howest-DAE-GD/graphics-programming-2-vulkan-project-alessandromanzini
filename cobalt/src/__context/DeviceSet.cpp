@@ -1,19 +1,21 @@
-#include <set>
 #include <__context/DeviceSet.h>
 
-#include <__builder/PhysicalDeviceSelector.h>
+#include <log.h>
 #include <__context/InstanceBundle.h>
 #include <__context/ValidationLayers.h>
 #include <__query/queue_family.h>
 #include <__validation/result.h>
+#include <__validation/selector/PhysicalDeviceSelector.h>
+
+#include <set>
 
 
 namespace cobalt
 {
-    DeviceSet::DeviceSet( InstanceBundle const& instance, std::vector<const char*> extensions,
+    DeviceSet::DeviceSet( InstanceBundle const& instance, DeviceFeatureFlags const features,
                           ValidationLayers const* validation_layers )
         : instance_ref_{ instance }
-        , device_extensions_{ std::move( extensions ) }
+        , feature_flags_{ features | DeviceFeatureFlags::FAMILIES_INDICES_SUITABLE }
     {
         pick_physical_device( );
         create_logical_device( validation_layers );
@@ -72,12 +74,13 @@ namespace cobalt
         vkEnumeratePhysicalDevices( instance_ref_.instance( ), &device_count, devices.data( ) );
 
         // Check if any of the physical devices meet the requirements
-        for ( validation::PhysicalDeviceSelector const selector{ instance_ref_, device_extensions_ };
+        for ( validation::PhysicalDeviceSelector const selector{ instance_ref_, feature_flags_ };
               auto const& device : devices )
         {
-            if ( selector.select( device ) )
+            if ( auto [adequate, extensions] = selector.select( device ); adequate )
             {
                 physical_device_ = device;
+                extensions_      = std::move( extensions );
                 break;
             }
         }
@@ -92,6 +95,12 @@ namespace cobalt
     // todo: ask for options to be passed in, like queue priorities, etc.
     void DeviceSet::create_logical_device( ValidationLayers const* validation_layers )
     {
+        if ( device_ != VK_NULL_HANDLE )
+        {
+            log::logerr<DeviceSet>( "create_logical_device", "logical device already created." );
+            return;
+        }
+
         // This structure describes the number of queues we want for a single queue family. Right now we're only
         // interested in a queue with graphics capabilities.
         auto const [graphics_family, present_family] = query::find_queue_families( physical_device_, instance_ref_ );
@@ -118,6 +127,16 @@ namespace cobalt
         VkPhysicalDeviceFeatures device_features{};
         device_features.samplerAnisotropy = VK_TRUE;
 
+        // Set additional Vulkan 1+ features that we want to use.
+        VkPhysicalDeviceVulkan11Features device_features11{};
+        device_features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+
+        VkPhysicalDeviceVulkan12Features device_features12{};
+        device_features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+
+        VkPhysicalDeviceVulkan13Features device_features13{};
+        device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+
         // Create the logical device
         VkDeviceCreateInfo create_info{};
         create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -126,18 +145,20 @@ namespace cobalt
         create_info.pQueueCreateInfos    = queue_create_infos.data( );
 
         create_info.pEnabledFeatures = &device_features;
+        create_info.pNext            = &device_features11;
+        device_features11.pNext      = &device_features12;
+        device_features12.pNext      = &device_features13;
+        device_features13.pNext      = nullptr;
 
         // The remainder of the information bears a resemblance to the VkInstanceCreateInfo struct and requires you
         // to specify extensions and validation layers. The difference is that these are device specific this time.
-        std::vector<char const*> extensions{ device_extensions_.begin( ), device_extensions_.end( ) };
-
 #ifdef __APPLE__
         // Device specific extensions are necessary on macOS to allow MoltenVK to function properly.
-        extensions.push_back( "VK_KHR_portability_subset" );
+        extensions_.push_back( "VK_KHR_portability_subset" );
 #endif
 
-        create_info.enabledExtensionCount   = static_cast<uint32_t>( extensions.size( ) );
-        create_info.ppEnabledExtensionNames = extensions.data( );
+        create_info.enabledExtensionCount   = static_cast<uint32_t>( extensions_.size( ) );
+        create_info.ppEnabledExtensionNames = extensions_.data( );
 
         // Previous implementations of Vulkan made a distinction between instance and device specific validation layers,
         // but this is no longer the case. We're still doing it for backwards compatibility.
@@ -154,8 +175,7 @@ namespace cobalt
 
         // Create instance and validate the result
         validation::throw_on_bad_result(
-            vkCreateDevice( physical_device_, &create_info, nullptr, &device_ ),
-            "Failed to create logical device!" );
+            vkCreateDevice( physical_device_, &create_info, nullptr, &device_ ), "Failed to create logical device!" );
 
         // Retrieve the handles for the queues
         vkGetDeviceQueue( device_, graphics_family.value( ), 0, &graphics_queue_ );
