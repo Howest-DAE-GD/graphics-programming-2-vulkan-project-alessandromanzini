@@ -26,7 +26,6 @@ namespace cobalt
         // Browse to the Vulkan SDK and go to the Config directory. There you will find a vk_layer_settings.txt
         // file that explains how to configure the layers.
         // Fill in a structure with details about the messenger and its callback.
-        debug_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 
         // The messageSeverity field allows you to specify all the types of severities you would like
         // your callback to be called for.
@@ -53,17 +52,15 @@ namespace cobalt
                 reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
                     vkGetInstanceProcAddr( instance.instance( ), "vkCreateDebugUtilsMessengerEXT" ) );
 
-        VkResult result;
-        if ( func != nullptr )
-        {
-            result = func( instance.instance( ), &debug_info, nullptr, &debug_messenger_ );
-        }
-        else
-        {
-            result = VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-
-        validation::throw_on_bad_result( result, "Failed to set up debug messenger!" );
+        validation::throw_on_bad_result(
+            [func, this, &instance, &debug_info]( ) -> VkResult
+                {
+                    if ( func != nullptr )
+                    {
+                        return func( instance.instance( ), &debug_info, nullptr, &debug_messenger_ );
+                    }
+                    return VK_ERROR_EXTENSION_NOT_PRESENT;
+                }( ), "Failed to set up debug messenger!" );
     }
 
 

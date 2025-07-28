@@ -9,7 +9,7 @@
 namespace cobalt::validation
 {
     template <typename vk_property_t, std::invocable<vk_property_t const&> getter_fn_t>
-    [[nodiscard]] bool contains_required( std::vector<char const*>& required,
+    [[nodiscard]] bool contains_required( std::vector<char const*> const& required,
                                           std::vector<vk_property_t> const& available,
                                           getter_fn_t get_name )
     {

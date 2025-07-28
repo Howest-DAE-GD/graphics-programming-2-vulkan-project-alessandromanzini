@@ -6,12 +6,8 @@
 
 namespace cobalt::query
 {
-    [[nodiscard]] bool check_instance_extensions_support( std::vector<char const*>& extensions );
     [[nodiscard]] bool check_instance_extensions_support( std::vector<char const*> const& extensions );
-
-    [[nodiscard]] bool check_validation_layers_support( std::vector<char const*>& layers );
     [[nodiscard]] bool check_validation_layers_support( std::vector<char const*> const& layers );
-
 }
 
 

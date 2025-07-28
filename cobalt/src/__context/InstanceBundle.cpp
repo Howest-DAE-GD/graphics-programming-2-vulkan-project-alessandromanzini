@@ -48,7 +48,6 @@ namespace cobalt
         create_info.pApplicationInfo = &app_info;
 
 #ifdef __APPLE__
-        // VK_KHR_PORTABILITY_subset extension is necessary on macOS to allow MoltenVK to function properly.
         extensions.push_back( VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME );
         extensions.push_back( "VK_KHR_get_physical_device_properties2" );
         create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
@@ -58,17 +57,19 @@ namespace cobalt
             extensions.push_back( "VK_EXT_debug_utils" );
         }
 
-        // Add the required extensions to the create info.
         if ( not query::check_instance_extensions_support( extensions ) )
         {
             validation::throw_runtime_error( "One or more extensions are not supported!" );
         }
+
+        // Add the required extensions to the create_info.
         create_info.enabledExtensionCount   = static_cast<uint32_t>( extensions.size( ) );
         create_info.ppEnabledExtensionNames = extensions.data( );
 
         // The last two members of the struct determine the global validation layers to enable.
         VkDebugUtilsMessengerCreateInfoEXT debug_create_info{};
-        create_info.pNext = &debug_create_info;
+        debug_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        create_info.pNext       = &debug_create_info;
 
         // If we do not require validation layers, we set the count to 0 and create the instance.
         if ( not require_validation )

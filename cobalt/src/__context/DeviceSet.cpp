@@ -128,14 +128,9 @@ namespace cobalt
         device_features.samplerAnisotropy = VK_TRUE;
 
         // Set additional Vulkan 1+ features that we want to use.
-        VkPhysicalDeviceVulkan11Features device_features11{};
-        device_features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-
-        VkPhysicalDeviceVulkan12Features device_features12{};
-        device_features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-
         VkPhysicalDeviceVulkan13Features device_features13{};
         device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+        device_features13.pNext      = nullptr;
 
         // Create the logical device
         VkDeviceCreateInfo create_info{};
@@ -145,10 +140,7 @@ namespace cobalt
         create_info.pQueueCreateInfos    = queue_create_infos.data( );
 
         create_info.pEnabledFeatures = &device_features;
-        create_info.pNext            = &device_features11;
-        device_features11.pNext      = &device_features12;
-        device_features12.pNext      = &device_features13;
-        device_features13.pNext      = nullptr;
+        create_info.pNext            = &device_features13;
 
         // The remainder of the information bears a resemblance to the VkInstanceCreateInfo struct and requires you
         // to specify extensions and validation layers. The difference is that these are device specific this time.

@@ -10,6 +10,7 @@ namespace cobalt
 {
     VkContext::VkContext( ContextCreateInfo const& create_info )
     {
+        // todo: probably better to throw here
         if ( not create_info.window )
         {
             log::logerr<VkContext>( "VkContext", "window cannot be nullptr!" );
@@ -35,12 +36,10 @@ namespace cobalt
         {
             device_set_ptr_.reset( );
         }
-
         if ( validation_layers_ptr_ )
         {
             validation_layers_ptr_->destroy_debug_messenger( *instance_bundle_ptr_ );
         }
-
         instance_bundle_ptr_.reset( );
     }
 
