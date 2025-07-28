@@ -2,6 +2,7 @@
 
 #include <__validation/compare.h>
 #include <__validation/result.h>
+#include <__validation/dispatch.h>
 #include <__context/InstanceBundle.h>
 #include <__query/extension_support.h>
 
@@ -14,7 +15,7 @@ namespace cobalt
     {
         if ( not query::check_validation_layers_support( validation_layers_ ) )
         {
-            throw std::runtime_error( "Validation layers requested, but not available!" );
+            validation::throw_runtime_error( "validation layers requested, but not available!" );
         }
     }
 

@@ -96,7 +96,7 @@ namespace cobalt
         }
         else
         {
-            index = table_.size( );
+            index = static_cast<memory::handle_index_t>( table_.size( ) );
             table_.emplace_back( memory::RedirectionInfo{ .index = index, .generation = 0 }, &resource, 1 );
         }
 

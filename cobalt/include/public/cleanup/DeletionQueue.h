@@ -1,6 +1,7 @@
 #ifndef DELETIONQUEUE_H
 #define DELETIONQUEUE_H
 
+#include <functional>
 #include <stack>
 
 

@@ -4,6 +4,8 @@
 #include <__query/queue_family.h>
 #include <__query/swapchain_support.h>
 
+#include <algorithm>
+
 
 namespace cobalt
 {
@@ -38,8 +40,8 @@ namespace cobalt
         VkSwapchainPopulateDetail const detail{
             .image_count = choose_image_buffering_aim( ),
             .extent = choose_extent( support_details_.capabilities ),
-            .format_khr = choose_surface_format( support_details_.formats ),
-            .present_mode_khr = choose_present_mode( support_details_.present_modes )
+            .present_mode_khr = choose_present_mode( support_details_.present_modes ),
+            .format_khr = choose_surface_format( support_details_.formats )
         };
 
         create_info.sType   = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;

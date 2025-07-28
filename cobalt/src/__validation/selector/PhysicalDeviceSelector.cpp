@@ -35,8 +35,8 @@ namespace cobalt::validation
     std::pair<bool, std::vector<char const*>> PhysicalDeviceSelector::select( VkPhysicalDevice const device ) const
     {
         ValidationCallbackData data{
-            .device = device,
             .instance = instance_ref_,
+            .device = device,
             .extensions = {},
             .extensions_selection = {}
         };

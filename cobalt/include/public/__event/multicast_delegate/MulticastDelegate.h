@@ -37,7 +37,6 @@ namespace cobalt
         void bind( raw_delegate_t delegate );
 
         template <typename class_t, typename method_t>
-            requires std::is_same_v<delegate_t, typename meta::function_traits<method_t>::std_fn_t>
         void bind( class_t* binder, method_t delegate );
 
 
@@ -71,8 +70,7 @@ namespace cobalt
 
 
     template <typename... delegate_params_t>
-    template <typename class_t, typename method_t> requires std::is_same_v<typename meta::function_traits<void( delegate_params_t
-        ... )>::std_fn_t, typename meta::function_traits<method_t>::std_fn_t>
+    template <typename class_t, typename method_t> 
     void MulticastDelegate<delegate_params_t...>::bind( class_t* binder, method_t delegate )
     {
         assert( binder && "MulticastDelegate::bind: Binder cannot be nullptr!" );
