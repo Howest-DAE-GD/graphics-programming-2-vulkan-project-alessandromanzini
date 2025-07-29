@@ -10,6 +10,7 @@ namespace cobalt
 {
     Image::Image( DeviceSet const& device, ImageCreateInfo const& create_info )
         : device_ref_{ device }
+        , format_{ create_info.format }
     {
         init_image( create_info );
         init_view( ImageViewCreateInfo{ image_, create_info.format, create_info.aspect_flags } );
@@ -18,6 +19,7 @@ namespace cobalt
 
     Image::Image( DeviceSet const& device, ImageViewCreateInfo const& create_info )
         : device_ref_{ device }
+        , format_{ create_info.format }
         , image_{ create_info.image }
     {
         log::logerr<Image>( "Image", "image cannot be VK_NULL_HANDLE!", create_info.image == VK_NULL_HANDLE );
@@ -28,9 +30,9 @@ namespace cobalt
     Image::~Image( )
     {
         // 1. Destroy the dependent image view
-        if ( image_view_ptr_ )
+        if ( view_ptr_ )
         {
-            image_view_ptr_.reset( );
+            view_ptr_.reset( );
         }
 
         // 2. Destroy the image and free its memory (if explicitly created)
@@ -48,7 +50,7 @@ namespace cobalt
         : device_ref_{ other.device_ref_ }
         , image_{ other.image_ }
         , image_memory_{ other.image_memory_ }
-        , image_view_ptr_{ std::move( other.image_view_ptr_ ) }
+        , view_ptr_{ std::move( other.view_ptr_ ) }
     {
         other.image_        = VK_NULL_HANDLE;
         other.image_memory_ = VK_NULL_HANDLE;
@@ -63,7 +65,13 @@ namespace cobalt
 
     ImageView& Image::view( ) const
     {
-        return *image_view_ptr_;
+        return *view_ptr_;
+    }
+
+
+    VkFormat Image::format( ) const
+    {
+        return format_;
     }
 
 
@@ -123,7 +131,7 @@ namespace cobalt
         if ( create_info.aspect_flags != VK_IMAGE_ASPECT_NONE )
         {
             // Create an image view for the image
-            image_view_ptr_ = std::make_unique<ImageView>( device_ref_, create_info );
+            view_ptr_ = std::make_unique<ImageView>( device_ref_, create_info );
         }
     }
 

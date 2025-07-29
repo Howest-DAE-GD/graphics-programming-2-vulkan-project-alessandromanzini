@@ -39,7 +39,7 @@ namespace cobalt
         Swapchain& operator=( Swapchain&& ) noexcept = delete;
 
         [[nodiscard]] VkSwapchainKHR handle( ) const;
-        [[nodiscard]] VkSwapchainKHR* phandle( );
+        [[nodiscard]] VkSwapchainKHR const* handle_ptr( ) const;
 
         [[nodiscard]] VkFormat image_format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;

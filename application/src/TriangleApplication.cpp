@@ -38,7 +38,6 @@
 #include <__validation/result.h>
 
 #include "../../cobalt/include/private/__query/queue_family.h"
-#include "../../cobalt/include/private/__query/swapchain_support.h"
 
 
 using namespace cobalt;
@@ -65,8 +64,9 @@ TriangleApplication::TriangleApplication( )
         },
         .validation_layers = ValidationLayers{ validation_layers_, debug_callback }
     } );
-    context_->create_device( DeviceFeatureFlags::SWAPCHAIN_EXTENSION | DeviceFeatureFlags::ANISOTROPIC_SAMPLING
-                             | DeviceFeatureFlags::DYNAMIC_RENDERING_EXTENSION );
+    context_->create_device(
+        DeviceFeatureFlags::SWAPCHAIN_EXT | DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
+        DeviceFeatureFlags::DYNAMIC_RENDERING_EXT );
 
     // 3. Set the proper root directory to find shader modules and textures.
     configure_relative_path( );
@@ -94,118 +94,6 @@ void TriangleApplication::run( )
 // +---------------------------+
 // | PRIVATE                   |
 // +---------------------------+
-
-
-void TriangleApplication::vk_recreate_swap_chain( )
-{
-    // todo: remove
-    // In case the window gets minimized, we wait until it gets restored.
-    auto [width, height] = window_->extent( );
-    // perhaps use thread sleep instead of while
-    while ( width == 0 || height == 0 )
-    {
-        auto [tempWidth, tempHeight] = window_->extent( );
-        width                        = tempWidth;
-        height                       = tempHeight;
-        glfwWaitEvents( );
-    }
-
-    // It is possible to create a new swap chain while drawing commands on an image from the old swap chain are still
-    // in-flight. You need to pass the previous swap chain to the oldSwapChain field in the VkSwapchainCreateInfoKHR
-    // struct and destroy the old swap chain as soon as you've finished using it.
-    vkDeviceWaitIdle( context_->device( ).logical( ) );
-
-    // vk_cleanup_swap_chain( );
-    //
-    // vk_create_swap_chain( );
-    // vk_create_image_views( );
-    vk_create_depth_resources( );
-    vk_create_frame_buffers( );
-}
-
-
-void TriangleApplication::vk_create_render_pass( )
-{
-    VkAttachmentDescription color_attachment{};
-
-    // The format of the color attachment should match the format of the swap chain images, and we're not doing anything
-    // with multisampling yet, so we'll stick to 1 sample.
-    color_attachment.format  = swapchain_ptr_->image_format( );
-    color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-
-    // The loadOp and storeOp determine what to do with the data in the attachment before rendering and after rendering.
-    // The loadOp and storeOp apply to color and depth data, and stencilLoadOp / stencilStoreOp apply to stencil data
-    color_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
-    color_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    color_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    color_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    // A single render pass can consist of multiple sub-passes. Sub-passes are subsequent rendering operations that
-    // depend on the contents of frame buffers in previous passes
-    VkAttachmentReference color_attachment_ref{};
-    color_attachment_ref.attachment = 0;
-    color_attachment_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    // Depth buffer attachment
-    VkAttachmentDescription depth_attachment{};
-    depth_attachment.format         = query::find_depth_format( context_->device( ).physical( ) );
-    depth_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
-    depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
-    depth_attachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference depth_attachment_ref{};
-    depth_attachment_ref.attachment = 1;
-    depth_attachment_ref.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount    = 1;
-    subpass.pColorAttachments       = &color_attachment_ref;
-    subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-    // Remember that the subpasses in a render pass automatically take care of image layout transitions. These
-    // transitions are controlled by subpass dependencies, which specify memory and execution dependencies between
-    // subpasses.Subpass dependencies are specified in VkSubpassDependency structs.
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-
-    dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-
-    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-    // Now we create a render pass object by filling in the VkRenderPassCreateInfo structure with out attachments and
-    // sub-passes.
-    std::array const attachments{ color_attachment, depth_attachment };
-    VkRenderPassCreateInfo render_pass_info{};
-    render_pass_info.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    render_pass_info.attachmentCount = static_cast<uint32_t>( attachments.size( ) );
-    render_pass_info.pAttachments    = attachments.data( );
-    render_pass_info.subpassCount    = 1;
-    render_pass_info.pSubpasses      = &subpass;
-
-    render_pass_info.dependencyCount = 1;
-    render_pass_info.pDependencies   = &dependency;
-
-    // Make dependency referer to the attachments
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                              VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
-                              VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-    validation::throw_on_bad_result(
-        vkCreateRenderPass( context_->device( ).logical( ), &render_pass_info, nullptr, &render_pass_ ),
-        "Failed to create render pass!" );
-}
 
 
 void TriangleApplication::vk_create_descriptor_set_layout( )
@@ -404,7 +292,8 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     // 2. Fixed-function state: all the structures that define the fixed-function stages of the pipeline, like input
     // assembly, rasterizer, viewport and color blending.
     // 3. Pipeline layout: the uniform and push values referenced by the shader that can be updated at draw time.
-    // 4. Render pass: the attachments referenced by the pipeline stages and their usage.
+    // 4. Pipeline rendering: specifies the dynamic rendering information, such as the color and depth formats of the swapchain
+    // which we will use when dynamically recording commands.
 
     // 1. We start by referencing the array of VkPipelineShaderStageCreateInfo structs.
     VkGraphicsPipelineCreateInfo pipeline_info{};
@@ -423,21 +312,19 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     pipeline_info.pDynamicState       = &dynamic_state;
 
     // 3. After that comes the pipeline layout, which is a Vulkan handle rather than a struct pointer.
-    pipeline_info.layout = pipeline_layout_;
-
-    // 4. And finally we have the reference to the render pass and the index of the sub pass where this graphics
-    // pipeline will be used.
-    pipeline_info.renderPass = render_pass_;
-    pipeline_info.subpass    = 0;
-
-    // There are actually two optional more parameters: basePipelineHandle and basePipelineIndex. Vulkan allows you to
-    // create a new graphics pipeline by deriving from an existing pipeline. The idea of pipeline derivatives is that
-    // it is less expensive to set up pipelines when they have much functionality in common with an existing pipeline
-    // and switching between pipelines from the same parent can also be done quicker.
-    pipeline_info.basePipelineHandle = VK_NULL_HANDLE; // Optional
-    pipeline_info.basePipelineIndex  = -1;             // Optional
-
+    pipeline_info.layout             = pipeline_layout_;
     pipeline_info.pDepthStencilState = &depth_stencil;
+
+    // 4. Finally, we specify the dynamic rendering information.
+    VkFormat swapchain_image_format = swapchain_ptr_->image_format( );
+
+    VkPipelineRenderingCreateInfo pipeline_rendering_info{};
+    pipeline_rendering_info.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    pipeline_rendering_info.colorAttachmentCount    = 1;
+    pipeline_rendering_info.pColorAttachmentFormats = &swapchain_image_format;
+    pipeline_rendering_info.depthAttachmentFormat   = swapchain_depth_image_ptr_->format( );
+
+    pipeline_info.pNext = &pipeline_rendering_info;
 
     // The vkCreateGraphicsPipelines is designed to take multiple VkGraphicsPipelineCreateInfo objects and create
     // multiple VkPipeline objects in a single call.
@@ -687,25 +574,6 @@ void TriangleApplication::vk_create_index_buffer( )
 }
 
 
-void TriangleApplication::vk_create_frame_buffers( )
-{
-    for ( size_t i = 0; i < swapchain_ptr_->images( ).size( ); i++ )
-    {
-        for ( auto const& image : swapchain_ptr_->images( ) )
-        {
-            swapchain_framebuffers_.emplace_back( context_->device( ), FramebufferCreateInfo{
-                                                      .usage_type = FramebufferUsageType::RENDER_PASS,
-                                                      .render_pass = render_pass_,
-                                                      .extent = swapchain_ptr_->extent( ),
-                                                      .attachments = {
-                                                          image.view( ).handle( ), swapchain_depth_image_ptr_->view( ).handle( )
-                                                      }
-                                                  } );
-        }
-    }
-}
-
-
 void TriangleApplication::vk_create_uniform_buffers( )
 {
     uniform_buffers_.resize( MAX_FRAMES_IN_FLIGHT_ );
@@ -857,11 +725,14 @@ void TriangleApplication::vk_create_sync_objects( )
             vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &image_available_semaphores_[i] ),
             "Failed to create image semaphore!" );
         validation::throw_on_bad_result(
-            vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &render_finished_semaphores_[i] ),
-            "Failed to create render semaphore!" );
-        validation::throw_on_bad_result(
             vkCreateFence( context_->device( ).logical( ), &fence_info, nullptr, &in_flight_fences_[i] ),
             "Failed to create fence!" );
+    }
+    for ( size_t i = 0; i < 3; i++ )
+    {
+        validation::throw_on_bad_result(
+            vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &render_finished_semaphores_[i] ),
+            "Failed to create render semaphore!" );
     }
 }
 
@@ -924,8 +795,7 @@ VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBit
 }
 
 
-void TriangleApplication::record_command_buffer( VkCommandBuffer command_buffer, // NOLINT( const*-misplaced-const)
-                                                 uint32_t const image_index ) const
+void TriangleApplication::record_command_buffer( VkCommandBuffer const command_buffer, uint32_t const image_index ) const
 {
     // We always begin recording a command buffer by calling vkBeginCommandBuffer with a small VkCommandBufferBeginInfo
     // structure as argument that specifies some details about the usage of this specific command buffer.
@@ -946,33 +816,70 @@ void TriangleApplication::record_command_buffer( VkCommandBuffer command_buffer,
     validation::throw_on_bad_result( vkBeginCommandBuffer( command_buffer, &begin_info ),
                                      "Failed to begin recording command buffer!" );
 
-    // Drawing starts by beginning the render pass with vkCmdBeginRenderPass. The render pass is configured using some
-    // parameters in a VkRenderPassBeginInfo struct.
-    VkRenderPassBeginInfo render_pass_info{};
-    render_pass_info.sType       = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_info.renderPass  = render_pass_;
-    render_pass_info.framebuffer = swapchain_framebuffers_[image_index].handle( );
+    // Now we specify the dynamic rendering information, which allows us to render directly to the swapchain images without
+    // setting up a pipeline with a render pass.
+    VkRenderingAttachmentInfo color_attachment_info{};
+    color_attachment_info.sType            = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    color_attachment_info.imageView        = swapchain_ptr_->images( )[image_index].view( ).handle( );
+    color_attachment_info.imageLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    color_attachment_info.loadOp           = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment_info.storeOp          = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment_info.clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
 
-    render_pass_info.renderArea.offset = { 0, 0 };
-    render_pass_info.renderArea.extent = swapchain_ptr_->extent( );
+    VkRenderingAttachmentInfo depth_attachment_info{};
+    depth_attachment_info.sType                         = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depth_attachment_info.imageView                     = swapchain_depth_image_ptr_->view( ).handle( );
+    depth_attachment_info.imageLayout                   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth_attachment_info.loadOp                        = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment_info.storeOp                       = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
 
-    // The range of depths in the depth buffer is 0.0 to 1.0 in Vulkan, where 1.0 lies at the far view plane and 0.0 at
-    // the near view plane.
-    std::array<VkClearValue, 2> clear_values{};
-    clear_values[0].color        = { { 0.0f, 0.0f, 0.0f, 1.0f } };
-    clear_values[1].depthStencil = { 1.0f, 0 };
+    VkRenderingInfo render_info{};
+    render_info.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    render_info.renderArea.extent    = swapchain_ptr_->extent( );
+    render_info.renderArea.offset    = { 0, 0 };
+    render_info.layerCount           = 1;
+    render_info.colorAttachmentCount = 1;
+    render_info.pColorAttachments    = &color_attachment_info;
+    render_info.pDepthAttachment     = &depth_attachment_info;
 
-    render_pass_info.clearValueCount = static_cast<uint32_t>( clear_values.size( ) );
-    render_pass_info.pClearValues    = clear_values.data( );
+    // ----------------------------------------
+    // ----------------------------------------
+    auto const swapchain_image = swapchain_ptr_->images( )[image_index].handle( );
 
-    // The first parameter for every command is always the command buffer to record the command to. The second parameter
-    // specifies the details of the render pass we've just provided. The final parameter controls how the drawing
-    // commands within the render pass will be provided. It can have one of two values:
-    // 1. VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command buffer itself
-    // and no secondary command buffers will be executed.
-    // 2. VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS: The render pass commands will be executed from secondary
-    // command buffers.
-    vkCmdBeginRenderPass( command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE );
+    // Pre-rendering barrier
+    VkImageMemoryBarrier const acquire_barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_NONE,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = swapchain_image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+
+    vkCmdPipelineBarrier(
+        command_buffer,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &acquire_barrier
+    );
+    // ----------------------------------------
+    // ----------------------------------------
+
+    // We can now begin the rendering process by calling vkCmdBeginRendering, which starts recording commands
+    vkCmdBeginRendering( command_buffer, &render_info );
 
     // We can now bind the graphics pipeline. The second parameter specifies if the pipeline object is a graphics or
     // compute pipeline.
@@ -1008,8 +915,37 @@ void TriangleApplication::record_command_buffer( VkCommandBuffer command_buffer,
     // the vertex shader.
     vkCmdDrawIndexed( command_buffer, static_cast<uint32_t>( model_->get_indices( ).size( ) ), 1, 0, 0, 0 );
 
-    // After we've finished recording the command buffer, we end the render pass with vkCmdEndRenderPass.
-    vkCmdEndRenderPass( command_buffer );
+    // After we've finished recording the command buffer, we end the rendering process by calling vkCmdEndRendering.
+    vkCmdEndRendering( command_buffer );
+
+    // Post rendering barrier
+    VkImageMemoryBarrier const barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_NONE, // Presentation doesn't require access
+        .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = swapchain_image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+
+    vkCmdPipelineBarrier(
+        command_buffer,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
+    );
 
     validation::throw_on_bad_result( vkEndCommandBuffer( command_buffer ), "Failed to record command buffer!" );
 }
@@ -1039,6 +975,11 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
 
 void TriangleApplication::draw_frame( )
 {
+    auto const command_buffer = command_buffers_[current_frame_];
+
+    auto const in_flight_fence = in_flight_fences_[current_frame_];
+    auto const acquire_semaphore = image_available_semaphores_[current_frame_];
+
     // At a high level, rendering a frame in Vulkan consists of a common set of steps:
     // 1. Wait for the previous frame to finish.
     // 2. Acquire an image from the swap chain.
@@ -1066,16 +1007,17 @@ void TriangleApplication::draw_frame( )
     // The VK_TRUE we pass here indicates that we want to wait for all fences, but in the case of a single one it
     // doesn't matter. This function also has a timeout parameter set to UINT64_MAX, which effectively disables the
     // timeout.
-    vkWaitForFences( context_->device( ).logical( ), 1, &in_flight_fences_[current_frame_], VK_TRUE, UINT64_MAX );
+    vkWaitForFences( context_->device( ).logical( ), 1, &in_flight_fence, VK_TRUE, UINT64_MAX );
 
     // The first two parameters of vkAcquireNextImageKHR are the logical device and the swap chain from which we wish
     // to acquire an image.
     uint32_t image_index{};
     auto const acquire_image_result = vkAcquireNextImageKHR( context_->device( ).logical( ), swapchain_ptr_->handle( ),
                                                              UINT64_MAX,
-                                                             image_available_semaphores_[current_frame_],
+                                                             acquire_semaphore,
                                                              VK_NULL_HANDLE,
                                                              &image_index );
+    auto const submit_semaphore = render_finished_semaphores_[image_index];
 
     // If viewport changes, recreate the swap chain.
     // - VK_ERROR_OUT_OF_DATE_KHR: The swap chain has become incompatible with the surface and can no longer be used for
@@ -1084,7 +1026,8 @@ void TriangleApplication::draw_frame( )
     // properties are no longer matched exactly.
     if ( acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR )
     {
-        vk_recreate_swap_chain( );
+        //vk_recreate_swap_chain( );
+        log::loginfo( "draw_frame", "swap recreate needs implementing!" );
         return;
     }
     validation::throw_on_bad_result( acquire_image_result, "Failed to acquire swap chain image!", { VK_SUBOPTIMAL_KHR } );
@@ -1092,11 +1035,11 @@ void TriangleApplication::draw_frame( )
     // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.
     // We reset the fence only if there's work to do, which is why we're doing it after the resize check.
     // You should not return before work is completed or DEADLOCK will occur.
-    vkResetFences( context_->device( ).logical( ), 1, &in_flight_fences_[current_frame_] );
+    vkResetFences( context_->device( ).logical( ), 1, &in_flight_fence );
 
     // With the imageIndex specifying the swap chain image to use in hand, we can now record the command buffer.
-    vkResetCommandBuffer( command_buffers_[current_frame_], 0 );
-    record_command_buffer( command_buffers_[current_frame_], image_index );
+    vkResetCommandBuffer( command_buffer, 0 );
+    record_command_buffer( command_buffer, image_index );
 
     // We need to submit the recorded command buffer to the graphics queue before submitting the image to the swap chain.
     update_uniform_buffer( current_frame_ );
@@ -1107,22 +1050,22 @@ void TriangleApplication::draw_frame( )
 
     constexpr VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submit_info.waitSemaphoreCount               = 1;
-    submit_info.pWaitSemaphores                  = &image_available_semaphores_[current_frame_];
+    submit_info.pWaitSemaphores                  = &acquire_semaphore;
     submit_info.pWaitDstStageMask                = wait_stages;
 
     // Set which command buffers to actually submit for execution.
     submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers    = &command_buffers_[current_frame_];
+    submit_info.pCommandBuffers    = &command_buffer;
 
     // The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command
     // buffer(s) have finished execution
     submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores    = &render_finished_semaphores_[current_frame_];
+    submit_info.pSignalSemaphores    = &submit_semaphore;
 
     // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
     // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it inFlightFence.
     validation::throw_on_bad_result(
-        vkQueueSubmit( context_->device( ).graphics_queue( ), 1, &submit_info, in_flight_fences_[current_frame_] ),
+        vkQueueSubmit( context_->device( ).graphics_queue( ), 1, &submit_info, in_flight_fence ),
         "Failed to submit draw command buffer!" );
 
     // The last step of drawing a frame is submitting the result back to the swap chain to have it eventually show up
@@ -1132,15 +1075,15 @@ void TriangleApplication::draw_frame( )
 
     // These two parameters specify which semaphores to wait on before presentation can happen.
     present_info.waitSemaphoreCount = 1;
-    present_info.pWaitSemaphores    = &render_finished_semaphores_[current_frame_];
+    present_info.pWaitSemaphores    = &submit_semaphore;
 
     // These two parameters specify the swap chains to present images to and the index of the image for each swap chain.
     present_info.swapchainCount = 1;
-    present_info.pSwapchains    = swapchain_ptr_->phandle( );
+    present_info.pSwapchains    = swapchain_ptr_->handle_ptr( );
     present_info.pImageIndices  = &image_index;
 
     // There is one last optional parameter called pResults. It allows you to specify an array of VkResult values to
-    // check for every individual swap chain if presentation was successful.
+    // check for every individual swapchain if presentation was successful.
     present_info.pResults = nullptr; // Optional
 
     // The vkQueuePresentKHR function submits the request to present an image to the queue.
@@ -1151,7 +1094,8 @@ void TriangleApplication::draw_frame( )
         frame_buffer_resized_ )
     {
         frame_buffer_resized_ = false;
-        vk_recreate_swap_chain( );
+        //vk_recreate_swap_chain( );
+        log::loginfo( "draw_frame", "swap recreate needs implementing!" );
     }
 
     // Next frame
@@ -1169,17 +1113,13 @@ void TriangleApplication::init_vk( )
                                                       }
                                                   } );
 
-    vk_create_render_pass( );
-
     vk_create_descriptor_set_layout( );
+
+    vk_create_depth_resources( );
 
     vk_create_graphics_pipeline( );
 
     vk_create_command_pool( );
-
-    vk_create_depth_resources( );
-
-    vk_create_frame_buffers( );
 
     vk_create_texture_image( );
     vk_create_texture_sampler( );
@@ -1219,8 +1159,11 @@ void TriangleApplication::cleanup( )
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         vkDestroySemaphore( context_->device( ).logical( ), image_available_semaphores_[i], nullptr );
-        vkDestroySemaphore( context_->device( ).logical( ), render_finished_semaphores_[i], nullptr );
         vkDestroyFence( context_->device( ).logical( ), in_flight_fences_[i], nullptr );
+    }
+    for ( size_t i = 0; i < 3; i++ )
+    {
+        vkDestroySemaphore( context_->device( ).logical( ), render_finished_semaphores_[i], nullptr );
     }
 
     vkDestroyCommandPool( context_->device( ).logical( ), command_pool_, nullptr );
@@ -1228,10 +1171,7 @@ void TriangleApplication::cleanup( )
     vkDestroyPipeline( context_->device( ).logical( ), graphics_pipeline_, nullptr );
     vkDestroyPipelineLayout( context_->device( ).logical( ), pipeline_layout_, nullptr );
 
-    vkDestroyRenderPass( context_->device( ).logical( ), render_pass_, nullptr );
-
     // vk_cleanup_swap_chain( );
-    swapchain_framebuffers_.clear( );
     swapchain_depth_image_ptr_.reset( );
     swapchain_ptr_.reset( );
 

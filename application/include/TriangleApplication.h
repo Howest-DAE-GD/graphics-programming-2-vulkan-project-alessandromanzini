@@ -54,11 +54,9 @@ namespace cobalt
 
         std::unique_ptr<Swapchain> swapchain_ptr_{};
         std::unique_ptr<Image> swapchain_depth_image_ptr_{ nullptr };
-        std::vector<Framebuffer> swapchain_framebuffers_{};
 
         VkDescriptorSetLayout descriptor_set_layout_{ VK_NULL_HANDLE };
 
-        VkRenderPass render_pass_{ VK_NULL_HANDLE };
         VkPipelineLayout pipeline_layout_{ VK_NULL_HANDLE };
         VkPipeline graphics_pipeline_{ VK_NULL_HANDLE };
 
@@ -81,17 +79,13 @@ namespace cobalt
 
         VkCommandPool command_pool_{ VK_NULL_HANDLE };
         std::array<VkCommandBuffer, MAX_FRAMES_IN_FLIGHT_> command_buffers_{ VK_NULL_HANDLE };
-        mutable uint32_t current_frame_{ 0 };
+        mutable uint64_t current_frame_{ 0 };
 
         std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT_> image_available_semaphores_{ VK_NULL_HANDLE };
-        std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT_> render_finished_semaphores_{ VK_NULL_HANDLE };
+        std::array<VkSemaphore, 3> render_finished_semaphores_{ VK_NULL_HANDLE };
         std::array<VkFence, MAX_FRAMES_IN_FLIGHT_> in_flight_fences_{ VK_NULL_HANDLE };
 
         bool frame_buffer_resized_{ false };
-
-        void vk_recreate_swap_chain( );
-
-        void vk_create_render_pass( );
 
         void vk_create_descriptor_set_layout( );
 
@@ -109,8 +103,6 @@ namespace cobalt
 
         void load_model( );
         void vk_create_index_buffer( );
-
-        void vk_create_frame_buffers( );
 
         void vk_create_uniform_buffers( );
 

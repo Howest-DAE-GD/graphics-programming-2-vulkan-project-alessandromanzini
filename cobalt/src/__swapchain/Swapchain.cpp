@@ -32,7 +32,7 @@ namespace cobalt
     }
 
 
-    VkSwapchainKHR* Swapchain::phandle( )
+    VkSwapchainKHR const* Swapchain::handle_ptr( ) const
     {
         return &swapchain_;
     }
@@ -135,19 +135,17 @@ namespace cobalt
     }
 
 
-    void Swapchain::recreate_swapchain( VkExtent2D const )
+    void Swapchain::recreate_swapchain( VkExtent2D const extent )
     {
-        // In case the window gets minimized, we wait until it gets restored.
-        // auto [width, height] = window_->extent( );
-        // while ( width == 0 || height == 0 )
-        // {
-        //     auto [tempWidth, tempHeight] = window_->extent( );
-        //     width                        = tempWidth;
-        //     height                       = tempHeight;
-        //     glfwWaitEvents( );
-        // }
+        // In case the window gets minimized, or the extent is the same as the current swapchain extent, we don't recreate
+        // the swapchain.
+        if ( ( extent.width == 0 || extent.height == 0 ) ||
+             ( extent.width == swapchain_extent_.width && extent.height == swapchain_extent_.height ) )
+        {
+            return;
+        }
 
-        // It is possible to create a new swap chain while drawing commands on an image from the old swap chain are still
+        // It is possible to create a new swapchain while drawing commands on an image from the old swap chain are still
         // in-flight. You need to pass the previous swap chain to the oldSwapChain field in the VkSwapchainCreateInfoKHR
         // struct and destroy the old swap chain as soon as you've finished using it.
         context_ref_.device( ).wait_idle( );

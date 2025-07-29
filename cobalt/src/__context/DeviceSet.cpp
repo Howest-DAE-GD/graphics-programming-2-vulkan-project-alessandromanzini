@@ -130,7 +130,11 @@ namespace cobalt
         // Set additional Vulkan 1+ features that we want to use.
         VkPhysicalDeviceVulkan13Features device_features13{};
         device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-        device_features13.pNext      = nullptr;
+        device_features13.pNext = nullptr;
+        if ( any( feature_flags_ & DeviceFeatureFlags::DYNAMIC_RENDERING_EXT ) )
+        {
+            device_features13.dynamicRendering = VK_TRUE;
+        }
 
         // Create the logical device
         VkDeviceCreateInfo create_info{};
