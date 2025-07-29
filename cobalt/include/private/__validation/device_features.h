@@ -27,6 +27,7 @@ namespace cobalt::validation
 
     [[nodiscard]] bool is_family_indices_suitable( ValidationCallbackData& data );
     [[nodiscard]] bool is_swapchain_adequate( ValidationCallbackData& data );
+    [[nodiscard]] bool is_swapchain_maintenance_1_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_anisotropy_sampler_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_dynamic_rendering_supported( ValidationCallbackData& data );
 

@@ -37,13 +37,15 @@ namespace cobalt::validation
     }
 
 
+    bool is_swapchain_maintenance_1_supported( ValidationCallbackData& data )
+    {
+        return has_extension( data, VK_KHR_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME );
+    }
+
+
     bool is_dynamic_rendering_supported( ValidationCallbackData& data )
     {
-        if ( not has_extension( data, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME ) )
-        {
-            return false;
-        }
-        return true;
+        return has_extension( data, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME );
     }
 
 
