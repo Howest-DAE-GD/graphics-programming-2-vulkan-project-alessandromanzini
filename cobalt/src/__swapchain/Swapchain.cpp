@@ -56,6 +56,43 @@ namespace cobalt
     }
 
 
+    Image const& Swapchain::depth_image( ) const
+    {
+        return *depth_image_ptr_;
+    }
+
+
+    uint32_t Swapchain::acquire_next_image( VkSemaphore const semaphore, uint64_t const timeout )
+    {
+        uint32_t image_index{};
+
+        // The first two parameters of vkAcquireNextImageKHR are the logical device and the swap chain from which we wish
+        // to acquire an image.
+        auto const result = vkAcquireNextImageKHR( context_ref_.device( ).logical( ), swapchain_,
+                                                   timeout, semaphore, VK_NULL_HANDLE, &image_index );
+
+        // If viewport changes, recreate the swapchain.
+        // - VK_ERROR_OUT_OF_DATE_KHR: The swapchain has become incompatible with the surface and can no longer be used for
+        // rendering. Usually happens after a window resize.
+        // - VK_SUBOPTIMAL_KHR: The swapchain can still be used to successfully present to the surface, but the surface
+        // properties are no longer matched exactly.
+        switch ( result )
+        {
+            case VK_SUCCESS:
+            case VK_SUBOPTIMAL_KHR:
+                return image_index;
+
+            case VK_ERROR_OUT_OF_DATE_KHR:
+                recreate_swapchain( window_.extent( ) );
+                return UINT32_MAX;
+
+            default:
+                validation::throw_on_bad_result( result, "Failed to acquire next swapchain image!" );
+                return UINT32_MAX;
+        }
+    }
+
+
     void Swapchain::init_swapchain( )
     {
         // 1. Setup the swapchain builder
@@ -90,47 +127,31 @@ namespace cobalt
         }
 
         // 5. Create the depth image
+        if ( create_info_.create_depth_image )
         {
-            // VkFormat const depth_format = query::find_depth_format( context_ref_.device( ).physical( ) );
-            // depth_image_ptr_ = std::make_unique<Image>( context_ref_.device( ), ImageCreateInfo{
-            //     .extent = swapchain_extent_,
-            //     .format = depth_format,
-            //     .tiling = VK_IMAGE_TILING_OPTIMAL,
-            //     .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-            //     .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            //     .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
-            // } );
-            // vk_transition_image_layout( depth_image_, depthFormat, VK_IMAGE_LAYOUT_UNDEFINED,
-            //                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL );
-        }
-
-        // 6. Create the frame buffers
-        {
-            // for ( auto const& image : images_ )
-            // {
-            //     framebuffers_.emplace_back( context_ref_.device( ), FramebufferCreateInfo{
-            //         .usage_type = FramebufferUsageType::RENDER_PASS,
-            //         .render_pass = create_info_.render_pass,
-            //         .extent = swapchain_extent_,
-            //         .attachments = { image.view( ).handle( ), depth_image_ptr_->image_view( ).handle( ) }
-            //     } );
-            // }
+            VkFormat const depth_format = query::find_depth_format( context_ref_.device( ).physical( ) );
+            depth_image_ptr_            = std::make_unique<Image>( context_ref_.device( ),
+                                                        ImageCreateInfo{
+                                                            .extent = swapchain_extent_,
+                                                            .format = depth_format,
+                                                            .tiling = VK_IMAGE_TILING_OPTIMAL,
+                                                            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                                                            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                            .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
+                                                        } );
         }
     }
 
 
     void Swapchain::destroy_swapchain( )
     {
-        // 1. Destroy the frame buffers.
-        // framebuffers_.clear( );
+        // 1. Destroy the depth image.
+        depth_image_ptr_.reset( );
 
-        // 2. Destroy the depth image.
-        // depth_image_ptr_.reset( );
-
-        // 3. Destroy the swapchain images.
+        // 2. Destroy the swapchain images.
         images_.clear( );
 
-        // 4. Destroy the swapchain.
+        // 3. Destroy the swapchain.
         vkDestroySwapchainKHR( context_ref_.device( ).logical( ), swapchain_, nullptr );
     }
 
@@ -139,8 +160,7 @@ namespace cobalt
     {
         // In case the window gets minimized, or the extent is the same as the current swapchain extent, we don't recreate
         // the swapchain.
-        if ( ( extent.width == 0 || extent.height == 0 ) ||
-             ( extent.width == swapchain_extent_.width && extent.height == swapchain_extent_.height ) )
+        if ( window_.is_minimized( ) || ( extent.width == swapchain_extent_.width && extent.height == swapchain_extent_.height ) )
         {
             return;
         }

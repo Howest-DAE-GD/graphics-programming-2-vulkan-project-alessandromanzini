@@ -24,6 +24,7 @@ namespace cobalt
         uint32_t image_count{ 3 };
         VkPresentModeKHR present_mode{ VK_PRESENT_MODE_MAILBOX_KHR };
         VkSurfaceFormatKHR surface_format{ VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+        bool create_depth_image{ true };
     };
 
 
@@ -45,6 +46,9 @@ namespace cobalt
         [[nodiscard]] VkExtent2D extent( ) const;
 
         [[nodiscard]] std::vector<Image> const& images( ) const;
+        [[nodiscard]] Image const& depth_image( ) const;
+
+        [[nodiscard]] uint32_t acquire_next_image( VkSemaphore semaphore, uint64_t timeout = UINT64_MAX );
 
     private:
         VkContext const& context_ref_;
@@ -57,6 +61,7 @@ namespace cobalt
         VkFormat image_format_{};
 
         std::vector<Image> images_{};
+        std::unique_ptr<Image> depth_image_ptr_{ nullptr };
 
         void init_swapchain( );
         void destroy_swapchain( );
