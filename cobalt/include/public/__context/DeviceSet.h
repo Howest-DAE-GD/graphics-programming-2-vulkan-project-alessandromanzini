@@ -31,6 +31,9 @@ namespace cobalt
         [[nodiscard]] VkQueue present_queue() const;
 
         void wait_idle() const;
+        void wait_for_fence( VkFence fence, uint64_t timeout = UINT64_MAX ) const;
+
+        void reset_fence( VkFence fence ) const;
 
     private:
         InstanceBundle const& instance_ref_;

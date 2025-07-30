@@ -58,6 +58,22 @@ namespace cobalt
     }
 
 
+    void DeviceSet::wait_for_fence( VkFence const fence, uint64_t const timeout ) const
+    {
+        // todo: perhaps make sure fence is valid and result is VK_SUCCESS?
+        // The VK_TRUE we pass here indicates that we want to wait for all fences, but in the case of a single one it
+        // doesn't matter.
+        vkWaitForFences( device_, 1, &fence, VK_TRUE, timeout );
+    }
+
+
+    void DeviceSet::reset_fence( VkFence const fence ) const
+    {
+        // todo: perhaps make sure fence is valid and result is VK_SUCCESS?
+        vkResetFences( device_, 1, &fence );
+    }
+
+
     void DeviceSet::pick_physical_device( )
     {
         // The physical device gets implicitly destroyed when we destroy the instance.
