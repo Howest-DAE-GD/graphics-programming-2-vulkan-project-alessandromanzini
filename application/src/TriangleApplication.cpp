@@ -322,7 +322,7 @@ void TriangleApplication::vk_create_graphics_pipeline( )
     pipeline_rendering_info.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     pipeline_rendering_info.colorAttachmentCount    = 1;
     pipeline_rendering_info.pColorAttachmentFormats = &swapchain_image_format;
-    pipeline_rendering_info.depthAttachmentFormat   = swapchain_depth_image_ptr_->format( );
+    pipeline_rendering_info.depthAttachmentFormat   = swapchain_ptr_->depth_image( ).format( );
 
     pipeline_info.pNext = &pipeline_rendering_info;
 
@@ -737,22 +737,6 @@ void TriangleApplication::vk_create_sync_objects( )
 }
 
 
-void TriangleApplication::vk_create_depth_resources( )
-{
-    VkFormat const depth_format = query::find_depth_format( context_->device( ).physical( ) );
-    swapchain_depth_image_ptr_  = std::make_unique<Image>( context_->device( ), ImageCreateInfo{
-                                                               .extent = swapchain_ptr_->extent( ),
-                                                               .format = depth_format,
-                                                               .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                                               .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                                               .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                               .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
-                                                           } );
-    // vk_transition_image_layout( swapchain_depth_image_ptr_->handle( ), depth_format, VK_IMAGE_LAYOUT_UNDEFINED,
-    //                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL );
-}
-
-
 VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT const message_severity,
                                               VkDebugUtilsMessageTypeFlagsEXT /* messageType */,
                                               VkDebugUtilsMessengerCallbackDataEXT const* p_callback_data,
@@ -828,7 +812,7 @@ void TriangleApplication::record_command_buffer( VkCommandBuffer const command_b
 
     VkRenderingAttachmentInfo depth_attachment_info{};
     depth_attachment_info.sType                         = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth_attachment_info.imageView                     = swapchain_depth_image_ptr_->view( ).handle( );
+    depth_attachment_info.imageView                     = swapchain_ptr_->depth_image( ).view( ).handle( );
     depth_attachment_info.imageLayout                   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depth_attachment_info.loadOp                        = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment_info.storeOp                       = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -975,74 +959,40 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
 
 void TriangleApplication::draw_frame( )
 {
-    auto const command_buffer = command_buffers_[current_frame_];
-
-    auto const in_flight_fence = in_flight_fences_[current_frame_];
-    auto const acquire_semaphore = image_available_semaphores_[current_frame_];
-
-    // At a high level, rendering a frame in Vulkan consists of a common set of steps:
-    // 1. Wait for the previous frame to finish.
-    // 2. Acquire an image from the swap chain.
-    // 3. Record a command buffer which draws the scene onto that image.
-    // 4. Submit the recorded command buffer.
-    // 5. Present the swap chain image.
-
-    // A core design philosophy in Vulkan is that synchronization of execution on the GPU is explicit. The order of
-    // operations is up to us to define using various synchronization primitives.
-
-    // A semaphore is used to add order between queue operations. Queue operations refer to the work we submit to a
-    // queue, either in a command buffer or from within a function. The queueing happens on the CPU, but the execution
-    // and the waiting happen on the GPU.
-
-    // A fence has a similar purpose, in that it is used to synchronize execution, but it is for ordering the execution
-    // on the CPU. Simply put, if the host needs to know when the GPU has finished something, we use a fence.
-
-    // In summary, semaphores are used to specify the execution order of operations on the GPU while fences are used to
-    // keep the CPU and GPU in sync with each-other.
-
-    // We'll need one semaphore to signal that an image has been acquired from the swapchain and is ready for rendering,
-    // another one to signal that rendering has finished and presentation can happen, and a fence to make sure only one
-    // frame is rendering at a time.
-
-    // The VK_TRUE we pass here indicates that we want to wait for all fences, but in the case of a single one it
-    // doesn't matter. This function also has a timeout parameter set to UINT64_MAX, which effectively disables the
-    // timeout.
-    vkWaitForFences( context_->device( ).logical( ), 1, &in_flight_fence, VK_TRUE, UINT64_MAX );
-
-    // The first two parameters of vkAcquireNextImageKHR are the logical device and the swap chain from which we wish
-    // to acquire an image.
-    uint32_t image_index{};
-    auto const acquire_image_result = vkAcquireNextImageKHR( context_->device( ).logical( ), swapchain_ptr_->handle( ),
-                                                             UINT64_MAX,
-                                                             acquire_semaphore,
-                                                             VK_NULL_HANDLE,
-                                                             &image_index );
-    auto const submit_semaphore = render_finished_semaphores_[image_index];
-
-    // If viewport changes, recreate the swap chain.
-    // - VK_ERROR_OUT_OF_DATE_KHR: The swap chain has become incompatible with the surface and can no longer be used for
-    // rendering. Usually happens after a window resize.
-    // - VK_SUBOPTIMAL_KHR: The swap chain can still be used to successfully present to the surface, but the surface
-    // properties are no longer matched exactly.
-    if ( acquire_image_result == VK_ERROR_OUT_OF_DATE_KHR )
+    // We don't render frames when the window is minimized.
+    if ( window_->is_minimized( ) )
     {
-        //vk_recreate_swap_chain( );
-        log::loginfo( "draw_frame", "swap recreate needs implementing!" );
         return;
     }
-    validation::throw_on_bad_result( acquire_image_result, "Failed to acquire swap chain image!", { VK_SUBOPTIMAL_KHR } );
+
+    // 1. Wait for the previous frame to finish. We wait for the fence.
+    auto const in_flight_fence = in_flight_fences_[current_frame_];
+    context_->device( ).wait_for_fence( in_flight_fence );
+
+    // 2. Acquire an image from the swapchain.
+    auto const acquire_semaphore = image_available_semaphores_[current_frame_];
+    uint32_t const image_index = swapchain_ptr_->acquire_next_image( acquire_semaphore );
+
+    // If the image index is UINT32_MAX, it means that the swapchain could not acquire an image.
+    if ( image_index == UINT32_MAX )
+    {
+        return;
+    }
 
     // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.
-    // We reset the fence only if there's work to do, which is why we're doing it after the resize check.
-    // You should not return before work is completed or DEADLOCK will occur.
-    vkResetFences( context_->device( ).logical( ), 1, &in_flight_fence );
+    // We reset the fence only if there's work to do, which is why we're doing it after the acquire image check. DEADLOCK warning!
+    context_->device( ).reset_fence( in_flight_fence );
 
+    // 3. Record a command buffer which draws the scene onto that image.
+    auto const command_buffer = command_buffers_[current_frame_];
     // With the imageIndex specifying the swap chain image to use in hand, we can now record the command buffer.
     vkResetCommandBuffer( command_buffer, 0 );
     record_command_buffer( command_buffer, image_index );
 
     // We need to submit the recorded command buffer to the graphics queue before submitting the image to the swap chain.
     update_uniform_buffer( current_frame_ );
+
+    auto const submit_semaphore = render_finished_semaphores_[image_index];
 
     // Queue submission and synchronization is configured through parameters in the VkSubmitInfo structure.
     VkSubmitInfo submit_info{};
@@ -1062,6 +1012,7 @@ void TriangleApplication::draw_frame( )
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores    = &submit_semaphore;
 
+    // 4. Submit the recorded command buffer.
     // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
     // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it inFlightFence.
     validation::throw_on_bad_result(
@@ -1086,20 +1037,34 @@ void TriangleApplication::draw_frame( )
     // check for every individual swapchain if presentation was successful.
     present_info.pResults = nullptr; // Optional
 
-    // The vkQueuePresentKHR function submits the request to present an image to the queue.
-
+    // 5. Present the swapchain image. The vkQueuePresentKHR function submits the request to present an image to the queue.
     // We check for the callback boolean after the queue presentation to avoid the semaphore to be signaled.
     if ( auto const queue_present_result = vkQueuePresentKHR( context_->device( ).graphics_queue( ), &present_info );
-        queue_present_result == VK_ERROR_OUT_OF_DATE_KHR || queue_present_result == VK_SUBOPTIMAL_KHR ||
-        frame_buffer_resized_ )
+        queue_present_result == VK_ERROR_OUT_OF_DATE_KHR || queue_present_result == VK_SUBOPTIMAL_KHR )
     {
-        frame_buffer_resized_ = false;
-        //vk_recreate_swap_chain( );
-        log::loginfo( "draw_frame", "swap recreate needs implementing!" );
+        window_->force_framebuffer_resize( );
     }
 
     // Next frame
     current_frame_ = ( current_frame_ + 1 ) % MAX_FRAMES_IN_FLIGHT_;
+
+    // todo: add this info inside fence and semaphore class
+    // A core design philosophy in Vulkan is that synchronization of execution on the GPU is explicit. The order of
+    // operations is up to us to define using various synchronization primitives.
+
+    // A semaphore is used to add order between queue operations. Queue operations refer to the work we submit to a
+    // queue, either in a command buffer or from within a function. The queueing happens on the CPU, but the execution
+    // and the waiting happen on the GPU.
+
+    // A fence has a similar purpose, in that it is used to synchronize execution, but it is for ordering the execution
+    // on the CPU. Simply put, if the host needs to know when the GPU has finished something, we use a fence.
+
+    // In summary, semaphores are used to specify the execution order of operations on the GPU while fences are used to
+    // keep the CPU and GPU in sync with each-other.
+
+    // We'll need one semaphore to signal that an image has been acquired from the swapchain and is ready for rendering,
+    // another one to signal that rendering has finished and presentation can happen, and a fence to make sure only one
+    // frame is rendering at a time.
 }
 
 
@@ -1114,8 +1079,6 @@ void TriangleApplication::init_vk( )
                                                   } );
 
     vk_create_descriptor_set_layout( );
-
-    vk_create_depth_resources( );
 
     vk_create_graphics_pipeline( );
 
@@ -1171,8 +1134,6 @@ void TriangleApplication::cleanup( )
     vkDestroyPipeline( context_->device( ).logical( ), graphics_pipeline_, nullptr );
     vkDestroyPipelineLayout( context_->device( ).logical( ), pipeline_layout_, nullptr );
 
-    // vk_cleanup_swap_chain( );
-    swapchain_depth_image_ptr_.reset( );
     swapchain_ptr_.reset( );
 
     vkDestroySampler( context_->device( ).logical( ), texture_sampler_, nullptr );

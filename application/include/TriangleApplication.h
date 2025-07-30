@@ -53,7 +53,6 @@ namespace cobalt
         VkContextHandle context_{};
 
         std::unique_ptr<Swapchain> swapchain_ptr_{};
-        std::unique_ptr<Image> swapchain_depth_image_ptr_{ nullptr };
 
         VkDescriptorSetLayout descriptor_set_layout_{ VK_NULL_HANDLE };
 
@@ -85,8 +84,6 @@ namespace cobalt
         std::array<VkSemaphore, 3> render_finished_semaphores_{ VK_NULL_HANDLE };
         std::array<VkFence, MAX_FRAMES_IN_FLIGHT_> in_flight_fences_{ VK_NULL_HANDLE };
 
-        bool frame_buffer_resized_{ false };
-
         void vk_create_descriptor_set_layout( );
 
         void vk_create_graphics_pipeline( );
@@ -113,8 +110,6 @@ namespace cobalt
         void vk_create_command_buffers( );
 
         void vk_create_sync_objects( );
-
-        void vk_create_depth_resources( );
 
         static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
                                                               VkDebugUtilsMessageTypeFlagsEXT message_type,
