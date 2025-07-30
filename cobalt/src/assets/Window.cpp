@@ -17,7 +17,7 @@ namespace cobalt
 
         // Set callback pointer to dispatcher
         glfwSetWindowUserPointer( window_ptr_, &framebuffer_resize_dispatcher_ );
-        glfwSetFramebufferSizeCallback( window_ptr_, frame_buffer_size_callback );
+        glfwSetFramebufferSizeCallback( window_ptr_, framebuffer_resize_callback );
     }
 
 
@@ -35,10 +35,16 @@ namespace cobalt
     }
 
 
+    bool Window::is_minimized( ) const
+    {
+        auto const [width, height] = extent( );
+        return width == 0 || height == 0;
+    }
+
+
     VkExtent2D Window::extent( ) const
     {
-        int width{};
-        int height{};
+        int width{}; int height{};
         glfwGetFramebufferSize( window_ptr_, &width, &height );
         return { static_cast<uint32_t>( width ), static_cast<uint32_t>( height ) };
     }
@@ -54,6 +60,12 @@ namespace cobalt
     }
 
 
+    void Window::force_framebuffer_resize( ) const
+    {
+        framebuffer_resize_dispatcher_.broadcast( extent( ) );
+    }
+
+
     std::vector<char const*> Window::get_required_extensions( ) const
     {
         // GLFW has a handy built-in function that returns the extension(s) it needs to do that
@@ -64,7 +76,7 @@ namespace cobalt
     }
 
 
-    void Window::frame_buffer_size_callback( GLFWwindow* window, int const width, int const height )
+    void Window::framebuffer_resize_callback( GLFWwindow* window, int const width, int const height )
     {
         auto const dispatcher =
                 static_cast<decltype(framebuffer_resize_dispatcher_) const*>( glfwGetWindowUserPointer( window ) );
