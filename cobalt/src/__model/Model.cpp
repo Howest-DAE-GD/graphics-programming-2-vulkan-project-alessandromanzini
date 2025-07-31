@@ -1,9 +1,8 @@
+#include <__model/Model.h>
+
 #include <CobaltVK.h>
-#include <assets/Model.h>
-
-#include <__builder/ModelLoader.h>
-
 #include <assets/Buffer.h>
+#include <__builder/ModelLoader.h>
 
 
 namespace cobalt

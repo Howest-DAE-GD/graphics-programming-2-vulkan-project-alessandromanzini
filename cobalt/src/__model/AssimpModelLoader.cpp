@@ -1,4 +1,4 @@
-#include <__builder/ModelLoader.h>
+#include <__model/AssimpModelLoader.h>
 
 #include <__validation/dispatch.h>
 
@@ -10,7 +10,7 @@
 #include <utility>
 
 
-namespace cobalt::builder
+namespace cobalt::loader
 {
     // +---------------------------+
     // | HELPERS FORWARD DECL      |
@@ -22,11 +22,10 @@ namespace cobalt::builder
     // +---------------------------+
     // | MODEL LOADER              |
     // +---------------------------+
-    ModelLoader::ModelLoader( std::filesystem::path path )
-        : model_path_{ std::move( path ) } { }
+    AssimpModelLoader::AssimpModelLoader( std::filesystem::path path ) : ModelLoader{ std::move( path ) } { }
 
 
-    void ModelLoader::load( Model& model ) const
+    void AssimpModelLoader::load( Model& model ) const
     {
         Assimp::Importer importer;
 
@@ -40,7 +39,7 @@ namespace cobalt::builder
             validation::throw_runtime_error( "Assimp error while loading model: " + std::string( importer.GetErrorString( ) ) );
         }
 
-        extract( scene, model.vertices_, model.indices_ );
+        extract( scene, get_vertices( model ), get_indices( model ) );
     }
 
 

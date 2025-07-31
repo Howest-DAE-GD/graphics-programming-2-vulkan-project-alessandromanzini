@@ -1,28 +1,31 @@
 #ifndef MODELLOADER_H
 #define MODELLOADER_H
 
-#include <assets/Model.h>
+#include <__model/Model.h>
 
 #include <filesystem>
 
 
-namespace cobalt::builder
+namespace cobalt::loader
 {
-    class ModelLoader final
+    class ModelLoader
     {
     public:
-        explicit ModelLoader( std::filesystem::path path );
-        ~ModelLoader( ) noexcept = default;
+        explicit ModelLoader( std::filesystem::path&& );
+        virtual ~ModelLoader( ) noexcept = default;
 
         ModelLoader( ModelLoader const& )                = delete;
         ModelLoader( ModelLoader&& ) noexcept            = delete;
         ModelLoader& operator=( ModelLoader const& )     = delete;
         ModelLoader& operator=( ModelLoader&& ) noexcept = delete;
 
-        void load( Model& model ) const;
+        virtual void load( Model& model ) const = 0;
 
-    private:
+    protected:
         std::filesystem::path const model_path_{};
+
+        [[nodiscard]] static decltype(Model::vertices_)& get_vertices( Model& model );
+        [[nodiscard]] static decltype(Model::indices_)& get_indices( Model& model );
 
     };
 
