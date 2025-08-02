@@ -12,6 +12,7 @@
 #include <vector>
 #include <memory>
 #include <optional>
+#include <__init/InitWizard.h>
 
 
 namespace cobalt
@@ -20,14 +21,15 @@ namespace cobalt
     {
         Window const* window;
         VkApplicationInfo app_info;
-        std::optional<ValidationLayers> validation_layers{ std::nullopt };
     };
+
+    using ContextWizard = InitWizard<ContextCreateInfo>::WithFeatures<DeviceFeatureFlags, ValidationLayers>;
 
 
     class VkContext final : public memory::Resource
     {
     public:
-        explicit VkContext( ContextCreateInfo const& create_info );
+        explicit VkContext( ContextWizard );
         ~VkContext( ) override;
 
         VkContext( VkContext const& )                = delete;
@@ -38,12 +40,12 @@ namespace cobalt
         [[nodiscard]] InstanceBundle& instance( ) const;
         [[nodiscard]] DeviceSet& device( ) const;
 
-        void create_device( DeviceFeatureFlags features );
-
     private:
-        std::unique_ptr<ValidationLayers> validation_layers_ptr_{};
+        std::unique_ptr<ValidationLayers> layers_ptr_{};
         std::unique_ptr<InstanceBundle> instance_bundle_ptr_{};
         std::unique_ptr<DeviceSet> device_set_ptr_{};
+
+        void create_device( DeviceFeatureFlags features );
 
     };
 

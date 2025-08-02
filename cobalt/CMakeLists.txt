@@ -12,7 +12,6 @@ add_library(${PROJECT_NAME}
 		include/public/SingleTimeCommand.h
 
 		"src/assets/Buffer.cpp"
-		"src/assets/Model.cpp"
 
 		"src/cleanup/DeletionQueue.cpp"
 
@@ -21,8 +20,7 @@ add_library(${PROJECT_NAME}
 
 		"src/__buffer/FrameBuffer.cpp"
 
-		"include/public/__builder/VkBuilder.h"
-		"src/__builder/ModelLoader.cpp"
+		"include/private/__builder/VkBuilder.h"
 		"src/__builder/VkSwapchainBuilder.cpp"
 
 		"include/public/__command/Command.h"
@@ -42,15 +40,23 @@ add_library(${PROJECT_NAME}
 		"src/__image/Image.cpp"
 		"src/__image/ImageView.cpp"
 
+		"include/public/__init/InitWizard.h"
+
 		"include/public/__memory/handle/ResourceHandle.h"
 		"include/public/__memory/handle/handle_aliases.h"
 		"include/public/__memory/memory_aliases.h"
 		"include/public/__memory/Resource.h"
 		"src/__memory/handle/HandleTable.cpp"
 
+		"src/__model/Model.cpp"
+		"src/__model/ModelLoader.cpp"
+		"src/__model/AssimpModelLoader.cpp"
+
 		"include/public/__meta/crtp.h"
 		"include/public/__meta/function_traits.h"
 		"include/public/__meta/vk_function_traits.h"
+		"include/public/__meta/pack.h"
+		"include/public/__meta/index_of.h"
 
 		"src/__swapchain/Swapchain.cpp"
 

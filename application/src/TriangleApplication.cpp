@@ -29,7 +29,7 @@
 #include <filesystem>
 
 #include <CobaltVK.h>
-#include <__builder/ModelLoader.h>
+#include <__model/AssimpModelLoader.h>
 
 #include <SingleTimeCommand.h>
 #include <UniformBufferObject.h>
@@ -52,21 +52,22 @@ TriangleApplication::TriangleApplication( )
     window_ = CVK.create_resource<Window>( WIDTH_, HEIGHT_, "Vulkan App" );
 
     // 2. Register VK Instance
-    context_ = CVK.create_resource<VkContext>( ContextCreateInfo{
-        .window = window_.get( ),
-        .app_info = VkApplicationInfo{
-            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-            .pApplicationName = "Hello Viking",
-            .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
-            .pEngineName = "Cobalt",
-            .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
-            .apiVersion = VK_API_VERSION_1_3
-        },
-        .validation_layers = ValidationLayers{ validation_layers_, debug_callback }
-    } );
-    context_->create_device(
-        DeviceFeatureFlags::SWAPCHAIN_EXT | DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
-        DeviceFeatureFlags::DYNAMIC_RENDERING_EXT );
+    constexpr VkApplicationInfo app_info{
+        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pApplicationName = "Hello Viking",
+        .applicationVersion = VK_MAKE_VERSION( 1, 0, 0 ),
+        .pEngineName = "Cobalt",
+        .engineVersion = VK_MAKE_VERSION( 1, 0, 0 ),
+        .apiVersion = VK_API_VERSION_1_3
+    };
+    context_ = CVK.create_resource<VkContext>(
+        ContextWizard{ { window_.get( ), app_info } }
+        .with<DeviceFeatureFlags>(
+            DeviceFeatureFlags::SWAPCHAIN_EXT |
+            DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
+            DeviceFeatureFlags::DYNAMIC_RENDERING_EXT )
+        .with<ValidationLayers>( validation_layers_, debug_callback )
+    );
 
     // 3. Set the proper root directory to find shader modules and textures.
     configure_relative_path( );
@@ -346,7 +347,7 @@ void TriangleApplication::vk_create_graphics_pipeline( )
 void TriangleApplication::load_model( )
 {
     model_ = CVK.create_resource<Model>( context_->device( ) );
-    builder::ModelLoader const loader{ MODEL_PATH_ };
+    loader::AssimpModelLoader const loader{ MODEL_PATH_ };
     loader.load( *model_ );
 
     model_->create_vertex_buffer( command_pool_, context_->device( ).graphics_queue( ) );
@@ -971,7 +972,7 @@ void TriangleApplication::draw_frame( )
 
     // 2. Acquire an image from the swapchain.
     auto const acquire_semaphore = image_available_semaphores_[current_frame_];
-    uint32_t const image_index = swapchain_ptr_->acquire_next_image( acquire_semaphore );
+    uint32_t const image_index   = swapchain_ptr_->acquire_next_image( acquire_semaphore );
 
     // If the image index is UINT32_MAX, it means that the swapchain could not acquire an image.
     if ( image_index == UINT32_MAX )
@@ -1070,13 +1071,18 @@ void TriangleApplication::draw_frame( )
 
 void TriangleApplication::init_vk( )
 {
-    swapchain_ptr_ = std::make_unique<Swapchain>( *context_, *window_, SwapchainCreateInfo{
-                                                      .image_count = 3,
-                                                      .present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
-                                                      .surface_format = {
-                                                          VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-                                                      }
-                                                  } );
+    swapchain_ptr_ = std::make_unique<Swapchain>(
+        SwapchainWizard{
+            *context_,
+            *window_,
+            SwapchainCreateInfo{
+                .image_count = 3,
+                .present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
+                .surface_format = {
+                    VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+                }
+            }
+        } );
 
     vk_create_descriptor_set_layout( );
 

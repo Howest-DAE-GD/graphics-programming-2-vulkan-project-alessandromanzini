@@ -6,23 +6,25 @@
 #include <__context/VkContext.h>
 #include <__validation/result.h>
 
+#include <__init/InitWizard.h>
+
 
 namespace cobalt
 {
-    Swapchain::Swapchain( VkContext const& context, Window& window, SwapchainCreateInfo const& info )
-        : context_ref_{ context }
-        , window_{ window }
-        , create_info_{ info }
+    Swapchain::Swapchain( SwapchainWizard wizard )
+        : context_ref_{ wizard.get<decltype(context_ref_)>( ) }
+        , window_ref_{ wizard.get<decltype(window_ref_)>( ) }
+        , create_info_{ wizard.get<decltype(create_info_)>( ) }
     {
         init_swapchain( );
-        window.on_framebuffer_resize.bind( this, &Swapchain::recreate_swapchain );
+        window_ref_.on_framebuffer_resize.bind( this, &Swapchain::recreate_swapchain );
     }
 
 
     Swapchain::~Swapchain( )
     {
         destroy_swapchain( );
-        window_.on_framebuffer_resize.unbind( this );
+        window_ref_.on_framebuffer_resize.unbind( this );
     }
 
 
@@ -38,6 +40,12 @@ namespace cobalt
     }
 
 
+    std::size_t Swapchain::image_count( ) const
+    {
+        return images_.size( );
+    }
+
+
     VkFormat Swapchain::image_format( ) const
     {
         return image_format_;
@@ -46,7 +54,7 @@ namespace cobalt
 
     VkExtent2D Swapchain::extent( ) const
     {
-        return swapchain_extent_;
+        return extent_;
     }
 
 
@@ -83,7 +91,7 @@ namespace cobalt
                 return image_index;
 
             case VK_ERROR_OUT_OF_DATE_KHR:
-                recreate_swapchain( window_.extent( ) );
+                recreate_swapchain( window_ref_.extent( ) );
                 return UINT32_MAX;
 
             default:
@@ -97,7 +105,7 @@ namespace cobalt
     {
         // 1. Setup the swapchain builder
         VkSwapchainBuilder builder{ context_ref_ };
-        builder.set_extent( window_.extent( ) )
+        builder.set_extent( window_ref_.extent( ) )
                .set_image_buffering_aim( create_info_.image_count )
                .set_preferred_present_mode( create_info_.present_mode )
                .set_preferred_surface_format( create_info_.surface_format );
@@ -110,8 +118,8 @@ namespace cobalt
             "Failed to create swap chain!" );
 
         // 3. Store the swap chain image format and extent for later use
-        image_format_     = details.format_khr.format;
-        swapchain_extent_ = details.extent;
+        image_format_ = details.format_khr.format;
+        extent_       = details.extent;
 
         // 4. Query image handles and create the views
         {
@@ -132,7 +140,7 @@ namespace cobalt
             VkFormat const depth_format = query::find_depth_format( context_ref_.device( ).physical( ) );
             depth_image_ptr_            = std::make_unique<Image>( context_ref_.device( ),
                                                         ImageCreateInfo{
-                                                            .extent = swapchain_extent_,
+                                                            .extent = extent_,
                                                             .format = depth_format,
                                                             .tiling = VK_IMAGE_TILING_OPTIMAL,
                                                             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -160,7 +168,7 @@ namespace cobalt
     {
         // In case the window gets minimized, or the extent is the same as the current swapchain extent, we don't recreate
         // the swapchain.
-        if ( window_.is_minimized( ) || ( extent.width == swapchain_extent_.width && extent.height == swapchain_extent_.height ) )
+        if ( window_ref_.is_minimized( ) || ( extent.width == extent_.width && extent.height == extent_.height ) )
         {
             return;
         }

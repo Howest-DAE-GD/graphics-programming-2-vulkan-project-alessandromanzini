@@ -13,6 +13,7 @@ namespace cobalt
 
 namespace cobalt
 {
+    // todo: move the construction behavior inside the device
     class ValidationLayers final
     {
     public:
@@ -21,7 +22,7 @@ namespace cobalt
         explicit ValidationLayers( std::vector<char const*> layers, debug_callback_t callback );
         ~ValidationLayers( ) = default;
 
-        ValidationLayers( const ValidationLayers& )                = default;
+        ValidationLayers( const ValidationLayers& )                = delete;
         ValidationLayers( ValidationLayers&& ) noexcept            = default;
         ValidationLayers& operator=( const ValidationLayers& )     = delete;
         ValidationLayers& operator=( ValidationLayers&& ) noexcept = delete;

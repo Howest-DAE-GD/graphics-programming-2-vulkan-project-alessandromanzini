@@ -39,6 +39,9 @@ namespace cobalt
 
         CobaltVK( ) = default;
 
+        template <typename resource_t>
+        [[nodiscard]] memory::Resource* store_resource( std::unique_ptr<resource_t>&& resource );
+
     };
 
 
@@ -46,8 +49,7 @@ namespace cobalt
         requires std::derived_from<resource_t, memory::Resource>
     ResourceHandle<resource_t, memory::Resource> CobaltVK::create_resource( args_t&&... args )
     {
-        auto& resource_uptr = resources_.emplace_back( std::make_unique<resource_t>( std::forward<args_t>( args )... ) );
-        auto* resource      = static_cast<resource_t*>( resource_uptr.get( ) );
+        auto* const resource = this->store_resource( std::make_unique<resource_t>( std::forward<args_t>( args )... ) );
 
         auto const table_info = resources_table_.insert( *resource );
         ResourceHandle<resource_t, memory::Resource> handle{ resources_table_, table_info };
@@ -57,6 +59,13 @@ namespace cobalt
                 std::erase_if( resources_, [resource]( auto const& uptr ) { return uptr.get( ) == resource; } );
             } );
         return handle;
+    }
+
+
+    template <typename resource_t>
+    memory::Resource* CobaltVK::store_resource( std::unique_ptr<resource_t>&& resource )
+    {
+        return static_cast<resource_t*>( resources_.emplace_back( std::move( resource ) ).get( ) );
     }
 
 

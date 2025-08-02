@@ -9,11 +9,11 @@
 #include <filesystem>
 #include <vector>
 
-#include <assets/Model.h>
 #include <assets/Window.h>
 #include <__buffer/Framebuffer.h>
 #include <__context/VkContext.h>
 #include <__image/Image.h>
+#include <__model/Model.h>
 
 #include "Vertex.h"
 

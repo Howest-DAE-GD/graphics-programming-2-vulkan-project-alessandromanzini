@@ -5,6 +5,7 @@
 
 #include <assets/Window.h>
 #include <__image/Image.h>
+#include <__init/InitWizard.h>
 
 #include <vulkan/vulkan_core.h>
 
@@ -27,11 +28,13 @@ namespace cobalt
         bool create_depth_image{ true };
     };
 
+    using SwapchainWizard = InitWizard<VkContext const&, Window&, SwapchainCreateInfo const&>::WithFeatures<>;
+
 
     class Swapchain final : public memory::Resource
     {
     public:
-        explicit Swapchain( VkContext const& context, Window& window, SwapchainCreateInfo const& info );
+        explicit Swapchain( SwapchainWizard );
         ~Swapchain( ) override;
 
         Swapchain( const Swapchain& )                = delete;
@@ -42,6 +45,7 @@ namespace cobalt
         [[nodiscard]] VkSwapchainKHR handle( ) const;
         [[nodiscard]] VkSwapchainKHR const* handle_ptr( ) const;
 
+        [[nodiscard]] std::size_t image_count( ) const;
         [[nodiscard]] VkFormat image_format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;
 
@@ -52,12 +56,11 @@ namespace cobalt
 
     private:
         VkContext const& context_ref_;
-        Window& window_;
-
+        Window& window_ref_;
         SwapchainCreateInfo const create_info_;
 
         VkSwapchainKHR swapchain_{ VK_NULL_HANDLE };
-        VkExtent2D swapchain_extent_{};
+        VkExtent2D extent_{};
         VkFormat image_format_{};
 
         std::vector<Image> images_{};

@@ -8,38 +8,46 @@
 
 namespace cobalt
 {
-    VkContext::VkContext( ContextCreateInfo const& create_info )
+    VkContext::VkContext( ContextWizard wizard )
     {
-        // todo: probably better to throw here
-        if ( not create_info.window )
+        // Retrieve the window and application info from the wizard
+        auto const [window, app_info] = wizard.get<ContextCreateInfo>( );
+        if ( not window )
         {
             log::logerr<VkContext>( "VkContext", "window cannot be nullptr!" );
             return;
         }
 
-        if ( create_info.validation_layers.has_value( ) )
+        // 1. Create validation layers if requested and ...
+        // 2. ... create the instance bundle
+        if ( wizard.has<ValidationLayers>( ) )
         {
-            validation_layers_ptr_ = std::make_unique<ValidationLayers>( *create_info.validation_layers );
-            instance_bundle_ptr_   =
-                    std::make_unique<InstanceBundle>( create_info.app_info, *create_info.window, validation_layers_ptr_.get( ) );
+            layers_ptr_          = std::make_unique<ValidationLayers>( wizard.steal<ValidationLayers>( ) );
+            instance_bundle_ptr_ = std::make_unique<InstanceBundle>( app_info, *window, layers_ptr_.get( ) );
         }
         else
         {
-            instance_bundle_ptr_ = std::make_unique<InstanceBundle>( create_info.app_info, *create_info.window );
+            instance_bundle_ptr_ = std::make_unique<InstanceBundle>( app_info, *window );
         }
+
+        // 3. Create the device set
+        create_device( wizard.has<DeviceFeatureFlags>( ) ? wizard.feat<DeviceFeatureFlags>( ) : DeviceFeatureFlags::NONE );
     }
 
 
     VkContext::~VkContext( )
     {
-        if ( device_set_ptr_ )
+        // 1. Destroy the device set
+        device_set_ptr_.reset( );
+
+        // 2. Destroy the validation layers if they were created
+        if ( layers_ptr_ )
         {
-            device_set_ptr_.reset( );
+            layers_ptr_->destroy_debug_messenger( *instance_bundle_ptr_ );
+            layers_ptr_.reset( );
         }
-        if ( validation_layers_ptr_ )
-        {
-            validation_layers_ptr_->destroy_debug_messenger( *instance_bundle_ptr_ );
-        }
+
+        // 3. Destroy the instance bundle
         instance_bundle_ptr_.reset( );
     }
 
