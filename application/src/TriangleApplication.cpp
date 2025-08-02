@@ -65,7 +65,8 @@ TriangleApplication::TriangleApplication( )
         .with<DeviceFeatureFlags>(
             DeviceFeatureFlags::SWAPCHAIN_EXT |
             DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
-            DeviceFeatureFlags::DYNAMIC_RENDERING_EXT )
+            DeviceFeatureFlags::DYNAMIC_RENDERING_EXT |
+            DeviceFeatureFlags::SYNCHRONIZATION_2_EXT )
         .with<ValidationLayers>( validation_layers_, debug_callback )
     );
 
@@ -442,65 +443,63 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
 {
     VkCommandBuffer const command_buffer = begin_single_time_commands( context_->device( ).logical( ), command_pool_ );
 
-    VkImageMemoryBarrier barrier{};
-    barrier.sType     = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = old_layout;
-    barrier.newLayout = new_layout;
-
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-
-    barrier.image                           = image;
-    barrier.subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel   = 0;
-    barrier.subresourceRange.levelCount     = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount     = 1;
-
-    barrier.srcAccessMask = 0; // TODO
-    barrier.dstAccessMask = 0; // TODO
-
-    VkPipelineStageFlags source_stage;
-    VkPipelineStageFlags destination_stage;
+    VkImageMemoryBarrier2 barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+        .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
+        .dstStageMask = VK_PIPELINE_STAGE_2_NONE,
+        .srcAccessMask = VK_ACCESS_2_NONE,
+        .dstAccessMask = VK_ACCESS_2_NONE,
+        .oldLayout = old_layout,
+        .newLayout = new_layout,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
 
     if ( old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL )
     {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.srcAccessMask = VK_ACCESS_2_NONE;
+        barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 
-        source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+        barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
     }
-    else if ( old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout ==
-              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL )
+    else if ( old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL )
     {
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
 
-        source_stage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+        barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
     }
     else if ( old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL )
     {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        barrier.srcAccessMask = VK_ACCESS_2_NONE;
+        barrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-        source_stage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destination_stage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+        barrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
     }
     else
     {
         throw std::invalid_argument( "Unsupported layout transition!" );
     }
 
-    vkCmdPipelineBarrier(
-        command_buffer,
-        source_stage, destination_stage,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier );
+    VkDependencyInfo const dep_info{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &barrier,
+    };
+
+    vkCmdPipelineBarrier2( command_buffer, &dep_info );
 
     end_single_time_commands( context_->device( ).logical( ), command_pool_, command_buffer,
                               context_->device( ).graphics_queue( ) );
@@ -830,37 +829,37 @@ void TriangleApplication::record_command_buffer( VkCommandBuffer const command_b
 
     // ----------------------------------------
     // ----------------------------------------
-    auto const swapchain_image = swapchain_ptr_->images( )[image_index].handle( );
+    auto const swapchain_image = swapchain_ptr_->images( )[image_index].handle( ); {
+        // Pre-rendering barrier
+        VkImageMemoryBarrier2 pre_barrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .srcAccessMask = VK_ACCESS_2_NONE,
+            .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = swapchain_image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
 
-    // Pre-rendering barrier
-    VkImageMemoryBarrier const acquire_barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_NONE,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = swapchain_image,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        },
-    };
+        VkDependencyInfo dep_info{
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = &pre_barrier,
+        };
 
-    vkCmdPipelineBarrier(
-        command_buffer,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &acquire_barrier
-    );
-    // ----------------------------------------
+        vkCmdPipelineBarrier2( command_buffer, &dep_info );
+    }
+    // // ----------------------------------------
     // ----------------------------------------
 
     // We can now begin the rendering process by calling vkCmdBeginRendering, which starts recording commands
@@ -901,36 +900,36 @@ void TriangleApplication::record_command_buffer( VkCommandBuffer const command_b
     vkCmdDrawIndexed( command_buffer, static_cast<uint32_t>( model_->get_indices( ).size( ) ), 1, 0, 0, 0 );
 
     // After we've finished recording the command buffer, we end the rendering process by calling vkCmdEndRendering.
-    vkCmdEndRendering( command_buffer );
+    vkCmdEndRendering( command_buffer ); {
+        // Post rendering barrier
+        VkImageMemoryBarrier2 pre_barrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+            .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_2_NONE,
+            .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = swapchain_image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
 
-    // Post rendering barrier
-    VkImageMemoryBarrier const barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_NONE, // Presentation doesn't require access
-        .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = swapchain_image,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        },
-    };
+        VkDependencyInfo dep_info{
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = &pre_barrier,
+        };
 
-    vkCmdPipelineBarrier(
-        command_buffer,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
-    );
+        vkCmdPipelineBarrier2( command_buffer, &dep_info );
+    }
 
     validation::throw_on_bad_result( vkEndCommandBuffer( command_buffer ), "Failed to record command buffer!" );
 }
@@ -941,7 +940,7 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
     static auto start_time = std::chrono::high_resolution_clock::now( );
 
     auto const current_time = std::chrono::high_resolution_clock::now( );
-    float const time        = std::chrono::duration<float, std::chrono::seconds::period>( current_time - start_time ).count( );
+    float const time        = std::chrono::duration<float>( current_time - start_time ).count( );
 
     UniformBufferObject ubo{};
     ubo.model = glm::rotate( glm::mat4( 1.0f ), time * glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
@@ -993,31 +992,44 @@ void TriangleApplication::draw_frame( )
     // We need to submit the recorded command buffer to the graphics queue before submitting the image to the swap chain.
     update_uniform_buffer( current_frame_ );
 
+    VkSemaphoreSubmitInfo wait_semaphore_info{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = acquire_semaphore,
+        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+        .deviceIndex = 0,
+        .value = 0, // 0 for binary semaphore, non-zero for timeline
+    };
+
+    VkCommandBufferSubmitInfo command_buffer_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+        .commandBuffer = command_buffer,
+        .deviceMask = 0,
+    };
+
     auto const submit_semaphore = render_finished_semaphores_[image_index];
+    VkSemaphoreSubmitInfo signal_semaphore_info{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+        .semaphore = submit_semaphore,
+        .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
+        .deviceIndex = 0,
+        .value = 0,
+    };
 
-    // Queue submission and synchronization is configured through parameters in the VkSubmitInfo structure.
-    VkSubmitInfo submit_info{};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-    constexpr VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submit_info.waitSemaphoreCount               = 1;
-    submit_info.pWaitSemaphores                  = &acquire_semaphore;
-    submit_info.pWaitDstStageMask                = wait_stages;
-
-    // Set which command buffers to actually submit for execution.
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers    = &command_buffer;
-
-    // The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command
-    // buffer(s) have finished execution
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores    = &submit_semaphore;
+    VkSubmitInfo2 const submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .waitSemaphoreInfoCount = 1,
+        .pWaitSemaphoreInfos = &wait_semaphore_info,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &command_buffer_info,
+        .signalSemaphoreInfoCount = 1,
+        .pSignalSemaphoreInfos = &signal_semaphore_info,
+    };
 
     // 4. Submit the recorded command buffer.
     // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
     // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it inFlightFence.
     validation::throw_on_bad_result(
-        vkQueueSubmit( context_->device( ).graphics_queue( ), 1, &submit_info, in_flight_fence ),
+        vkQueueSubmit2( context_->device( ).graphics_queue( ), 1, &submit_info, in_flight_fence ),
         "Failed to submit draw command buffer!" );
 
     // The last step of drawing a frame is submitting the result back to the swap chain to have it eventually show up

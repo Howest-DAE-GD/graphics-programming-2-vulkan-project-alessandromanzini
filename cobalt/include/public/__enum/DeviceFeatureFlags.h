@@ -14,6 +14,7 @@ namespace cobalt
         SWAPCHAIN_EXT               = 1 << 2,
         SWAPCHAIN_MAINTENANCE_1_EXT = 1 << 3,
         DYNAMIC_RENDERING_EXT       = 1 << 4,
+        SYNCHRONIZATION_2_EXT       = 1 << 5,
     };
 
     // +---------------------------+

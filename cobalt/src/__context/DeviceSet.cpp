@@ -147,9 +147,15 @@ namespace cobalt
         VkPhysicalDeviceVulkan13Features device_features13{};
         device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
         device_features13.pNext = nullptr;
+
+        // todo: refactor flag checking and extension checking into the validation class that gets passed to the physical selector.
         if ( any( feature_flags_ & DeviceFeatureFlags::DYNAMIC_RENDERING_EXT ) )
         {
             device_features13.dynamicRendering = VK_TRUE;
+        }
+        if ( any( feature_flags_ & DeviceFeatureFlags::SYNCHRONIZATION_2_EXT ) )
+        {
+            device_features13.synchronization2 = VK_TRUE;
         }
 
         // Create the logical device

@@ -49,6 +49,12 @@ namespace cobalt::validation
     }
 
 
+    bool is_synchronization_2_supported( ValidationCallbackData& data )
+    {
+        return has_extension( data, VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME );
+    }
+
+
     bool is_anisotropy_sampler_supported( ValidationCallbackData& data )
     {
         return data.features.samplerAnisotropy;
