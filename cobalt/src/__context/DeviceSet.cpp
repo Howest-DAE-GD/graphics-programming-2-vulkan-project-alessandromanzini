@@ -140,13 +140,14 @@ namespace cobalt
 
         // The next information to specify is the set of device features that we'll be using.
         // These are the features that we queried support for with vkGetPhysicalDeviceFeatures.
-        VkPhysicalDeviceFeatures device_features{};
-        device_features.samplerAnisotropy = VK_TRUE;
+        VkPhysicalDeviceFeatures2 device_features{};
+        device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        device_features.features.samplerAnisotropy = VK_TRUE;
 
         // Set additional Vulkan 1+ features that we want to use.
         VkPhysicalDeviceVulkan13Features device_features13{};
         device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-        device_features13.pNext = nullptr;
+        device_features.pNext = &device_features13;
 
         // todo: refactor flag checking and extension checking into the validation class that gets passed to the physical selector.
         if ( any( feature_flags_ & DeviceFeatureFlags::DYNAMIC_RENDERING_EXT ) )
@@ -158,15 +159,25 @@ namespace cobalt
             device_features13.synchronization2 = VK_TRUE;
         }
 
+        VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT dynamic_state_features{};
+        dynamic_state_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT;
+        dynamic_state_features.vertexInputDynamicState = VK_TRUE;
+        if ( any( feature_flags_ & DeviceFeatureFlags::VERTEX_INPUT_DYNAMIC_STATE_EXT ) )
+        {
+            device_features13.pNext = &dynamic_state_features;
+        }
+        else
+        {
+            device_features13.pNext = nullptr;
+        }
+
         // Create the logical device
         VkDeviceCreateInfo create_info{};
         create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
         create_info.queueCreateInfoCount = static_cast<uint32_t>( queue_create_infos.size( ) );
         create_info.pQueueCreateInfos    = queue_create_infos.data( );
-
-        create_info.pEnabledFeatures = &device_features;
-        create_info.pNext            = &device_features13;
+        create_info.pNext            = &device_features;
 
         // The remainder of the information bears a resemblance to the VkInstanceCreateInfo struct and requires you
         // to specify extensions and validation layers. The difference is that these are device specific this time.

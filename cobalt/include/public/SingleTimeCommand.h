@@ -12,39 +12,60 @@ namespace cobalt
     [[nodiscard]] inline VkCommandBuffer begin_single_time_commands( VkDevice const device,
                                                                      VkCommandPool const commandPool )
     {
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandPool        = commandPool;
-        allocInfo.commandBufferCount = 1;
+        VkCommandBufferAllocateInfo alloc_info{};
+        alloc_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool        = commandPool;
+        alloc_info.commandBufferCount = 1;
 
-        VkCommandBuffer commandBuffer;
-        vkAllocateCommandBuffers( device, &allocInfo, &commandBuffer );
+        VkCommandBuffer command_buffer;
+        vkAllocateCommandBuffers( device, &alloc_info, &command_buffer );
 
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        VkCommandBufferBeginInfo begin_info{};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-        vkBeginCommandBuffer( commandBuffer, &beginInfo );
+        vkBeginCommandBuffer( command_buffer, &begin_info );
 
-        return commandBuffer;
+        return command_buffer;
     }
 
 
-    inline void end_single_time_commands( VkDevice const device, VkCommandPool const commandPool,
-                                          VkCommandBuffer const commandBuffer, VkQueue const graphicsQueue )
+    inline void end_single_time_commands( VkDevice const device, VkCommandPool const command_pool,
+                                          VkCommandBuffer const command_buffer, VkQueue const graphics_queue )
     {
-        vkEndCommandBuffer( commandBuffer );
+        vkEndCommandBuffer( command_buffer );
 
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers    = &commandBuffer;
+        VkSubmitInfo submit_info{};
+        submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers    = &command_buffer;
 
-        vkQueueSubmit( graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE );
-        vkQueueWaitIdle( graphicsQueue );
+        vkQueueSubmit( graphics_queue, 1, &submit_info, VK_NULL_HANDLE );
+        vkQueueWaitIdle( graphics_queue );
 
-        vkFreeCommandBuffers( device, commandPool, 1, &commandBuffer );
+        vkFreeCommandBuffers( device, command_pool, 1, &command_buffer );
+    }
+
+
+    inline void end_single_time_commands2( VkDevice const device, VkCommandPool const command_pool,
+                                          VkCommandBuffer const command_buffer, VkQueue const graphics_queue )
+    {
+        vkEndCommandBuffer( command_buffer );
+
+        VkCommandBufferSubmitInfo command_buffer_info{};
+        command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        command_buffer_info.commandBuffer = command_buffer;
+
+        VkSubmitInfo2 submit_info{};
+        submit_info.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+        submit_info.commandBufferInfoCount = 1;
+        submit_info.pCommandBufferInfos = &command_buffer_info;
+
+        vkQueueSubmit2( graphics_queue, 1, &submit_info, VK_NULL_HANDLE );
+        vkQueueWaitIdle( graphics_queue );
+
+        vkFreeCommandBuffers( device, command_pool, 1, &command_buffer );
     }
 }
 

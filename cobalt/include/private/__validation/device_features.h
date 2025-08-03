@@ -17,7 +17,7 @@ namespace cobalt::validation
     {
         InstanceBundle const& instance;
         VkPhysicalDevice device;
-        VkPhysicalDeviceFeatures features;
+        VkPhysicalDeviceFeatures2 features;
         std::vector<VkExtensionProperties> extensions;
         std::vector<char const*> extensions_selection;
     };
@@ -31,6 +31,7 @@ namespace cobalt::validation
     [[nodiscard]] bool is_anisotropy_sampler_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_dynamic_rendering_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_synchronization_2_supported( ValidationCallbackData& data );
+    [[nodiscard]] bool is_vertex_input_dynamic_state_supported( ValidationCallbackData& data );
 
 }
 

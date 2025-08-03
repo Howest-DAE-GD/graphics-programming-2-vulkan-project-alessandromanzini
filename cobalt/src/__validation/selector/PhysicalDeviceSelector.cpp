@@ -17,6 +17,8 @@ namespace cobalt::validation
         { DeviceFeatureFlags::SWAPCHAIN_EXT, &is_swapchain_adequate },
         { DeviceFeatureFlags::SWAPCHAIN_MAINTENANCE_1_EXT, &is_swapchain_maintenance_1_supported },
         { DeviceFeatureFlags::DYNAMIC_RENDERING_EXT, &is_dynamic_rendering_supported },
+        { DeviceFeatureFlags::SYNCHRONIZATION_2_EXT, &is_synchronization_2_supported },
+        { DeviceFeatureFlags::VERTEX_INPUT_DYNAMIC_STATE_EXT, &is_vertex_input_dynamic_state_supported },
     };
 
 
@@ -42,7 +44,9 @@ namespace cobalt::validation
             .extensions_selection = {}
         };
         get_extensions( device, data.extensions );
-        vkGetPhysicalDeviceFeatures( device, &data.features );
+
+        data.features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        vkGetPhysicalDeviceFeatures2( device, &data.features );
 
         for ( auto& validator : validators_ )
         {

@@ -55,9 +55,15 @@ namespace cobalt::validation
     }
 
 
+    bool is_vertex_input_dynamic_state_supported( ValidationCallbackData& data )
+    {
+        return has_extension( data, VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME );
+    }
+
+
     bool is_anisotropy_sampler_supported( ValidationCallbackData& data )
     {
-        return data.features.samplerAnisotropy;
+        return data.features.features.samplerAnisotropy;
     }
 
 

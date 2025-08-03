@@ -63,10 +63,8 @@ TriangleApplication::TriangleApplication( )
     context_ = CVK.create_resource<VkContext>(
         ContextWizard{ { window_.get( ), app_info } }
         .with<DeviceFeatureFlags>(
-            DeviceFeatureFlags::SWAPCHAIN_EXT |
-            DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
-            DeviceFeatureFlags::DYNAMIC_RENDERING_EXT |
-            DeviceFeatureFlags::SYNCHRONIZATION_2_EXT )
+            DeviceFeatureFlags::SWAPCHAIN_EXT | DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
+            DeviceFeatureFlags::DYNAMIC_RENDERING_EXT | DeviceFeatureFlags::SYNCHRONIZATION_2_EXT )
         .with<ValidationLayers>( validation_layers_, debug_callback )
     );
 
@@ -501,7 +499,7 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
 
     vkCmdPipelineBarrier2( command_buffer, &dep_info );
 
-    end_single_time_commands( context_->device( ).logical( ), command_pool_, command_buffer,
+    end_single_time_commands2( context_->device( ).logical( ), command_pool_, command_buffer,
                               context_->device( ).graphics_queue( ) );
 }
 

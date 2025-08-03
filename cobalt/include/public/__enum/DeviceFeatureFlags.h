@@ -8,13 +8,14 @@ namespace cobalt
 {
     enum class DeviceFeatureFlags : uint32_t
     {
-        NONE                        = 0,
-        FAMILIES_INDICES_SUITABLE   = 1 << 0,
-        ANISOTROPIC_SAMPLING        = 1 << 1,
-        SWAPCHAIN_EXT               = 1 << 2,
-        SWAPCHAIN_MAINTENANCE_1_EXT = 1 << 3,
-        DYNAMIC_RENDERING_EXT       = 1 << 4,
-        SYNCHRONIZATION_2_EXT       = 1 << 5,
+        NONE                           = 0,
+        FAMILIES_INDICES_SUITABLE      = 1 << 0,
+        ANISOTROPIC_SAMPLING           = 1 << 1,
+        SWAPCHAIN_EXT                  = 1 << 2,
+        SWAPCHAIN_MAINTENANCE_1_EXT    = 1 << 3,
+        DYNAMIC_RENDERING_EXT          = 1 << 4,
+        SYNCHRONIZATION_2_EXT          = 1 << 5,
+        VERTEX_INPUT_DYNAMIC_STATE_EXT = 1 << 6,
     };
 
     // +---------------------------+
