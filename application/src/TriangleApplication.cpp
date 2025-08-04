@@ -71,6 +71,20 @@ TriangleApplication::TriangleApplication( )
 
     // 3. Set the proper root directory to find shader modules and textures.
     configure_relative_path( );
+
+    // 4. Swapchain
+    swapchain_ptr_ = std::make_unique<Swapchain>(
+        SwapchainWizard{
+            *context_,
+            *window_,
+            SwapchainCreateInfo{
+                .image_count = 3,
+                .present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
+                .surface_format = {
+                    VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+                }
+            }
+        } );
 }
 
 
@@ -99,36 +113,13 @@ void TriangleApplication::run( )
 
 void TriangleApplication::vk_create_descriptor_set_layout( )
 {
-    VkDescriptorSetLayoutBinding ubo_layout_binding{};
-
-    // The first two fields specify the binding used in the shader and the type of descriptor, which is a uniform buffer
-    // object. It is possible for the shader variable to represent an array of uniform buffer objects, and
-    // descriptorCount specifies the number of values in the array.
-    ubo_layout_binding.binding         = 0;
-    ubo_layout_binding.descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    ubo_layout_binding.descriptorCount = 1;
-
-    ubo_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-    VkDescriptorSetLayoutBinding sampler_layout_binding{};
-    sampler_layout_binding.binding            = 1;
-    sampler_layout_binding.descriptorCount    = 1;
-    sampler_layout_binding.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    sampler_layout_binding.pImmutableSamplers = nullptr;
-    sampler_layout_binding.stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-    std::array const bindings = { ubo_layout_binding, sampler_layout_binding };
-
-    // We need to specify the descriptor set layout during pipeline creation to tell Vulkan which descriptors the
-    // shaders will be using.
-    VkDescriptorSetLayoutCreateInfo layout_info{};
-    layout_info.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layout_info.bindingCount = static_cast<uint32_t>( bindings.size( ) );
-    layout_info.pBindings    = bindings.data( );
-
-    validation::throw_on_bad_result(
-        vkCreateDescriptorSetLayout( context_->device( ).logical( ), &layout_info, nullptr, &descriptor_set_layout_ ),
-        "Failed to create descriptor set layout!" );
+    descriptor_set_layout_ptr_ = std::make_unique<DescriptorSetLayout>(
+        context_->device(  ),
+        std::vector<DescriptorSetLayout::layout_binding_pair_t>{
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+        }
+    );
 }
 
 
@@ -224,7 +215,7 @@ void TriangleApplication::vk_create_graphics_pipeline( )
         context_->device( ),
         GraphicsPipelineCreateInfo{
             .shader_stages = std::move( shader_stages ),
-            .descriptor_set_layouts = { descriptor_set_layout_ },
+            .descriptor_set_layouts = { descriptor_set_layout_ptr_->handle( ) },
             .binding_description = { Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) },
             .input_assembly = input_assembly,
             .rasterization = rasterization,
@@ -512,7 +503,7 @@ void TriangleApplication::vk_create_descriptor_pool( )
 
 void TriangleApplication::vk_create_descriptor_sets( )
 {
-    std::vector const layouts( MAX_FRAMES_IN_FLIGHT_, descriptor_set_layout_ );
+    std::vector const layouts( MAX_FRAMES_IN_FLIGHT_, descriptor_set_layout_ptr_->handle( ) );
     VkDescriptorSetAllocateInfo alloc_info{};
     alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     alloc_info.descriptorPool     = descriptor_pool_;
@@ -975,19 +966,6 @@ void TriangleApplication::draw_frame( )
 
 void TriangleApplication::init_vk( )
 {
-    swapchain_ptr_ = std::make_unique<Swapchain>(
-        SwapchainWizard{
-            *context_,
-            *window_,
-            SwapchainCreateInfo{
-                .image_count = 3,
-                .present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
-                .surface_format = {
-                    VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-                }
-            }
-        } );
-
     vk_create_descriptor_set_layout( );
 
     vk_create_graphics_pipeline( );
@@ -1054,7 +1032,7 @@ void TriangleApplication::cleanup( )
     }
 
     vkDestroyDescriptorPool( context_->device( ).logical( ), descriptor_pool_, nullptr );
-    vkDestroyDescriptorSetLayout( context_->device( ).logical( ), descriptor_set_layout_, nullptr );
+    descriptor_set_layout_ptr_.reset( );
 
     vkDestroyBuffer( context_->device( ).logical( ), index_buffer_, nullptr );
     vkFreeMemory( context_->device( ).logical( ), index_buffer_memory_, nullptr );

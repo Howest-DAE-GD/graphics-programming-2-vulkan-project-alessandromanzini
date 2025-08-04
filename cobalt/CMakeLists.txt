@@ -78,6 +78,8 @@ add_library(${PROJECT_NAME}
 		src/__renderer/GraphicsPipeline.cpp
 		include/public/__renderer/GraphicsPipeline.h
 		include/public/__renderer/BindingDescription.h
+		src/__renderer/DescriptorSetLayout.cpp
+		include/public/__renderer/DescriptorSetLayout.h
 )
 
 # set warning level to W4 and warnings as errors
