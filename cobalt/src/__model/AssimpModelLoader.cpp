@@ -103,7 +103,7 @@ namespace cobalt::loader
 
         if ( mesh->HasTextureCoords( 0 ) )
         {
-            vertex.texCoord = {
+            vertex.tex_coord = {
                 mesh->mTextureCoords[0][vertex_index].x,
                 mesh->mTextureCoords[0][vertex_index].y
             };

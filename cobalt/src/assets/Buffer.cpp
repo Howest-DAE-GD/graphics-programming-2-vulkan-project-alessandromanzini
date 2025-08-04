@@ -1,7 +1,6 @@
 #include <assets/Buffer.h>
 
-#include <ShaderModules.h>
-#include <../../include/public/SingleTimeCommand.h>
+#include <SingleTimeCommand.h>
 #include <VulkanDeviceQueries.h>
 
 #include <__validation/result.h>

@@ -17,13 +17,16 @@
 
 namespace cobalt
 {
+    using ContextWizard = InitWizard<struct ContextCreateInfo>::WithFeatures<DeviceFeatureFlags, ValidationLayers>;
+}
+
+namespace cobalt
+{
     struct ContextCreateInfo
     {
         Window const* window;
         VkApplicationInfo app_info;
     };
-
-    using ContextWizard = InitWizard<ContextCreateInfo>::WithFeatures<DeviceFeatureFlags, ValidationLayers>;
 
 
     class VkContext final : public memory::Resource

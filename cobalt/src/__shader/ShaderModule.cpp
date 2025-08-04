@@ -1,5 +1,6 @@
-#include <ShaderModules.h>
+#include <__shader/ShaderModule.h>
 
+#include <__context/DeviceSet.h>
 #include <__validation/dispatch.h>
 #include <__validation/result.h>
 
@@ -9,6 +10,9 @@
 
 namespace cobalt::shader
 {
+    // +---------------------------+
+    // | FILE UTILITY              |
+    // +---------------------------+
     std::vector<char> read_file( std::filesystem::path const& filename )
     {
         assert( std::filesystem::exists( filename ) && "File does not exist!" );
@@ -29,8 +33,14 @@ namespace cobalt::shader
     }
 
 
-    VkShaderModule create_shader_module( VkDevice const device, std::vector<char> const& code )
+    // +---------------------------+
+    // | SHADER MODULE             |
+    // +---------------------------+
+    ShaderModule::ShaderModule( DeviceSet const& device, std::filesystem::path const& path )
+        : device_ref_{ device }
     {
+        auto const code = read_file( path );
+
         VkShaderModuleCreateInfo create_info{};
         create_info.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         create_info.codeSize = code.size( );
@@ -39,11 +49,20 @@ namespace cobalt::shader
         // requirements of uint32_t
         create_info.pCode = reinterpret_cast<uint32_t const*>( code.data( ) );
 
-        VkShaderModule shader_module;
-        validation::throw_on_bad_result( vkCreateShaderModule( device, &create_info, nullptr, &shader_module ),
+        validation::throw_on_bad_result( vkCreateShaderModule( device_ref_.logical( ), &create_info, nullptr, &shader_module_ ),
                                          "Failed to create shader module!" );
+    }
 
-        return shader_module;
+
+    ShaderModule::~ShaderModule( ) noexcept
+    {
+        vkDestroyShaderModule( device_ref_.logical( ), shader_module_, nullptr );
+    }
+
+
+    VkShaderModule ShaderModule::handle( ) const noexcept
+    {
+        return shader_module_;
     }
 
 }

@@ -16,6 +16,7 @@ namespace cobalt
 {
     class VkContext;
     class Framebuffer;
+    using SwapchainWizard = InitWizard<VkContext const&, Window&, struct SwapchainCreateInfo const&>::WithFeatures<>;
 }
 
 namespace cobalt
@@ -27,8 +28,6 @@ namespace cobalt
         VkSurfaceFormatKHR surface_format{ VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
         bool create_depth_image{ true };
     };
-
-    using SwapchainWizard = InitWizard<VkContext const&, Window&, SwapchainCreateInfo const&>::WithFeatures<>;
 
 
     class Swapchain final : public memory::Resource

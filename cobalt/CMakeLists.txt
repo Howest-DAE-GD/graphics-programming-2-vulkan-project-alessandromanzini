@@ -6,7 +6,6 @@ project("cobalt")
 # create library target
 add_library(${PROJECT_NAME}
         src/VulkanDeviceQueries.cpp
-		src/ShaderModules.cpp
 		src/UniformBufferObject.cpp
 		include/public/UniformBufferObject.h
 		include/public/SingleTimeCommand.h
@@ -52,6 +51,10 @@ add_library(${PROJECT_NAME}
 		"src/__model/ModelLoader.cpp"
 		"src/__model/AssimpModelLoader.cpp"
 
+		"src/__renderer/Renderer.cpp"
+
+		"src/__shader/ShaderModule.cpp"
+
 		"include/public/__meta/crtp.h"
 		"include/public/__meta/function_traits.h"
 		"include/public/__meta/vk_function_traits.h"
@@ -72,6 +75,9 @@ add_library(${PROJECT_NAME}
 		"src/__query/swapchain_support.cpp"
 
 		"src/log.cpp"
+		src/__renderer/GraphicsPipeline.cpp
+		include/public/__renderer/GraphicsPipeline.h
+		include/public/__renderer/BindingDescription.h
 )
 
 # set warning level to W4 and warnings as errors

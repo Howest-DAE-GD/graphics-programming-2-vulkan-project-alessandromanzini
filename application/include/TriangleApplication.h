@@ -14,6 +14,7 @@
 #include <__context/VkContext.h>
 #include <__image/Image.h>
 #include <__model/Model.h>
+#include <__renderer/GraphicsPipeline.h>
 
 #include "Vertex.h"
 
@@ -53,11 +54,9 @@ namespace cobalt
         VkContextHandle context_{};
 
         std::unique_ptr<Swapchain> swapchain_ptr_{};
+        std::unique_ptr<GraphicsPipeline> graphics_pipeline_ptr_{};
 
         VkDescriptorSetLayout descriptor_set_layout_{ VK_NULL_HANDLE };
-
-        VkPipelineLayout pipeline_layout_{ VK_NULL_HANDLE };
-        VkPipeline graphics_pipeline_{ VK_NULL_HANDLE };
 
         ModelHandle model_{};
 
