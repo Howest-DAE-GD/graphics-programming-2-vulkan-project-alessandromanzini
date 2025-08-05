@@ -29,24 +29,22 @@ namespace cobalt
         CommandBuffer& operator=( const CommandBuffer& )     = delete;
         CommandBuffer& operator=( CommandBuffer&& ) noexcept = delete;
 
-        void unlock( ) noexcept;
-        [[nodiscard]] bool is_locked( ) const noexcept;
-
+        void unlock( ) const noexcept;
         void reset( VkCommandBufferResetFlags = 0 ) const;
+
         [[nodiscard]] CommandOperator command_operator( VkCommandBufferUsageFlags = 0 ) const;
         [[nodiscard]] VkCommandBufferSubmitInfo make_submit_info( uint32_t device_mask = 0 ) const;
 
     private:
-        CommandPool const& pool_ref_;
+        CommandPool& pool_ref_;
         DeviceSet const& device_ref_;
 
         VkCommandBufferLevel const buffer_level_{ VK_COMMAND_BUFFER_LEVEL_MAX_ENUM };
         VkCommandBuffer command_buffer_{ VK_NULL_HANDLE };
 
-        bool locked_{ false };
+        size_t const buffer_index_{ UINT32_MAX };
 
-        explicit CommandBuffer( CommandPool const&, DeviceSet const&, VkCommandBufferLevel level );
-        bool lock( ) noexcept;
+        explicit CommandBuffer( CommandPool&, DeviceSet const&, VkCommandBufferLevel level, size_t index );
 
     };
 

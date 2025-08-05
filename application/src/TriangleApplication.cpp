@@ -271,7 +271,7 @@ void TriangleApplication::vk_create_texture_image( )
                                                   } );
     vk_transition_image_layout( texture_image_ptr_->handle( ), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-    vk_copy_buffer_to_image( staging_buffer_, texture_image_ptr_->handle( ), static_cast<uint32_t>( tex_width ),
+    vk_copy_buffer_to_image( staging_buffer_, *texture_image_ptr_, static_cast<uint32_t>( tex_width ),
                              static_cast<uint32_t>( tex_height ) );
     vk_transition_image_layout( texture_image_ptr_->handle( ), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
@@ -317,12 +317,14 @@ void TriangleApplication::vk_create_texture_sampler( )
 }
 
 
-void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFormat const /* format  const*/,
+void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFormat const /* format */,
                                                       VkImageLayout const old_layout,
                                                       VkImageLayout const new_layout ) const
 {
-    VkCommandBuffer const command_buffer = begin_single_time_commands( context_->device( ).logical( ),
-                                                                       command_pool_ptr_->handle( ) );
+    auto& buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+
+    buffer.reset( 0 );
+    auto buffer_op = buffer.command_operator( 0 );
 
     VkImageMemoryBarrier2 barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -380,47 +382,59 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
         .pImageMemoryBarriers = &barrier,
     };
 
-    vkCmdPipelineBarrier2( command_buffer, &dep_info );
+    buffer_op.insert_barrier( dep_info );
+    buffer_op.end_recording( );
 
-    end_single_time_commands2( context_->device( ).logical( ), command_pool_ptr_->handle( ), command_buffer,
-                               context_->device( ).graphics_queue( ) );
+    auto const command_buffer_info = buffer.make_submit_info( );
+
+    VkSubmitInfo2 submit_info{};
+    submit_info.sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submit_info.commandBufferInfoCount = 1;
+    submit_info.pCommandBufferInfos    = &command_buffer_info;
+
+    vkQueueSubmit2( context_->device( ).graphics_queue( ), 1, &submit_info, VK_NULL_HANDLE );
+    vkQueueWaitIdle( context_->device( ).graphics_queue( ) );
+
+    buffer.unlock( );
 }
 
 
-void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, VkImage const image, uint32_t const width,
+void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, Image const& image, uint32_t const width,
                                                    uint32_t const height ) const
 {
-    VkCommandBuffer const command_buffer = begin_single_time_commands( context_->device( ).logical( ),
-                                                                       command_pool_ptr_->handle( ) );
+    auto& cmd_buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
 
-    VkBufferImageCopy region{};
-    region.bufferOffset      = 0;
-    region.bufferRowLength   = 0;
-    region.bufferImageHeight = 0;
+    cmd_buffer.reset( 0 );
+    auto buffer_op = cmd_buffer.command_operator( 0 );
 
-    region.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.mipLevel       = 0;
-    region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount     = 1;
+    VkBufferImageCopy const region{
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
 
-    region.imageOffset = { 0, 0, 0 };
-    region.imageExtent = {
-        width,
-        height,
-        1
+        .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .imageSubresource.mipLevel = 0,
+        .imageSubresource.baseArrayLayer = 0,
+        .imageSubresource.layerCount = 1,
+
+        .imageOffset = { 0, 0, 0 },
+        .imageExtent = { width, height, 1 }
+    };
+    buffer_op.copy_buffer_to_image( buffer, image, region );
+    buffer_op.end_recording( );
+
+    auto const command_buffer_info = cmd_buffer.make_submit_info( );
+
+    VkSubmitInfo2 const submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+        .commandBufferInfoCount = 1,
+        .pCommandBufferInfos = &command_buffer_info
     };
 
-    vkCmdCopyBufferToImage(
-        command_buffer,
-        buffer,
-        image,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1,
-        &region
-    );
+    vkQueueSubmit2( context_->device( ).graphics_queue( ), 1, &submit_info, VK_NULL_HANDLE );
+    vkQueueWaitIdle( context_->device( ).graphics_queue( ) );
 
-    end_single_time_commands( context_->device( ).logical( ), command_pool_ptr_->handle( ), command_buffer,
-                              context_->device( ).graphics_queue( ) );
+    cmd_buffer.unlock( );
 }
 
 
@@ -559,7 +573,7 @@ void TriangleApplication::vk_create_command_buffers( )
 {
     for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
-        command_buffers_[i] = &command_pool_ptr_->lock_buffer( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+        command_buffers_[i] = &command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
     }
 }
 
@@ -576,7 +590,7 @@ void TriangleApplication::vk_create_sync_objects( )
     // This allows us to skip the first render frame, or we would otherwise be stuck waiting at the start.
     fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         validation::throw_on_bad_result(
             vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &image_available_semaphores_[i] ),
@@ -585,7 +599,7 @@ void TriangleApplication::vk_create_sync_objects( )
             vkCreateFence( context_->device( ).logical( ), &fence_info, nullptr, &in_flight_fences_[i] ),
             "Failed to create fence!" );
     }
-    for ( size_t i = 0; i < 3; i++ )
+    for ( size_t i{}; i < 3; i++ )
     {
         validation::throw_on_bad_result(
             vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &render_finished_semaphores_[i] ),
@@ -608,7 +622,7 @@ VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBit
 #pragma GCC diagnostic pop
 #else
 #pragma warning(push, 0)
-    constexpr std::string_view reset_color{ "\e[0m" };
+    constexpr std::string_view reset_color{ "\033[0m" };
 #pragma warning(pop)
 #endif
 
@@ -790,8 +804,7 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
     ubo.view  = glm::lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ),
                              glm::vec3( 0.0f, 0.0f, 1.0f ) );
     ubo.proj = glm::perspective( glm::radians( 45.0f ),
-                                 static_cast<float>( swapchain_ptr_->extent( ).width ) / static_cast<float>( swapchain_ptr_->
-                                     extent( ).height ),
+                                 static_cast<float>( swapchain_ptr_->extent( ).width ) / swapchain_ptr_->extent( ).height,
                                  0.1f,
                                  10.0f );
     ubo.proj[1][1] *= -1;
@@ -925,6 +938,7 @@ void TriangleApplication::init_vk( )
     vk_create_graphics_pipeline( );
 
     vk_create_command_pool( );
+    vk_create_command_buffers( );
 
     vk_create_texture_image( );
     vk_create_texture_sampler( );
@@ -935,8 +949,6 @@ void TriangleApplication::init_vk( )
 
     vk_create_descriptor_pool( );
     vk_create_descriptor_sets( );
-
-    vk_create_command_buffers( );
 
     vk_create_sync_objects( );
 }

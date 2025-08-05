@@ -1,6 +1,7 @@
 #include <__buffer/CommandOperator.h>
 
 #include <log.h>
+#include <__image/Image.h>
 #include <__pipeline/Pipeline.h>
 #include <__validation/result.h>
 
@@ -18,10 +19,7 @@ namespace cobalt
 
     CommandOperator::~CommandOperator( ) noexcept
     {
-        if ( recording_ )
-        {
-            validation::throw_on_bad_result( vkEndCommandBuffer( command_buffer_ ), "Failed to end recording command buffer!" );
-        }
+        end_recording( );
     }
 
 
@@ -63,6 +61,16 @@ namespace cobalt
     }
 
 
+    void CommandOperator::end_recording( )
+    {
+        if ( recording_ )
+        {
+            validation::throw_on_bad_result( vkEndCommandBuffer( command_buffer_ ), "Failed to end recording command buffer!" );
+            recording_ = false;
+        }
+    }
+
+
     void CommandOperator::begin_rendering( VkRenderingInfo const& render_info ) const
     {
         vkCmdBeginRendering( command_buffer_, &render_info );
@@ -79,6 +87,19 @@ namespace cobalt
                                         int32_t const vertex_offset, uint32_t const first_instance ) const
     {
         vkCmdDrawIndexed( command_buffer_, index_count, instance_count, first_index, vertex_offset, first_instance );
+    }
+
+
+    void CommandOperator::copy_buffer_to_image( VkBuffer const buffer, Image const& image, VkBufferImageCopy const& region ) const
+    {
+        vkCmdCopyBufferToImage(
+            command_buffer_,
+            buffer,
+            image.handle( ),
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &region
+        );
     }
 
 
@@ -112,7 +133,7 @@ namespace cobalt
 
 
     void CommandOperator::bind_descriptor_set( VkPipelineBindPoint const bind_point, Pipeline const& pipeline,
-                                                VkDescriptorSet const desc_set ) const
+                                               VkDescriptorSet const desc_set ) const
     {
         vkCmdBindDescriptorSets( command_buffer_, bind_point, pipeline.layout( ), 0, 1,
                                  &desc_set, 0, nullptr );

@@ -85,7 +85,7 @@ add_library(${PROJECT_NAME}
 		include/public/__buffer/CommandPool.h
 		src/__pipeline/Pipeline.cpp
 		include/public/__pipeline/Pipeline.h
-		include/public/__buffer/CommandOperator.cpp
+		src/__buffer/CommandOperator.cpp
 		include/public/__buffer/CommandOperator.h
 		include/private/__query/device_queries.h
 		src/__query/device_queries.cpp

@@ -28,7 +28,8 @@ namespace cobalt
 
         [[nodiscard]] VkCommandPool handle( ) const;
 
-        [[nodiscard]] CommandBuffer& lock_buffer( VkCommandBufferLevel );
+        [[nodiscard]] CommandBuffer& acquire( VkCommandBufferLevel );
+        void release( size_t index );
 
     private:
         VkContext const& context_ref_;
@@ -37,6 +38,7 @@ namespace cobalt
         VkCommandPool command_pool_{ VK_NULL_HANDLE };
 
         std::vector<std::unique_ptr<CommandBuffer>> buffer_pool_{};
+        std::vector<uint32_t> free_pool_{};
 
     };
 

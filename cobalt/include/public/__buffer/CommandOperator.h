@@ -9,6 +9,7 @@
 namespace cobalt
 {
     class Pipeline;
+    class Image;
 }
 
 namespace cobalt
@@ -23,6 +24,8 @@ namespace cobalt
         CommandOperator( const CommandOperator& )                = delete;
         CommandOperator& operator=( const CommandOperator& )     = delete;
         CommandOperator& operator=( CommandOperator&& ) noexcept = delete;
+
+        void end_recording( );
 
         void begin_rendering( VkRenderingInfo const& ) const;
         void end_rendering( ) const;
@@ -42,6 +45,8 @@ namespace cobalt
 
         void draw_indexed( uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, int32_t vertex_offset = 0,
                            uint32_t first_instance = 0 ) const;
+
+        void copy_buffer_to_image( VkBuffer, Image const&, VkBufferImageCopy const& ) const;
 
     private:
         VkCommandBuffer const command_buffer_{ VK_NULL_HANDLE };

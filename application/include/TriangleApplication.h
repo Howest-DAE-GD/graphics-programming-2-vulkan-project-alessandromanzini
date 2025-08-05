@@ -91,7 +91,7 @@ namespace cobalt
         void vk_create_texture_sampler( );
         void vk_transition_image_layout( VkImage image, VkFormat format, VkImageLayout old_layout,
                                          VkImageLayout new_layout ) const;
-        void vk_copy_buffer_to_image( VkBuffer buffer, VkImage image, uint32_t width, uint32_t height ) const;
+        void vk_copy_buffer_to_image( VkBuffer buffer, Image const& image, uint32_t width, uint32_t height ) const;
 
         void load_model( );
         void vk_create_index_buffer( );

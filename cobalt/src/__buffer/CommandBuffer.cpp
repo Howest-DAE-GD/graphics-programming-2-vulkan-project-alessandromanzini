@@ -8,28 +8,6 @@
 
 namespace cobalt
 {
-    CommandBuffer::CommandBuffer( CommandPool const& pool, DeviceSet const& device, VkCommandBufferLevel const level )
-        : pool_ref_{ pool }
-        , device_ref_{ device }
-        , buffer_level_{ level }
-    {
-        // The level parameter specifies if the allocated command buffers are primary or secondary command buffers.
-        // - VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other
-        // command buffers.
-        // - VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from primary command buffers
-        VkCommandBufferAllocateInfo const alloc_info{
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = pool_ref_.handle( ),
-            .level = buffer_level_,
-            .commandBufferCount = 1
-        };
-
-        validation::throw_on_bad_result(
-            vkAllocateCommandBuffers( device_ref_.logical( ), &alloc_info, &command_buffer_ ),
-            "Failed to allocate command buffers!" );
-    }
-
-
     CommandBuffer::~CommandBuffer( ) noexcept
     {
         if ( command_buffer_ != VK_NULL_HANDLE )
@@ -49,21 +27,33 @@ namespace cobalt
     }
 
 
-    bool CommandBuffer::lock( ) noexcept
+    CommandBuffer::CommandBuffer( CommandPool& pool, DeviceSet const& device, VkCommandBufferLevel const level,
+                                  size_t const index )
+        : pool_ref_{ pool }
+        , device_ref_{ device }
+        , buffer_level_{ level }
+        , buffer_index_{ index }
     {
-        return not is_locked( ) && ( ( locked_ = true ) );
+        // The level parameter specifies if the allocated command buffers are primary or secondary command buffers.
+        // - VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other
+        // command buffers.
+        // - VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from primary command buffers
+        VkCommandBufferAllocateInfo const alloc_info{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = pool_ref_.handle( ),
+            .level = buffer_level_,
+            .commandBufferCount = 1
+        };
+
+        validation::throw_on_bad_result(
+            vkAllocateCommandBuffers( device_ref_.logical( ), &alloc_info, &command_buffer_ ),
+            "Failed to allocate command buffers!" );
     }
 
 
-    void CommandBuffer::unlock( ) noexcept
+    void CommandBuffer::unlock( ) const noexcept
     {
-        locked_ = false;
-    }
-
-
-    bool CommandBuffer::is_locked( ) const noexcept
-    {
-        return locked_;
+        pool_ref_.release( buffer_index_ );
     }
 
 

@@ -47,9 +47,24 @@ namespace cobalt
     }
 
 
-    CommandBuffer& CommandPool::lock_buffer( VkCommandBufferLevel const level )
+    CommandBuffer& CommandPool::acquire( VkCommandBufferLevel const level )
     {
-        return *buffer_pool_.emplace_back( new CommandBuffer{ *this, context_ref_.device( ), level } );
+        if ( not free_pool_.empty( ) )
+        {
+            auto const index = free_pool_.back( );
+            free_pool_.pop_back( );
+            return *buffer_pool_[index];
+        }
+        return *buffer_pool_.emplace_back( new CommandBuffer{
+            *this, context_ref_.device( ), level, buffer_pool_.size( )
+        } );
+    }
+
+
+    void CommandPool::release( size_t const index )
+    {
+        assert( index < buffer_pool_.size( ) && "index is out of range!" );
+        free_pool_.push_back( index );
     }
 
 }
