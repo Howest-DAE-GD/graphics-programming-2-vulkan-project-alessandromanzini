@@ -16,8 +16,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <VulkanDeviceQueries.h>
-
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <assets/Buffer.h>
@@ -33,7 +31,6 @@
 #include <SingleTimeCommand.h>
 #include <UniformBufferObject.h>
 #include <__image/ImageView.h>
-#include <__renderer/GraphicsPipeline.h>
 #include <__shader/ShaderModule.h>
 #include <__swapchain/Swapchain.h>
 #include <__validation/result.h>
@@ -114,7 +111,7 @@ void TriangleApplication::run( )
 void TriangleApplication::vk_create_descriptor_set_layout( )
 {
     descriptor_set_layout_ptr_ = std::make_unique<DescriptorSetLayout>(
-        context_->device(  ),
+        context_->device( ),
         std::vector<DescriptorSetLayout::layout_binding_pair_t>{
             { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
@@ -234,7 +231,7 @@ void TriangleApplication::load_model( )
     loader::AssimpModelLoader const loader{ MODEL_PATH_ };
     loader.load( *model_ );
 
-    model_->create_vertex_buffer( command_pool_, context_->device( ).graphics_queue( ) );
+    model_->create_vertex_buffer( command_pool_ptr_->handle( ), context_->device( ).graphics_queue( ) );
 }
 
 
@@ -324,7 +321,8 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
                                                       VkImageLayout const old_layout,
                                                       VkImageLayout const new_layout ) const
 {
-    VkCommandBuffer const command_buffer = begin_single_time_commands( context_->device( ).logical( ), command_pool_ );
+    VkCommandBuffer const command_buffer = begin_single_time_commands( context_->device( ).logical( ),
+                                                                       command_pool_ptr_->handle( ) );
 
     VkImageMemoryBarrier2 barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -384,7 +382,7 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
 
     vkCmdPipelineBarrier2( command_buffer, &dep_info );
 
-    end_single_time_commands2( context_->device( ).logical( ), command_pool_, command_buffer,
+    end_single_time_commands2( context_->device( ).logical( ), command_pool_ptr_->handle( ), command_buffer,
                                context_->device( ).graphics_queue( ) );
 }
 
@@ -392,7 +390,8 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
 void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, VkImage const image, uint32_t const width,
                                                    uint32_t const height ) const
 {
-    VkCommandBuffer const command_buffer = begin_single_time_commands( context_->device( ).logical( ), command_pool_ );
+    VkCommandBuffer const command_buffer = begin_single_time_commands( context_->device( ).logical( ),
+                                                                       command_pool_ptr_->handle( ) );
 
     VkBufferImageCopy region{};
     region.bufferOffset      = 0;
@@ -420,7 +419,7 @@ void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, VkImag
         &region
     );
 
-    end_single_time_commands( context_->device( ).logical( ), command_pool_, command_buffer,
+    end_single_time_commands( context_->device( ).logical( ), command_pool_ptr_->handle( ), command_buffer,
                               context_->device( ).graphics_queue( ) );
 }
 
@@ -448,7 +447,7 @@ void TriangleApplication::vk_create_index_buffer( )
                               VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, index_buffer_, index_buffer_memory_ );
 
-    Buffer::vk_copy_buffer( context_->device( ).logical( ), command_pool_, context_->device( ).graphics_queue( ),
+    Buffer::vk_copy_buffer( context_->device( ).logical( ), command_pool_ptr_->handle( ), context_->device( ).graphics_queue( ),
                             staging_buffer, index_buffer_,
                             buffer_size );
 
@@ -552,41 +551,16 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
 void TriangleApplication::vk_create_command_pool( )
 {
-    auto const queue_family_indices = query::find_queue_families( context_->device( ).physical( ),
-                                                                  context_->instance( ) );
-
-    VkCommandPoolCreateInfo pool_info{};
-    pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-
-    // There are two possible flags for command pools:
-    // 1. VK_COMMAND_POOL_CREATE_TRANSIENT_BIT: Hint that command buffers are rerecorded with new commands very often.
-    // 2. VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow command buffers to be rerecorded individually, without
-    // this flag they all have to be reset together.
-    // We will be recording a command buffer every frame, so we want to be able to reset and rerecord over it.
-    pool_info.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    pool_info.queueFamilyIndex = queue_family_indices.graphics_family.value( );
-
-    validation::throw_on_bad_result( vkCreateCommandPool( context_->device( ).logical( ), &pool_info, nullptr, &command_pool_ ),
-                                     "Failed to create command pool!" );
+    command_pool_ptr_ = std::make_unique<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
 }
 
 
 void TriangleApplication::vk_create_command_buffers( )
 {
-    VkCommandBufferAllocateInfo alloc_info{};
-    alloc_info.sType       = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    alloc_info.commandPool = command_pool_;
-
-    // The level parameter specifies if the allocated command buffers are primary or secondary command buffers.
-    // - VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other
-    // command buffers.
-    // - VK_COMMAND_BUFFER_LEVEL_SECONDARY: Cannot be submitted directly, but can be called from primary command buffers
-    alloc_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    alloc_info.commandBufferCount = static_cast<uint32_t>( command_buffers_.size( ) );
-
-    validation::throw_on_bad_result(
-        vkAllocateCommandBuffers( context_->device( ).logical( ), &alloc_info, command_buffers_.data( ) ),
-        "Failed to allocate command buffers!" );
+    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        command_buffers_[i] = &command_pool_ptr_->lock_buffer( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+    }
 }
 
 
@@ -662,58 +636,17 @@ VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBit
 }
 
 
-void TriangleApplication::record_command_buffer( VkCommandBuffer const command_buffer, uint32_t const image_index ) const
+void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t const image_index ) const
 {
-    // We always begin recording a command buffer by calling vkBeginCommandBuffer with a small VkCommandBufferBeginInfo
-    // structure as argument that specifies some details about the usage of this specific command buffer.
-    VkCommandBufferBeginInfo begin_info{};
-    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    // The flags parameter specifies how we're going to use the command buffer. The following values are available:
-    // - VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT: The command buffer will be rerecorded right after executing it
-    // once.
-    // - VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT: This is a secondary command buffer that will be entirely
-    // within a single render pass.
-    // - VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT: The command buffer can be resubmitted while it is also already
-    // pending execution.
-    // None of the flags are applicable for now.
-    begin_info.flags            = 0;       // Optional
-    begin_info.pInheritanceInfo = nullptr; // Optional
-
-    validation::throw_on_bad_result( vkBeginCommandBuffer( command_buffer, &begin_info ),
-                                     "Failed to begin recording command buffer!" );
-
-    // Now we specify the dynamic rendering information, which allows us to render directly to the swapchain images without
-    // setting up a pipeline with a render pass.
-    VkRenderingAttachmentInfo color_attachment_info{};
-    color_attachment_info.sType            = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    color_attachment_info.imageView        = swapchain_ptr_->images( )[image_index].view( ).handle( );
-    color_attachment_info.imageLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color_attachment_info.loadOp           = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    color_attachment_info.storeOp          = VK_ATTACHMENT_STORE_OP_STORE;
-    color_attachment_info.clearValue.color = { { 0.0f, 0.0f, 0.0f, 1.0f } };
-
-    VkRenderingAttachmentInfo depth_attachment_info{};
-    depth_attachment_info.sType                         = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    depth_attachment_info.imageView                     = swapchain_ptr_->depth_image( ).view( ).handle( );
-    depth_attachment_info.imageLayout                   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    depth_attachment_info.loadOp                        = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depth_attachment_info.storeOp                       = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
-
-    VkRenderingInfo render_info{};
-    render_info.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    render_info.renderArea.extent    = swapchain_ptr_->extent( );
-    render_info.renderArea.offset    = { 0, 0 };
-    render_info.layerCount           = 1;
-    render_info.colorAttachmentCount = 1;
-    render_info.pColorAttachments    = &color_attachment_info;
-    render_info.pDepthAttachment     = &depth_attachment_info;
+    buffer.reset( );
+    auto const command_op = buffer.command_operator( 0 );
 
     // ----------------------------------------
     // ----------------------------------------
-    auto const swapchain_image = swapchain_ptr_->images( )[image_index].handle( ); {
-        // Pre-rendering barrier
+    auto const swapchain_image = swapchain_ptr_->images( )[image_index].handle( );
+
+    // Pre-rendering barrier
+    {
         VkImageMemoryBarrier2 pre_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -740,51 +673,80 @@ void TriangleApplication::record_command_buffer( VkCommandBuffer const command_b
             .pImageMemoryBarriers = &pre_barrier,
         };
 
-        vkCmdPipelineBarrier2( command_buffer, &dep_info );
+        command_op.insert_barrier( dep_info );
     }
-    // // ----------------------------------------
+    // ----------------------------------------
     // ----------------------------------------
 
-    // We can now begin the rendering process by calling vkCmdBeginRendering, which starts recording commands
-    vkCmdBeginRendering( command_buffer, &render_info );
+    // Now we specify the dynamic rendering information, which allows us to render directly to the swapchain images without
+    // setting up a pipeline with a render pass.
+    {
+        VkRenderingAttachmentInfo color_attachment_info{};
+        color_attachment_info.sType            = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        color_attachment_info.imageView        = swapchain_ptr_->images( )[image_index].view( ).handle( );
+        color_attachment_info.imageLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        color_attachment_info.loadOp           = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color_attachment_info.storeOp          = VK_ATTACHMENT_STORE_OP_STORE;
+        color_attachment_info.clearValue.color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } };
+
+        VkRenderingAttachmentInfo depth_attachment_info{};
+        depth_attachment_info.sType                         = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+        depth_attachment_info.imageView                     = swapchain_ptr_->depth_image( ).view( ).handle( );
+        depth_attachment_info.imageLayout                   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        depth_attachment_info.loadOp                        = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depth_attachment_info.storeOp                       = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
+
+        VkRenderingInfo render_info{};
+        render_info.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
+        render_info.renderArea.extent    = swapchain_ptr_->extent( );
+        render_info.renderArea.offset    = { 0, 0 };
+        render_info.layerCount           = 1;
+        render_info.colorAttachmentCount = 1;
+        render_info.pColorAttachments    = &color_attachment_info;
+        render_info.pDepthAttachment     = &depth_attachment_info;
+
+        // We can now begin the rendering process by calling vkCmdBeginRendering, which starts recording commands
+        command_op.begin_rendering( render_info );
+    }
 
     // We can now bind the graphics pipeline. The second parameter specifies if the pipeline object is a graphics or
     // compute pipeline.
-    vkCmdBindPipeline( command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_ptr_->handle( ) );
+    command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_ptr_ );
 
     // We did specify viewport and scissor state for this pipeline to be dynamic. So we need to set them in the command
     // buffer before issuing our draw command.
-    VkViewport viewport{};
-    viewport.x        = 0.0f;
-    viewport.y        = 0.0f;
-    viewport.width    = static_cast<float>( swapchain_ptr_->extent( ).width );
-    viewport.height   = static_cast<float>( swapchain_ptr_->extent( ).height );
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport( command_buffer, 0, 1, &viewport );
+    {
+        VkViewport viewport{};
+        viewport.x        = 0.0f;
+        viewport.y        = 0.0f;
+        viewport.width    = static_cast<float>( swapchain_ptr_->extent( ).width );
+        viewport.height   = static_cast<float>( swapchain_ptr_->extent( ).height );
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        command_op.set_viewport( viewport );
 
-    VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = swapchain_ptr_->extent( );
-    vkCmdSetScissor( command_buffer, 0, 1, &scissor );
+        VkRect2D scissor{};
+        scissor.offset = { 0, 0 };
+        scissor.extent = swapchain_ptr_->extent( );
+        command_op.set_scissor( scissor );
+    }
 
-    VkBuffer const vertex_buffers[]{ model_->get_vertex_buffer( ) };
-    constexpr VkDeviceSize offsets[]{ 0 };
-    vkCmdBindVertexBuffers( command_buffer, 0, 1, vertex_buffers, offsets );
-
-    vkCmdBindIndexBuffer( command_buffer, index_buffer_, 0, VK_INDEX_TYPE_UINT32 );
+    command_op.bind_vertex_buffers( model_->get_vertex_buffer( ), 0 );
+    command_op.bind_index_buffer( index_buffer_, 0, VK_INDEX_TYPE_UINT32 );
 
     // Bind the right descriptor set for each frame to the descriptors in the shader.
-    vkCmdBindDescriptorSets( command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_ptr_->layout( ), 0, 1,
-                             &descriptor_sets_[current_frame_], 0, nullptr );
+    command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_ptr_, descriptor_sets_[current_frame_] );
 
     // We now issue the draw command. The number of indices represents the number of vertices that will be passed to
     // the vertex shader.
-    vkCmdDrawIndexed( command_buffer, static_cast<uint32_t>( model_->get_indices( ).size( ) ), 1, 0, 0, 0 );
+    command_op.draw_indexed( static_cast<uint32_t>( model_->get_indices( ).size( ) ), 1 );
 
-    // After we've finished recording the command buffer, we end the rendering process by calling vkCmdEndRendering.
-    vkCmdEndRendering( command_buffer ); {
-        // Post rendering barrier
+    // After we've finished recording the command buffer, we end the rendering process.
+    command_op.end_rendering( );
+
+    // Post rendering barrier
+    {
         VkImageMemoryBarrier2 pre_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -811,10 +773,8 @@ void TriangleApplication::record_command_buffer( VkCommandBuffer const command_b
             .pImageMemoryBarriers = &pre_barrier,
         };
 
-        vkCmdPipelineBarrier2( command_buffer, &dep_info );
+        command_op.insert_barrier( dep_info );
     }
-
-    validation::throw_on_bad_result( vkEndCommandBuffer( command_buffer ), "Failed to record command buffer!" );
 }
 
 
@@ -867,10 +827,8 @@ void TriangleApplication::draw_frame( )
     context_->device( ).reset_fence( in_flight_fence );
 
     // 3. Record a command buffer which draws the scene onto that image.
-    auto const command_buffer = command_buffers_[current_frame_];
     // With the imageIndex specifying the swap chain image to use in hand, we can now record the command buffer.
-    vkResetCommandBuffer( command_buffer, 0 );
-    record_command_buffer( command_buffer, image_index );
+    record_command_buffer( *command_buffers_[current_frame_], image_index );
 
     // We need to submit the recorded command buffer to the graphics queue before submitting the image to the swap chain.
     update_uniform_buffer( current_frame_ );
@@ -883,11 +841,7 @@ void TriangleApplication::draw_frame( )
         .value = 0, // 0 for binary semaphore, non-zero for timeline
     };
 
-    VkCommandBufferSubmitInfo command_buffer_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-        .commandBuffer = command_buffer,
-        .deviceMask = 0,
-    };
+    auto const command_buffer_info = command_buffers_[current_frame_]->make_submit_info( );
 
     auto const submit_semaphore = render_finished_semaphores_[image_index];
     VkSemaphoreSubmitInfo signal_semaphore_info{
@@ -1017,7 +971,7 @@ void TriangleApplication::cleanup( )
         vkDestroySemaphore( context_->device( ).logical( ), render_finished_semaphores_[i], nullptr );
     }
 
-    vkDestroyCommandPool( context_->device( ).logical( ), command_pool_, nullptr );
+    command_pool_ptr_.reset( );
 
     graphics_pipeline_ptr_.reset( );
     swapchain_ptr_.reset( );

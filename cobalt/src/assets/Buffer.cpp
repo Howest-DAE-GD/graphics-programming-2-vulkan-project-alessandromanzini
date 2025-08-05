@@ -1,11 +1,9 @@
 #include <assets/Buffer.h>
 
 #include <SingleTimeCommand.h>
-#include <VulkanDeviceQueries.h>
+#include <__query/device_queries.h>
 
 #include <__validation/result.h>
-
-#include <stdexcept>
 
 
 namespace cobalt

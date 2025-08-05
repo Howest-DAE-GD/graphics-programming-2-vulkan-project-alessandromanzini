@@ -10,12 +10,12 @@
 #include <vector>
 
 #include <assets/Window.h>
-#include <__buffer/Framebuffer.h>
+#include <__buffer/CommandPool.h>
 #include <__context/VkContext.h>
 #include <__image/Image.h>
 #include <__model/Model.h>
+#include <__pipeline/GraphicsPipeline.h>
 #include <__renderer/DescriptorSetLayout.h>
-#include <__renderer/GraphicsPipeline.h>
 
 #include "Vertex.h"
 
@@ -58,6 +58,9 @@ namespace cobalt
         std::unique_ptr<GraphicsPipeline> graphics_pipeline_ptr_{};
         std::unique_ptr<DescriptorSetLayout> descriptor_set_layout_ptr_{};
 
+        std::unique_ptr<CommandPool> command_pool_ptr_{};
+        std::array<CommandBuffer*, MAX_FRAMES_IN_FLIGHT_> command_buffers_{};
+
         ModelHandle model_{};
 
         VkBuffer index_buffer_{ VK_NULL_HANDLE };
@@ -75,8 +78,6 @@ namespace cobalt
         VkDescriptorPool descriptor_pool_{ VK_NULL_HANDLE };
         std::vector<VkDescriptorSet> descriptor_sets_{};
 
-        VkCommandPool command_pool_{ VK_NULL_HANDLE };
-        std::array<VkCommandBuffer, MAX_FRAMES_IN_FLIGHT_> command_buffers_{ VK_NULL_HANDLE };
         mutable uint64_t current_frame_{ 0 };
 
         std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT_> image_available_semaphores_{ VK_NULL_HANDLE };
@@ -84,12 +85,7 @@ namespace cobalt
         std::array<VkFence, MAX_FRAMES_IN_FLIGHT_> in_flight_fences_{ VK_NULL_HANDLE };
 
         void vk_create_descriptor_set_layout( );
-
         void vk_create_graphics_pipeline( );
-
-        void vk_create_image( uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
-                              VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image,
-                              VkDeviceMemory& image_memory ) const;
 
         void vk_create_texture_image( );
         void vk_create_texture_sampler( );
@@ -115,7 +111,7 @@ namespace cobalt
                                                               VkDebugUtilsMessengerCallbackDataEXT const* p_callback_data,
                                                               void* p_user_data );
 
-        void record_command_buffer( VkCommandBuffer command_buffer, uint32_t image_index ) const;
+        void record_command_buffer( CommandBuffer& buffer, uint32_t image_index ) const;
 
         void update_uniform_buffer( uint32_t current_image ) const;
 

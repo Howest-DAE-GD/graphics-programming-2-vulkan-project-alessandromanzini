@@ -1,12 +1,10 @@
-#include <VulkanDeviceQueries.h>
-#include <__buffer/Framebuffer.h>
 #include <__swapchain/Swapchain.h>
 
 #include <__builder/VkSwapchainBuilder.h>
 #include <__context/VkContext.h>
-#include <__validation/result.h>
-
 #include <__init/InitWizard.h>
+#include <__query/device_queries.h>
+#include <__validation/result.h>
 
 
 namespace cobalt

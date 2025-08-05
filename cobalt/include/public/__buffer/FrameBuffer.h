@@ -14,30 +14,30 @@ namespace cobalt
 
 namespace cobalt
 {
-    enum class FramebufferUsageType
+    enum class FrameBufferUsageType
     {
         RENDER_PASS
     };
 
-    struct FramebufferCreateInfo
+    struct FrameBufferCreateInfo
     {
-        FramebufferUsageType usage_type{};
+        FrameBufferUsageType usage_type{};
         VkRenderPass render_pass{};
         VkExtent2D extent{ 0, 0 };
         std::vector<VkImageView> attachments{};
     };
 
 
-    class Framebuffer final : public memory::Resource
+    class FrameBuffer final : public memory::Resource
     {
     public:
-        Framebuffer( DeviceSet const& device, FramebufferCreateInfo const& create_info );
-        ~Framebuffer( ) override;
+        FrameBuffer( DeviceSet const& device, FrameBufferCreateInfo const& create_info );
+        ~FrameBuffer( ) override;
 
-        Framebuffer( const Framebuffer& )                = delete;
-        Framebuffer( Framebuffer&& ) noexcept;
-        Framebuffer& operator=( const Framebuffer& )     = delete;
-        Framebuffer& operator=( Framebuffer&& ) noexcept = delete;
+        FrameBuffer( const FrameBuffer& )                = delete;
+        FrameBuffer( FrameBuffer&& ) noexcept;
+        FrameBuffer& operator=( const FrameBuffer& )     = delete;
+        FrameBuffer& operator=( FrameBuffer&& ) noexcept = delete;
 
         [[nodiscard]] VkFramebuffer handle( ) const;
 

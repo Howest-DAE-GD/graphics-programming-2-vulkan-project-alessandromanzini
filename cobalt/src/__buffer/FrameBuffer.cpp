@@ -1,4 +1,4 @@
-#include <__buffer/Framebuffer.h>
+#include <__buffer/FrameBuffer.h>
 
 #include <log.h>
 #include <__context/DeviceSet.h>
@@ -7,7 +7,7 @@
 
 namespace cobalt
 {
-    Framebuffer::Framebuffer( DeviceSet const& device, FramebufferCreateInfo const& create_info )
+    FrameBuffer::FrameBuffer( DeviceSet const& device, FrameBufferCreateInfo const& create_info )
         : device_ref_{ device }
     {
         VkFramebufferCreateInfo framebuffer_info{};
@@ -15,13 +15,13 @@ namespace cobalt
 
         switch ( create_info.usage_type )
         {
-            case FramebufferUsageType::RENDER_PASS:
+            case FrameBufferUsageType::RENDER_PASS:
                 // We first need to specify with which renderPass the framebuffer needs to be compatible.
                 framebuffer_info.renderPass = create_info.render_pass;
                 break;
 
             default:
-                log::logerr<Framebuffer>( "Framebuffer", "Unsupported usage type!" );
+                log::logerr<FrameBuffer>( "Framebuffer", "Unsupported usage type!" );
         }
 
         // The attachmentCount and pAttachments parameters specify the VkImageView objects that should be bound to the
@@ -39,13 +39,13 @@ namespace cobalt
     }
 
 
-    Framebuffer::~Framebuffer( )
+    FrameBuffer::~FrameBuffer( )
     {
         vkDestroyFramebuffer( device_ref_.logical( ), framebuffer_, nullptr );
     }
 
 
-    Framebuffer::Framebuffer( Framebuffer&& other ) noexcept
+    FrameBuffer::FrameBuffer( FrameBuffer&& other ) noexcept
         : device_ref_{ other.device_ref_ }
         , framebuffer_{ other.framebuffer_ }
     {
@@ -53,7 +53,7 @@ namespace cobalt
     }
 
 
-    VkFramebuffer Framebuffer::handle( ) const
+    VkFramebuffer FrameBuffer::handle( ) const
     {
         return framebuffer_;
     }

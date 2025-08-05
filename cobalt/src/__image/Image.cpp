@@ -1,8 +1,8 @@
 #include <__image/Image.h>
 
 #include <log.h>
-#include <VulkanDeviceQueries.h>
 #include <__context/DeviceSet.h>
+#include <__query/device_queries.h>
 #include <__validation/result.h>
 
 

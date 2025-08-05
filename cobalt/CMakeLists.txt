@@ -5,7 +5,6 @@ project("cobalt")
 
 # create library target
 add_library(${PROJECT_NAME}
-        src/VulkanDeviceQueries.cpp
 		src/UniformBufferObject.cpp
 		include/public/UniformBufferObject.h
 		include/public/SingleTimeCommand.h
@@ -17,7 +16,7 @@ add_library(${PROJECT_NAME}
 		"src/CobaltVK.cpp"
 		"src/assets/Window.cpp"
 
-		"src/__buffer/FrameBuffer.cpp"
+		"src/__buffer/Framebuffer.cpp"
 
 		"include/private/__builder/VkBuilder.h"
 		"src/__builder/VkSwapchainBuilder.cpp"
@@ -75,11 +74,21 @@ add_library(${PROJECT_NAME}
 		"src/__query/swapchain_support.cpp"
 
 		"src/log.cpp"
-		src/__renderer/GraphicsPipeline.cpp
-		include/public/__renderer/GraphicsPipeline.h
+		src/__pipeline/GraphicsPipeline.cpp
+        include/public/__pipeline/GraphicsPipeline.h
 		include/public/__renderer/BindingDescription.h
 		src/__renderer/DescriptorSetLayout.cpp
 		include/public/__renderer/DescriptorSetLayout.h
+		src/__buffer/CommandBuffer.cpp
+		include/public/__buffer/CommandBuffer.h
+		src/__buffer/CommandPool.cpp
+		include/public/__buffer/CommandPool.h
+		src/__pipeline/Pipeline.cpp
+		include/public/__pipeline/Pipeline.h
+		include/public/__buffer/CommandOperator.cpp
+		include/public/__buffer/CommandOperator.h
+		include/private/__query/device_queries.h
+		src/__query/device_queries.cpp
 )
 
 # set warning level to W4 and warnings as errors

@@ -15,7 +15,7 @@
 namespace cobalt
 {
     class VkContext;
-    class Framebuffer;
+    class FrameBuffer;
     using SwapchainWizard = InitWizard<VkContext const&, Window&, struct SwapchainCreateInfo const&>::WithFeatures<>;
 }
 

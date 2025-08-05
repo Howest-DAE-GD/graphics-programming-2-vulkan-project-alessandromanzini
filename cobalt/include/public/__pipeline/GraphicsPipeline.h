@@ -1,20 +1,14 @@
 #ifndef GRAPHICSPIPELINE_H
 #define GRAPHICSPIPELINE_H
 
-#include <__memory/Resource.h>
+#include <__pipeline/Pipeline.h>
 
 #include <__renderer/BindingDescription.h>
 
 #include <vulkan/vulkan_core.h>
 
 #include <vector>
-#include <__init/InitWizard.h>
 
-
-namespace cobalt
-{
-    class DeviceSet;
-}
 
 namespace cobalt
 {
@@ -33,25 +27,16 @@ namespace cobalt
     };
 
 
-    class GraphicsPipeline final : public memory::Resource
+    class GraphicsPipeline final : public Pipeline
     {
     public:
         explicit GraphicsPipeline( DeviceSet const&, GraphicsPipelineCreateInfo const& );
-        ~GraphicsPipeline( ) noexcept override;
+        ~GraphicsPipeline( ) noexcept override = default;
 
         GraphicsPipeline( const GraphicsPipeline& )                = delete;
         GraphicsPipeline( GraphicsPipeline&& ) noexcept            = delete;
         GraphicsPipeline& operator=( const GraphicsPipeline& )     = delete;
         GraphicsPipeline& operator=( GraphicsPipeline&& ) noexcept = delete;
-
-        [[nodiscard]] VkPipeline handle( ) const;
-        [[nodiscard]] VkPipelineLayout layout( ) const;
-
-    private:
-        DeviceSet const& device_ref_;
-
-        VkPipelineLayout pipeline_layout_{ VK_NULL_HANDLE };
-        VkPipeline graphics_pipeline_{ VK_NULL_HANDLE };
 
     };
 

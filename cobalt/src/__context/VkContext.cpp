@@ -60,7 +60,6 @@ namespace cobalt
 
     DeviceSet& VkContext::device( ) const
     {
-        log::logerr<VkContext>( "device", "device set not initialized!", not device_set_ptr_ );
         return *device_set_ptr_;
     }
 

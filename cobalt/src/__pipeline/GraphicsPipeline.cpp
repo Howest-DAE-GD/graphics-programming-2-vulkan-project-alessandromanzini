@@ -1,4 +1,4 @@
-#include <__renderer/GraphicsPipeline.h>
+#include <__pipeline/GraphicsPipeline.h>
 
 #include <log.h>
 #include <__context/DeviceSet.h>
@@ -8,7 +8,7 @@
 namespace cobalt
 {
     GraphicsPipeline::GraphicsPipeline( DeviceSet const& device, GraphicsPipelineCreateInfo const& create_info )
-        : device_ref_{ device }
+        : Pipeline{ device }
     {
         VkPipelineVertexInputStateCreateInfo vertex_input_info{};
         vertex_input_info.sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -53,10 +53,7 @@ namespace cobalt
         pipeline_layout_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipeline_layout_info.setLayoutCount = 1;
         pipeline_layout_info.pSetLayouts    = create_info.descriptor_set_layouts.data( );
-
-        validation::throw_on_bad_result(
-            vkCreatePipelineLayout( device_ref_.logical( ), &pipeline_layout_info, nullptr, &pipeline_layout_ ),
-            "Failed to create pipeline layout!" );
+        create_layout( pipeline_layout_info );
 
         // We can now combine all the structures and objects to create the graphics pipeline.
         // 1. Shader stages: the shader modules that define the functionality of the programmable stages of the
@@ -83,7 +80,7 @@ namespace cobalt
         pipeline_info.pDynamicState       = &dynamic_state;
 
         // 3. After that comes the pipeline layout, which is a Vulkan handle rather than a struct pointer.
-        pipeline_info.layout             = pipeline_layout_;
+        pipeline_info.layout             = layout( );
         pipeline_info.pDepthStencilState = &create_info.depth_stencil;
 
         // 4. Finally, we specify the dynamic rendering information.
@@ -99,29 +96,7 @@ namespace cobalt
         // multiple VkPipeline objects in a single call.
         // The second parameter references an optional VkPipelineCache object. A pipeline cache can be used to store and
         // reuse data relevant to pipeline creation across multiple calls to vkCreateGraphicsPipelines.
-        validation::throw_on_bad_result(
-            vkCreateGraphicsPipelines( device_ref_.logical( ), VK_NULL_HANDLE, 1, &pipeline_info, nullptr,
-                                       &graphics_pipeline_ ),
-            "Failed to create graphics pipeline!" );
-    }
-
-
-    GraphicsPipeline::~GraphicsPipeline( ) noexcept
-    {
-        vkDestroyPipeline( device_ref_.logical( ), graphics_pipeline_, nullptr );
-        vkDestroyPipelineLayout( device_ref_.logical( ), pipeline_layout_, nullptr );
-    }
-
-
-    VkPipeline GraphicsPipeline::handle( ) const
-    {
-        return graphics_pipeline_;
-    }
-
-
-    VkPipelineLayout GraphicsPipeline::layout( ) const
-    {
-        return pipeline_layout_;
+        create_handle( pipeline_info );
     }
 
 }

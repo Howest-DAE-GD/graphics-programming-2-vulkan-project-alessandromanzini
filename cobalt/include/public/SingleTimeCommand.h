@@ -10,12 +10,12 @@
 namespace cobalt
 {
     [[nodiscard]] inline VkCommandBuffer begin_single_time_commands( VkDevice const device,
-                                                                     VkCommandPool const commandPool )
+                                                                     VkCommandPool const command_pool )
     {
         VkCommandBufferAllocateInfo alloc_info{};
         alloc_info.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         alloc_info.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        alloc_info.commandPool        = commandPool;
+        alloc_info.commandPool        = command_pool;
         alloc_info.commandBufferCount = 1;
 
         VkCommandBuffer command_buffer;

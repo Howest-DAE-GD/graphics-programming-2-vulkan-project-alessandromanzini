@@ -1,0 +1,55 @@
+#include <__buffer/CommandPool.h>
+
+#include <__context/VkContext.h>
+#include <__query/queue_family.h>
+#include <__validation/result.h>
+
+
+namespace cobalt
+{
+    CommandPool::CommandPool( VkContext const& context, VkCommandPoolCreateFlags const pool_type )
+        : context_ref_{ context }
+        , pool_type_{ pool_type }
+    {
+        auto const [graphics_family, present_family] =
+                query::find_queue_families( context_ref_.device( ).physical( ), context_ref_.instance( ) );
+
+        // There are two possible flags for command pools:
+        // 1. VK_COMMAND_POOL_CREATE_TRANSIENT_BIT: Hint that command buffers are rerecorded with new commands very often.
+        // 2. VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow command buffers to be rerecorded individually, without
+        // this flag they all have to be reset together.
+        // We will be recording a command buffer every frame, so we want to be able to reset and rerecord over it.
+        VkCommandPoolCreateInfo const pool_create_info{
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = pool_type_,
+            .queueFamilyIndex = graphics_family.value( )
+        };
+
+        validation::throw_on_bad_result(
+            vkCreateCommandPool( context_ref_.device( ).logical( ), &pool_create_info, nullptr, &command_pool_ ),
+            "Failed to create command pool!" );
+    }
+
+
+    CommandPool::~CommandPool( ) noexcept
+    {
+        // 1. Release all buffers
+        buffer_pool_.clear( );
+
+        // 2. Destroy the command pool
+        vkDestroyCommandPool( context_ref_.device( ).logical( ), command_pool_, nullptr );
+    }
+
+
+    VkCommandPool CommandPool::handle( ) const
+    {
+        return command_pool_;
+    }
+
+
+    CommandBuffer& CommandPool::lock_buffer( VkCommandBufferLevel const level )
+    {
+        return *buffer_pool_.emplace_back( new CommandBuffer{ *this, context_ref_.device( ), level } );
+    }
+
+}
