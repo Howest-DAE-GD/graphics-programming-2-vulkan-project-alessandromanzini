@@ -40,15 +40,15 @@ namespace cobalt
     }
 
 
-    VkQueue DeviceSet::graphics_queue( ) const
+    Queue& DeviceSet::graphics_queue( ) const
     {
-        return graphics_queue_;
+        return *graphics_queue_ptr_;
     }
 
 
-    VkQueue DeviceSet::present_queue( ) const
+    Queue& DeviceSet::present_queue( ) const
     {
-        return present_queue_;
+        return *present_queue_ptr_;
     }
 
 
@@ -206,9 +206,9 @@ namespace cobalt
         validation::throw_on_bad_result(
             vkCreateDevice( physical_device_, &create_info, nullptr, &device_ ), "Failed to create logical device!" );
 
-        // Retrieve the handles for the queues
-        vkGetDeviceQueue( device_, graphics_family.value( ), 0, &graphics_queue_ );
-        vkGetDeviceQueue( device_, present_family.value( ), 0, &present_queue_ );
+        // Now we can create the queues by extraction
+        graphics_queue_ptr_ = std::make_unique<Queue>( *this, graphics_family.value( ), 0 );
+        present_queue_ptr_ = std::make_unique<Queue>( *this, present_family.value( ), 0 );
     }
 
 }

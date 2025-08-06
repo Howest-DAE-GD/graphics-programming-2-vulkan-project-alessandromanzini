@@ -106,8 +106,6 @@ void TriangleApplication::run( )
 // +---------------------------+
 // | PRIVATE                   |
 // +---------------------------+
-
-
 void TriangleApplication::vk_create_descriptor_set_layout( )
 {
     descriptor_set_layout_ptr_ = std::make_unique<DescriptorSetLayout>(
@@ -231,7 +229,7 @@ void TriangleApplication::load_model( )
     loader::AssimpModelLoader const loader{ MODEL_PATH_ };
     loader.load( *model_ );
 
-    model_->create_vertex_buffer( command_pool_ptr_->handle( ), context_->device( ).graphics_queue( ) );
+    model_->create_vertex_buffer( command_pool_ptr_->handle( ), context_->device( ).graphics_queue( ).handle( ) );
 }
 
 
@@ -392,8 +390,7 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
     submit_info.commandBufferInfoCount = 1;
     submit_info.pCommandBufferInfos    = &command_buffer_info;
 
-    vkQueueSubmit2( context_->device( ).graphics_queue( ), 1, &submit_info, VK_NULL_HANDLE );
-    vkQueueWaitIdle( context_->device( ).graphics_queue( ) );
+    context_->device( ).graphics_queue( ).submit_and_wait( submit_info );
 
     buffer.unlock( );
 }
@@ -431,8 +428,7 @@ void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, Image 
         .pCommandBufferInfos = &command_buffer_info
     };
 
-    vkQueueSubmit2( context_->device( ).graphics_queue( ), 1, &submit_info, VK_NULL_HANDLE );
-    vkQueueWaitIdle( context_->device( ).graphics_queue( ) );
+    context_->device( ).graphics_queue( ).submit_and_wait( submit_info );
 
     cmd_buffer.unlock( );
 }
@@ -461,9 +457,9 @@ void TriangleApplication::vk_create_index_buffer( )
                               VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, index_buffer_, index_buffer_memory_ );
 
-    Buffer::vk_copy_buffer( context_->device( ).logical( ), command_pool_ptr_->handle( ), context_->device( ).graphics_queue( ),
-                            staging_buffer, index_buffer_,
-                            buffer_size );
+    Buffer::vk_copy_buffer( context_->device( ).logical( ), command_pool_ptr_->handle( ),
+                            context_->device( ).graphics_queue( ).handle( ),
+                            staging_buffer, index_buffer_, buffer_size );
 
     vkDestroyBuffer( context_->device( ).logical( ), staging_buffer, nullptr );
     vkFreeMemory( context_->device( ).logical( ), staging_buffer_memory, nullptr );
@@ -878,9 +874,7 @@ void TriangleApplication::draw_frame( )
     // 4. Submit the recorded command buffer.
     // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
     // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it inFlightFence.
-    validation::throw_on_bad_result(
-        vkQueueSubmit2( context_->device( ).graphics_queue( ), 1, &submit_info, in_flight_fence ),
-        "Failed to submit draw command buffer!" );
+    context_->device( ).graphics_queue( ).submit( submit_info, in_flight_fence );
 
     // The last step of drawing a frame is submitting the result back to the swap chain to have it eventually show up
     // on the screen. Presentation is configured through a VkPresentInfoKHR structure.
@@ -902,7 +896,7 @@ void TriangleApplication::draw_frame( )
 
     // 5. Present the swapchain image. The vkQueuePresentKHR function submits the request to present an image to the queue.
     // We check for the callback boolean after the queue presentation to avoid the semaphore to be signaled.
-    if ( auto const queue_present_result = vkQueuePresentKHR( context_->device( ).graphics_queue( ), &present_info );
+    if ( VkResult const queue_present_result = context_->device( ).graphics_queue( ).present( present_info );
         queue_present_result == VK_ERROR_OUT_OF_DATE_KHR || queue_present_result == VK_SUBOPTIMAL_KHR )
     {
         window_->force_framebuffer_resize( );

@@ -89,6 +89,8 @@ add_library(${PROJECT_NAME}
 		include/public/__buffer/CommandOperator.h
 		include/private/__query/device_queries.h
 		src/__query/device_queries.cpp
+		src/__context/Queue.cpp
+		include/public/__context/Queue.h
 )
 
 # set warning level to W4 and warnings as errors
