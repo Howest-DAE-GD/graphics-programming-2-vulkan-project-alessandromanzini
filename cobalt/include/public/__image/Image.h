@@ -35,8 +35,8 @@ namespace cobalt
         explicit Image( DeviceSet const& device, ImageViewCreateInfo const& create_info );
         ~Image( ) override;
 
-        Image( const Image& ) = delete;
         Image( Image&& ) noexcept;
+        Image( const Image& ) = delete;
         Image& operator=( const Image& )     = delete;
         Image& operator=( Image&& ) noexcept = delete;
 

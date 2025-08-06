@@ -1,7 +1,9 @@
 #include <__buffer/CommandOperator.h>
 
 #include <log.h>
+#include <__buffer/Buffer.h>
 #include <__image/Image.h>
+#include <__meta/expect_size.h>
 #include <__pipeline/Pipeline.h>
 #include <__validation/result.h>
 
@@ -27,6 +29,7 @@ namespace cobalt
         : command_buffer_{ other.command_buffer_ }
         , recording_{ other.recording_ }
     {
+        meta::expect_size<CommandOperator, 16u>( );
         other.recording_ = false;
     }
 
@@ -90,16 +93,25 @@ namespace cobalt
     }
 
 
-    void CommandOperator::copy_buffer_to_image( VkBuffer const buffer, Image const& image, VkBufferImageCopy const& region ) const
+    void CommandOperator::copy_buffer_to_image( Buffer const& src, Image const& dst, VkBufferImageCopy const& region ) const
     {
         vkCmdCopyBufferToImage(
             command_buffer_,
-            buffer,
-            image.handle( ),
+            src.handle(  ),
+            dst.handle( ),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1,
             &region
         );
+    }
+
+
+    void CommandOperator::copy_buffer( Buffer const& src, Buffer const& dst ) const
+    {
+        VkBufferCopy const copy_region{
+            .size = src.buffer_size( )
+        };
+        vkCmdCopyBuffer( command_buffer_, src.handle( ), dst.handle( ), 1, &copy_region );
     }
 
 
@@ -109,26 +121,16 @@ namespace cobalt
     }
 
 
-    void CommandOperator::bind_vertex_buffers( VkBuffer const buffer, VkDeviceSize const offset ) const
+    void CommandOperator::bind_vertex_buffers( Buffer const& buffer, VkDeviceSize const offset ) const
     {
-        vkCmdBindVertexBuffers( command_buffer_, 0, 1, &buffer, &offset );
+        VkBuffer const handle = buffer.handle( );
+        vkCmdBindVertexBuffers( command_buffer_, 0, 1, &handle, &offset );
     }
 
 
-    void CommandOperator::bind_vertex_buffers( std::span<VkBuffer> const buffers, std::span<VkDeviceSize> const offsets ) const
+    void CommandOperator::bind_index_buffer( Buffer const& buffer, VkDeviceSize const offset, VkIndexType const type ) const
     {
-        if ( buffers.size( ) != offsets.size( ) )
-        {
-            log::logerr<CommandOperator>( "bind_vertex_buffers", "buffers and offsets must be the same size!" );
-            return;
-        }
-        vkCmdBindVertexBuffers( command_buffer_, 0, 1, &buffers[0], &offsets[0] );
-    }
-
-
-    void CommandOperator::bind_index_buffer( VkBuffer const buffer, VkDeviceSize const offset, VkIndexType const type ) const
-    {
-        vkCmdBindIndexBuffer( command_buffer_, buffer, offset, type );
+        vkCmdBindIndexBuffer( command_buffer_, buffer.handle( ), offset, type );
     }
 
 

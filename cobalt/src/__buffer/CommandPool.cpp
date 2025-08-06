@@ -11,9 +11,6 @@ namespace cobalt
         : context_ref_{ context }
         , pool_type_{ pool_type }
     {
-        auto const [graphics_family, present_family] =
-                query::find_queue_families( context_ref_.device( ).physical( ), context_ref_.instance( ) );
-
         // There are two possible flags for command pools:
         // 1. VK_COMMAND_POOL_CREATE_TRANSIENT_BIT: Hint that command buffers are rerecorded with new commands very often.
         // 2. VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT: Allow command buffers to be rerecorded individually, without
@@ -22,7 +19,7 @@ namespace cobalt
         VkCommandPoolCreateInfo const pool_create_info{
             .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
             .flags = pool_type_,
-            .queueFamilyIndex = graphics_family.value( )
+            .queueFamilyIndex = context_ref_.device( ).graphics_queue( ).queue_family_index( )
         };
 
         validation::throw_on_bad_result(

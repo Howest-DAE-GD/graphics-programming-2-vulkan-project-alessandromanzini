@@ -2,6 +2,7 @@
 
 #include <log.h>
 #include <__context/DeviceSet.h>
+#include <__meta/expect_size.h>
 #include <__validation/result.h>
 
 
@@ -41,7 +42,11 @@ namespace cobalt
 
     FrameBuffer::~FrameBuffer( )
     {
-        vkDestroyFramebuffer( device_ref_.logical( ), framebuffer_, nullptr );
+        if ( framebuffer_ != VK_NULL_HANDLE )
+        {
+            vkDestroyFramebuffer( device_ref_.logical( ), framebuffer_, nullptr );
+            framebuffer_ = VK_NULL_HANDLE;
+        }
     }
 
 
@@ -49,6 +54,7 @@ namespace cobalt
         : device_ref_{ other.device_ref_ }
         , framebuffer_{ other.framebuffer_ }
     {
+        meta::expect_size<FrameBuffer, 24u>( );
         other.framebuffer_ = VK_NULL_HANDLE;
     }
 

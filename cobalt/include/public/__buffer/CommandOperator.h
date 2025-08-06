@@ -10,6 +10,7 @@ namespace cobalt
 {
     class Pipeline;
     class Image;
+    class Buffer;
 }
 
 namespace cobalt
@@ -38,15 +39,15 @@ namespace cobalt
         void set_scissor( std::span<VkRect2D> ) const;
 
         void bind_pipeline( VkPipelineBindPoint, Pipeline const& ) const;
-        void bind_vertex_buffers( VkBuffer, VkDeviceSize offset ) const;
-        void bind_vertex_buffers( std::span<VkBuffer>, std::span<VkDeviceSize> offsets ) const;
-        void bind_index_buffer( VkBuffer, VkDeviceSize offset, VkIndexType = VK_INDEX_TYPE_UINT32 ) const;
+        void bind_vertex_buffers( Buffer const&, VkDeviceSize offset ) const;
+        void bind_index_buffer( Buffer const&, VkDeviceSize offset, VkIndexType = VK_INDEX_TYPE_UINT32 ) const;
         void bind_descriptor_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
 
         void draw_indexed( uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, int32_t vertex_offset = 0,
                            uint32_t first_instance = 0 ) const;
 
-        void copy_buffer_to_image( VkBuffer, Image const&, VkBufferImageCopy const& ) const;
+        void copy_buffer_to_image( Buffer const& src, Image const& dst, VkBufferImageCopy const& ) const;
+        void copy_buffer( Buffer const& src, Buffer const& dst ) const;
 
     private:
         VkCommandBuffer const command_buffer_{ VK_NULL_HANDLE };

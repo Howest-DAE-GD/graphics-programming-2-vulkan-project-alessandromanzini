@@ -1,7 +1,9 @@
 #include <__image/Image.h>
 
 #include <log.h>
+#include <__buffer/Framebuffer.h>
 #include <__context/DeviceSet.h>
+#include <__meta/expect_size.h>
 #include <__query/device_queries.h>
 #include <__validation/result.h>
 
@@ -36,11 +38,14 @@ namespace cobalt
         }
 
         // 2. Destroy the image and free its memory (if explicitly created)
-        if ( image_ != VK_NULL_HANDLE && image_memory_ != VK_NULL_HANDLE )
+        if ( image_ != VK_NULL_HANDLE &&  )
         {
             vkDestroyImage( device_ref_.logical( ), image_, nullptr );
-            vkFreeMemory( device_ref_.logical( ), image_memory_, nullptr );
             image_        = VK_NULL_HANDLE;
+        }
+        if ( image_memory_ != VK_NULL_HANDLE )
+        {
+            vkFreeMemory( device_ref_.logical( ), image_memory_, nullptr );
             image_memory_ = VK_NULL_HANDLE;
         }
     }
@@ -52,6 +57,7 @@ namespace cobalt
         , image_memory_{ other.image_memory_ }
         , view_ptr_{ std::move( other.view_ptr_ ) }
     {
+        meta::expect_size<Image, 48u>( );
         other.image_        = VK_NULL_HANDLE;
         other.image_memory_ = VK_NULL_HANDLE;
     }
