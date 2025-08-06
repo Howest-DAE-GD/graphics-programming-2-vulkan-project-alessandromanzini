@@ -4,6 +4,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include <vector>
+#include <__enum/ValidationFlags.h>
 
 
 namespace cobalt
@@ -19,13 +20,15 @@ namespace cobalt
     public:
         using debug_callback_t = PFN_vkDebugUtilsMessengerCallbackEXT;
 
-        explicit ValidationLayers( std::vector<char const*> layers, debug_callback_t callback );
+        explicit ValidationLayers( ValidationFlags flags, debug_callback_t callback );
         ~ValidationLayers( ) = default;
 
         ValidationLayers( const ValidationLayers& )                = delete;
         ValidationLayers( ValidationLayers&& ) noexcept            = default;
         ValidationLayers& operator=( const ValidationLayers& )     = delete;
         ValidationLayers& operator=( ValidationLayers&& ) noexcept = delete;
+
+        [[nodiscard]] ValidationFlags flags( ) const;
 
         void populate_messanger_debug_info( VkDebugUtilsMessengerCreateInfoEXT& debug_info ) const;
 
@@ -38,6 +41,7 @@ namespace cobalt
         [[nodiscard]] std::vector<char const*> const& get_validation_layers( ) const;
 
     private:
+        ValidationFlags const flags_{ ValidationFlags::NONE };
         std::vector<char const*> const validation_layers_{};
 
         debug_callback_t const debug_callback_{ nullptr };

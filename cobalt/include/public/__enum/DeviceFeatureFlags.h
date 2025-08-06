@@ -1,6 +1,8 @@
 #ifndef DEVICEFEATUREFLAGS_H
 #define DEVICEFEATUREFLAGS_H
 
+#include <__meta/enum_traits.h>
+
 #include <cstdint>
 
 
@@ -18,14 +20,8 @@ namespace cobalt
         VERTEX_INPUT_DYNAMIC_STATE_EXT = 1 << 6,
     };
 
-    // +---------------------------+
-    // | BITWISE OPS               |
-    // +---------------------------+
-    [[nodiscard]] DeviceFeatureFlags operator|( DeviceFeatureFlags lhs, DeviceFeatureFlags rhs );
-    [[nodiscard]] DeviceFeatureFlags operator&( DeviceFeatureFlags lhs, DeviceFeatureFlags rhs );
-    [[nodiscard]] DeviceFeatureFlags operator~( DeviceFeatureFlags flag );
-
-    [[nodiscard]] bool any( DeviceFeatureFlags flag );
+    template <>
+    struct meta::enable_enum_flags<DeviceFeatureFlags> : std::true_type {};
 
 }
 

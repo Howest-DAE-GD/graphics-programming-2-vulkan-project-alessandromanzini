@@ -9,14 +9,38 @@
 
 namespace cobalt
 {
-    ValidationLayers::ValidationLayers( std::vector<char const*> layers, debug_callback_t const callback )
-        : validation_layers_{ std::move( layers ) }
+    // +---------------------------+
+    // | CONVERSION FUNCTION       |
+    // +---------------------------+
+    std::vector<char const*> flags_to_layers( ValidationFlags const flags )
+    {
+        std::vector<char const*> layers{};
+        if ( any( flags & ValidationFlags::KHRONOS_VALIDATION ) )
+        {
+            layers.emplace_back( "VK_LAYER_KHRONOS_validation" );
+        }
+        return layers;
+    }
+
+
+    // +---------------------------+
+    // | VALIDATION LAYERS         |
+    // +---------------------------+
+    ValidationLayers::ValidationLayers( ValidationFlags const flags, debug_callback_t const callback )
+        : flags_{ flags }
+        , validation_layers_{ flags_to_layers( flags ) }
         , debug_callback_{ callback }
     {
         if ( not query::check_validation_layers_support( validation_layers_ ) )
         {
             validation::throw_runtime_error( "validation layers requested, but not available!" );
         }
+    }
+
+
+    ValidationFlags ValidationLayers::flags( ) const
+    {
+        return flags_;
     }
 
 
