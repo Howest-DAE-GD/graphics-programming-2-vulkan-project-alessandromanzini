@@ -38,12 +38,6 @@ namespace cobalt
     }
 
 
-    std::size_t Swapchain::image_count( ) const
-    {
-        return images_.size( );
-    }
-
-
     VkFormat Swapchain::image_format( ) const
     {
         return image_format_;
@@ -56,9 +50,16 @@ namespace cobalt
     }
 
 
-    std::vector<Image> const& Swapchain::images( ) const
+    std::size_t Swapchain::image_count( ) const
     {
-        return images_;
+        return images_.size( );
+    }
+
+
+    Image const& Swapchain::image_at( size_t const index ) const
+    {
+        assert( index < images_.size( ) && "index out of bounds!" );
+        return images_[index];
     }
 
 

@@ -44,11 +44,11 @@ namespace cobalt
         [[nodiscard]] VkSwapchainKHR handle( ) const;
         [[nodiscard]] VkSwapchainKHR const* handle_ptr( ) const;
 
-        [[nodiscard]] std::size_t image_count( ) const;
         [[nodiscard]] VkFormat image_format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;
 
-        [[nodiscard]] std::vector<Image> const& images( ) const;
+        [[nodiscard]] std::size_t image_count( ) const;
+        [[nodiscard]] Image const& image_at( size_t index ) const;
         [[nodiscard]] Image const& depth_image( ) const;
 
         [[nodiscard]] uint32_t acquire_next_image( VkSemaphore semaphore, uint64_t timeout = UINT64_MAX );
