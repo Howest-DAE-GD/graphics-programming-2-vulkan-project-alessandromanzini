@@ -1,8 +1,11 @@
 #ifndef MODEL_H
 #define MODEL_H
 
-#include <Vertex.h>
 #include <__memory/Resource.h>
+
+#include <Vertex.h>
+#include <__buffer/Buffer.h>
+#include <__buffer/CommandPool.h>
 
 #include <vulkan/vulkan_core.h>
 
@@ -28,29 +31,21 @@ namespace cobalt
         using index_t = uint32_t;
 
         explicit Model( DeviceSet const& device );
-        ~Model( ) override;
+        ~Model( ) override = default;
 
         Model( Model const& )                = delete;
         Model( Model&& ) noexcept            = delete;
         Model& operator=( Model const& )     = delete;
         Model& operator=( Model&& ) noexcept = delete;
 
-        void create_vertex_buffer( VkCommandPool command_pool, VkQueue graphics_queue );
-
-        [[nodiscard]] VkBuffer get_vertex_buffer( ) const { return vertex_buffer_; }
-        [[nodiscard]] VkDeviceMemory get_vertex_buffer_memory( ) const { return vertex_buffer_memory_; }
-
-        [[nodiscard]] std::vector<Vertex> const& get_vertices( ) const { return vertices_; }
-        [[nodiscard]] std::vector<index_t> const& get_indices( ) const { return indices_; }
+        [[nodiscard]] std::vector<Vertex> const& vertices( ) const;
+        [[nodiscard]] std::vector<index_t> const& indices( ) const;
 
     private:
         DeviceSet const& device_ref_;
 
         std::vector<Vertex> vertices_{};
         std::vector<index_t> indices_{};
-
-        VkBuffer vertex_buffer_{ VK_NULL_HANDLE };
-        VkDeviceMemory vertex_buffer_memory_{ VK_NULL_HANDLE };
 
     };
 

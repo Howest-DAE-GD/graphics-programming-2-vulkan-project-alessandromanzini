@@ -36,12 +36,6 @@ namespace cobalt
         void run( );
 
     private:
-#ifdef NDEBUG
-        static inline std::vector<char const*> validation_layers_{};
-#else
-        static inline std::vector<char const*> validation_layers_{ "VK_LAYER_KHRONOS_validation" };
-#endif
-
         static constexpr uint32_t WIDTH_{ 800 };
         static constexpr uint32_t HEIGHT_{ 600 };
 
@@ -61,16 +55,11 @@ namespace cobalt
         std::unique_ptr<CommandPool> command_pool_ptr_{};
         std::array<CommandBuffer*, MAX_FRAMES_IN_FLIGHT_> command_buffers_{};
 
+        std::unique_ptr<Buffer> index_buffer_ptr_{};
+        std::unique_ptr<Buffer> vertex_buffer_ptr_{};
+        std::vector<Buffer> uniform_buffers_{};
+
         ModelHandle model_{};
-
-        VkBuffer index_buffer_{ VK_NULL_HANDLE };
-        VkDeviceMemory index_buffer_memory_{ VK_NULL_HANDLE };
-        std::vector<VkBuffer> uniform_buffers_{};
-        std::vector<VkDeviceMemory> uniform_buffers_memory_{};
-        std::vector<void*> uniform_buffers_mapped_{};
-
-        VkBuffer staging_buffer_{ VK_NULL_HANDLE };
-        VkDeviceMemory staging_buffer_memory_{ VK_NULL_HANDLE };
 
         std::unique_ptr<Image> texture_image_ptr_{ nullptr };
         VkSampler texture_sampler_{ VK_NULL_HANDLE };
@@ -89,12 +78,13 @@ namespace cobalt
 
         void vk_create_texture_image( );
         void vk_create_texture_sampler( );
-        void vk_transition_image_layout( VkImage image, VkFormat format, VkImageLayout old_layout,
-                                         VkImageLayout new_layout ) const;
-        void vk_copy_buffer_to_image( VkBuffer buffer, Image const& image, uint32_t width, uint32_t height ) const;
+
+        void vk_transition_image_layout( Image const&, VkImageLayout old_layout, VkImageLayout new_layout ) const;
+        void vk_copy_buffer_to_image( Buffer const&, Image const&, uint32_t width, uint32_t height ) const;
+        void vk_copy_buffer( Buffer const& src, Buffer const& dst );
 
         void load_model( );
-        void vk_create_index_buffer( );
+        void vk_create_model_buffers( );
 
         void vk_create_uniform_buffers( );
 

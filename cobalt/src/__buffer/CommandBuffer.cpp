@@ -2,6 +2,7 @@
 
 #include <__buffer/CommandPool.h>
 #include <__context/DeviceSet.h>
+#include <__meta/expect_size.h>
 #include <__pipeline/Pipeline.h>
 #include <__validation/result.h>
 
@@ -13,6 +14,7 @@ namespace cobalt
         if ( command_buffer_ != VK_NULL_HANDLE )
         {
             vkFreeCommandBuffers( device_ref_.logical( ), pool_ref_.handle( ), 1, &command_buffer_ );
+            command_buffer_ = VK_NULL_HANDLE;
         }
     }
 
@@ -23,6 +25,7 @@ namespace cobalt
         , buffer_level_{ other.buffer_level_ }
         , command_buffer_{ other.command_buffer_ }
     {
+        meta::expect_size<CommandBuffer, 48u>( );
         other.command_buffer_ = VK_NULL_HANDLE;
     }
 

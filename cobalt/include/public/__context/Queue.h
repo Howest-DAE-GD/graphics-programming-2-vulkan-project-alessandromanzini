@@ -25,6 +25,7 @@ namespace cobalt
         Queue& operator=( Queue&& ) noexcept = delete;
 
         [[nodiscard]] VkQueue handle( ) const;
+        [[nodiscard]] uint32_t queue_family_index( ) const;
 
         void submit( VkSubmitInfo2 const&, VkFence = VK_NULL_HANDLE ) const;
         void submit( VkSubmitInfo const&, VkFence = VK_NULL_HANDLE ) const;

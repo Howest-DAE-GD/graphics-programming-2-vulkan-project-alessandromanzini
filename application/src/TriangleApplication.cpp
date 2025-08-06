@@ -18,7 +18,6 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-#include <assets/Buffer.h>
 
 #include <xos/filesystem.h>
 #include <xos/info.h>
@@ -30,6 +29,7 @@
 
 #include <SingleTimeCommand.h>
 #include <UniformBufferObject.h>
+#include <__enum/ValidationFlags.h>
 #include <__image/ImageView.h>
 #include <__shader/ShaderModule.h>
 #include <__swapchain/Swapchain.h>
@@ -63,7 +63,7 @@ TriangleApplication::TriangleApplication( )
         .with<DeviceFeatureFlags>(
             DeviceFeatureFlags::SWAPCHAIN_EXT | DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
             DeviceFeatureFlags::DYNAMIC_RENDERING_EXT | DeviceFeatureFlags::SYNCHRONIZATION_2_EXT )
-        .with<ValidationLayers>( validation_layers_, debug_callback )
+        .with<ValidationLayers>( ValidationFlags::KHRONOS_VALIDATION, debug_callback )
     );
 
     // 3. Set the proper root directory to find shader modules and textures.
@@ -223,13 +223,33 @@ void TriangleApplication::vk_create_graphics_pipeline( )
 }
 
 
+void TriangleApplication::vk_copy_buffer( Buffer const& src, Buffer const& dst )
+{
+    auto const& cmd_buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+    cmd_buffer.reset( 0 );
+
+    auto buffer_op = cmd_buffer.command_operator( 0 );
+    buffer_op.copy_buffer( src, dst );
+    buffer_op.end_recording( );
+
+    auto const command_buffer_info = cmd_buffer.make_submit_info( );
+
+    VkSubmitInfo2 submit_info{};
+    submit_info.sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submit_info.commandBufferInfoCount = 1;
+    submit_info.pCommandBufferInfos    = &command_buffer_info;
+
+    context_->device( ).graphics_queue( ).submit_and_wait( submit_info );
+
+    cmd_buffer.unlock( );
+}
+
+
 void TriangleApplication::load_model( )
 {
     model_ = CVK.create_resource<Model>( context_->device( ) );
     loader::AssimpModelLoader const loader{ MODEL_PATH_ };
     loader.load( *model_ );
-
-    model_->create_vertex_buffer( command_pool_ptr_->handle( ), context_->device( ).graphics_queue( ).handle( ) );
 }
 
 
@@ -244,38 +264,33 @@ void TriangleApplication::vk_create_texture_image( )
         throw std::runtime_error( "Failed to load texture image!" );
     }
 
-    Buffer::vk_create_buffer( context_->device( ).logical( ), context_->device( ).physical( ), image_size,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer_,
-                              staging_buffer_memory_ );
+    Buffer staging_buffer{
+        context_->device( ), image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    };
 
-    void* data;
-    vkMapMemory( context_->device( ).logical( ), staging_buffer_memory_, 0, image_size, 0, &data );
-    memcpy( data, pixels, static_cast<size_t>( image_size ) );
-    vkUnmapMemory( context_->device( ).logical( ), staging_buffer_memory_ );
+    staging_buffer.map_memory( );
+    memcpy( staging_buffer.data( ), pixels, staging_buffer.memory_size( ) );
+    staging_buffer.unmap_memory( );
 
     // Cleanup original pixel data
     stbi_image_free( pixels );
 
-    texture_image_ptr_ = std::make_unique<Image>( context_->device( ), ImageCreateInfo{
-                                                      .extent = {
-                                                          static_cast<uint32_t>( tex_width ), static_cast<uint32_t>( tex_height )
-                                                      },
-                                                      .format = VK_FORMAT_R8G8B8A8_SRGB,
-                                                      .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                                      .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                                      .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                      .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-                                                  } );
-    vk_transition_image_layout( texture_image_ptr_->handle( ), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED,
-                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-    vk_copy_buffer_to_image( staging_buffer_, *texture_image_ptr_, static_cast<uint32_t>( tex_width ),
+    texture_image_ptr_ = std::make_unique<Image>(
+        context_->device( ),
+        ImageCreateInfo{
+            .extent = { static_cast<uint32_t>( tex_width ), static_cast<uint32_t>( tex_height ) },
+            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+        } );
+    vk_transition_image_layout( *texture_image_ptr_, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+    vk_copy_buffer_to_image( staging_buffer, *texture_image_ptr_, static_cast<uint32_t>( tex_width ),
                              static_cast<uint32_t>( tex_height ) );
-    vk_transition_image_layout( texture_image_ptr_->handle( ), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    vk_transition_image_layout( *texture_image_ptr_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
-
-    vkDestroyBuffer( context_->device( ).logical( ), staging_buffer_, nullptr );
-    vkFreeMemory( context_->device( ).logical( ), staging_buffer_memory_, nullptr );
 }
 
 
@@ -315,11 +330,10 @@ void TriangleApplication::vk_create_texture_sampler( )
 }
 
 
-void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFormat const /* format */,
-                                                      VkImageLayout const old_layout,
+void TriangleApplication::vk_transition_image_layout( Image const& image, VkImageLayout const old_layout,
                                                       VkImageLayout const new_layout ) const
 {
-    auto& buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+    auto const& buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
 
     buffer.reset( 0 );
     auto buffer_op = buffer.command_operator( 0 );
@@ -334,7 +348,7 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
         .newLayout = new_layout,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
+        .image = image.handle( ),
         .subresourceRange = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel = 0,
@@ -396,10 +410,10 @@ void TriangleApplication::vk_transition_image_layout( VkImage const image, VkFor
 }
 
 
-void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, Image const& image, uint32_t const width,
+void TriangleApplication::vk_copy_buffer_to_image( Buffer const& src, Image const& dst, uint32_t const width,
                                                    uint32_t const height ) const
 {
-    auto& cmd_buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+    auto const& cmd_buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
 
     cmd_buffer.reset( 0 );
     auto buffer_op = cmd_buffer.command_operator( 0 );
@@ -417,7 +431,7 @@ void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, Image 
         .imageOffset = { 0, 0, 0 },
         .imageExtent = { width, height, 1 }
     };
-    buffer_op.copy_buffer_to_image( buffer, image, region );
+    buffer_op.copy_buffer_to_image( src, dst, region );
     buffer_op.end_recording( );
 
     auto const command_buffer_info = cmd_buffer.make_submit_info( );
@@ -434,57 +448,61 @@ void TriangleApplication::vk_copy_buffer_to_image( VkBuffer const buffer, Image 
 }
 
 
-void TriangleApplication::vk_create_index_buffer( )
+void TriangleApplication::vk_create_model_buffers( )
 {
-    VkDeviceSize const buffer_size = sizeof( model_->get_indices( )[0] ) * model_->get_indices( ).size( );
+    // index buffer
+    {
+        VkDeviceSize const buffer_size = sizeof( model_->indices( )[0] ) * model_->indices( ).size( );
 
-    VkBuffer staging_buffer;
-    VkDeviceMemory staging_buffer_memory;
-    Buffer::vk_create_buffer( context_->device( ).logical( ), context_->device( ).physical( ), buffer_size,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer,
-                              staging_buffer_memory );
+        Buffer staging_buffer{
+            context_->device( ), buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        };
 
-    void* data;
-    vkMapMemory( context_->device( ).logical( ), staging_buffer_memory, 0, buffer_size, 0, &data );
+        staging_buffer.map_memory( );
+        memcpy( staging_buffer.data( ), model_->indices( ).data( ), staging_buffer.memory_size( ) );
+        staging_buffer.unmap_memory( );
 
-    // ReSharper disable once CppRedundantCastExpression
-    memcpy( data, model_->get_indices( ).data( ), static_cast<size_t>( buffer_size ) );
+        index_buffer_ptr_ = std::make_unique<Buffer>( context_->device( ), buffer_size,
+                                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
 
-    vkUnmapMemory( context_->device( ).logical( ), staging_buffer_memory );
+        vk_copy_buffer( staging_buffer, *index_buffer_ptr_ );
+    }
 
-    Buffer::vk_create_buffer( context_->device( ).logical( ), context_->device( ).physical( ), buffer_size,
-                              VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, index_buffer_, index_buffer_memory_ );
+    // vertex buffer
+    {
+        VkDeviceSize const buffer_size = sizeof( model_->vertices( )[0] ) * model_->vertices( ).size( );
 
-    Buffer::vk_copy_buffer( context_->device( ).logical( ), command_pool_ptr_->handle( ),
-                            context_->device( ).graphics_queue( ).handle( ),
-                            staging_buffer, index_buffer_, buffer_size );
+        Buffer staging_buffer{
+            context_->device( ), buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        };
 
-    vkDestroyBuffer( context_->device( ).logical( ), staging_buffer, nullptr );
-    vkFreeMemory( context_->device( ).logical( ), staging_buffer_memory, nullptr );
+        staging_buffer.map_memory( );
+        memcpy( staging_buffer.data( ), model_->vertices( ).data( ), staging_buffer.memory_size( ) );
+        staging_buffer.unmap_memory( );
+
+        vertex_buffer_ptr_ = std::make_unique<Buffer>( context_->device( ), buffer_size,
+                                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+
+        vk_copy_buffer( staging_buffer, *vertex_buffer_ptr_ );
+    }
 }
 
 
 void TriangleApplication::vk_create_uniform_buffers( )
 {
-    uniform_buffers_.resize( MAX_FRAMES_IN_FLIGHT_ );
-    uniform_buffers_memory_.resize( MAX_FRAMES_IN_FLIGHT_ );
-    uniform_buffers_mapped_.resize( MAX_FRAMES_IN_FLIGHT_ );
-
-    // We map the buffer right after creation using vkMapMemory to get a pointer to which we can write the data later on.
-    // The buffer stays mapped to this pointer for the application's whole lifetime. This technique is called
-    // "persistent mapping" and works on all Vulkan implementations.
-    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
-        constexpr VkDeviceSize buffer_size = sizeof( UniformBufferObject );
-        Buffer::vk_create_buffer( context_->device( ).logical( ), context_->device( ).physical( ), buffer_size,
-                                  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                  uniform_buffers_[i], uniform_buffers_memory_[i] );
+        auto& buffer = uniform_buffers_.emplace_back(
+            context_->device( ), sizeof( UniformBufferObject ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT );
 
-        vkMapMemory( context_->device( ).logical( ), uniform_buffers_memory_[i], 0, buffer_size, 0,
-                     &uniform_buffers_mapped_[i] );
+        // The buffer stays mapped to this pointer for the application's whole lifetime. This technique is called
+        // "persistent mapping" and works on all Vulkan implementations.
+        buffer.map_memory( );
     }
 }
 
@@ -527,7 +545,7 @@ void TriangleApplication::vk_create_descriptor_sets( )
     for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         VkDescriptorBufferInfo buffer_info{};
-        buffer_info.buffer = uniform_buffers_[i];
+        buffer_info.buffer = uniform_buffers_[i].handle( );
         buffer_info.offset = 0;
         buffer_info.range  = sizeof( UniformBufferObject );
 
@@ -651,12 +669,9 @@ void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t
     buffer.reset( );
     auto const command_op = buffer.command_operator( 0 );
 
-    // ----------------------------------------
-    // ----------------------------------------
-    auto const swapchain_image = swapchain_ptr_->images( )[image_index].handle( );
-
     // Pre-rendering barrier
     {
+        auto const swapchain_image = swapchain_ptr_->image_at( image_index ).handle( );
         VkImageMemoryBarrier2 pre_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
@@ -676,24 +691,45 @@ void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t
                 .layerCount = 1,
             },
         };
-
-        VkDependencyInfo dep_info{
+        command_op.insert_barrier( VkDependencyInfo{
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = &pre_barrier,
-        };
+            .pImageMemoryBarriers = &pre_barrier
+        } );
 
-        command_op.insert_barrier( dep_info );
+        // Post rendering barrier
+        VkImageMemoryBarrier2 post_barrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+            .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_2_NONE,
+            .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = swapchain_image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
+        command_op.insert_barrier( VkDependencyInfo{
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = &post_barrier
+        } );
     }
-    // ----------------------------------------
-    // ----------------------------------------
 
     // Now we specify the dynamic rendering information, which allows us to render directly to the swapchain images without
     // setting up a pipeline with a render pass.
     {
         VkRenderingAttachmentInfo color_attachment_info{};
         color_attachment_info.sType            = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        color_attachment_info.imageView        = swapchain_ptr_->images( )[image_index].view( ).handle( );
+        color_attachment_info.imageView        = swapchain_ptr_->image_at( image_index ).view( ).handle( );
         color_attachment_info.imageLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         color_attachment_info.loadOp           = VK_ATTACHMENT_LOAD_OP_CLEAR;
         color_attachment_info.storeOp          = VK_ATTACHMENT_STORE_OP_STORE;
@@ -726,65 +762,31 @@ void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t
 
     // We did specify viewport and scissor state for this pipeline to be dynamic. So we need to set them in the command
     // buffer before issuing our draw command.
-    {
-        VkViewport viewport{};
-        viewport.x        = 0.0f;
-        viewport.y        = 0.0f;
-        viewport.width    = static_cast<float>( swapchain_ptr_->extent( ).width );
-        viewport.height   = static_cast<float>( swapchain_ptr_->extent( ).height );
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        command_op.set_viewport( viewport );
+    command_op.set_viewport( VkViewport{
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = static_cast<float>( swapchain_ptr_->extent( ).width ),
+        .height = static_cast<float>( swapchain_ptr_->extent( ).height ),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f
+    } );
+    command_op.set_scissor( VkRect2D{
+        .offset = { 0, 0 },
+        .extent = swapchain_ptr_->extent( )
+    } );
 
-        VkRect2D scissor{};
-        scissor.offset = { 0, 0 };
-        scissor.extent = swapchain_ptr_->extent( );
-        command_op.set_scissor( scissor );
-    }
-
-    command_op.bind_vertex_buffers( model_->get_vertex_buffer( ), 0 );
-    command_op.bind_index_buffer( index_buffer_, 0, VK_INDEX_TYPE_UINT32 );
+    command_op.bind_vertex_buffers( *vertex_buffer_ptr_, 0 );
+    command_op.bind_index_buffer( *index_buffer_ptr_, 0, VK_INDEX_TYPE_UINT32 );
 
     // Bind the right descriptor set for each frame to the descriptors in the shader.
     command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_ptr_, descriptor_sets_[current_frame_] );
 
     // We now issue the draw command. The number of indices represents the number of vertices that will be passed to
     // the vertex shader.
-    command_op.draw_indexed( static_cast<uint32_t>( model_->get_indices( ).size( ) ), 1 );
+    command_op.draw_indexed( static_cast<uint32_t>( model_->indices( ).size( ) ), 1 );
 
     // After we've finished recording the command buffer, we end the rendering process.
     command_op.end_rendering( );
-
-    // Post rendering barrier
-    {
-        VkImageMemoryBarrier2 pre_barrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-            .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_2_NONE,
-            .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = swapchain_image,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = 0,
-                .levelCount = 1,
-                .baseArrayLayer = 0,
-                .layerCount = 1,
-            },
-        };
-
-        VkDependencyInfo dep_info{
-            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-            .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = &pre_barrier,
-        };
-
-        command_op.insert_barrier( dep_info );
-    }
 }
 
 
@@ -805,7 +807,7 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
                                  10.0f );
     ubo.proj[1][1] *= -1;
 
-    memcpy( uniform_buffers_mapped_[current_image], &ubo, sizeof( ubo ) );
+    memcpy( uniform_buffers_[current_image].data( ), &ubo, sizeof( ubo ) );
 }
 
 
@@ -842,18 +844,18 @@ void TriangleApplication::draw_frame( )
     // We need to submit the recorded command buffer to the graphics queue before submitting the image to the swap chain.
     update_uniform_buffer( current_frame_ );
 
-    VkSemaphoreSubmitInfo wait_semaphore_info{
+    VkSemaphoreSubmitInfo const wait_semaphore_info{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
         .semaphore = acquire_semaphore,
         .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
         .deviceIndex = 0,
-        .value = 0, // 0 for binary semaphore, non-zero for timeline
+        .value = 0 // 0 for binary semaphore, non-zero for timeline
     };
 
     auto const command_buffer_info = command_buffers_[current_frame_]->make_submit_info( );
 
     auto const submit_semaphore = render_finished_semaphores_[image_index];
-    VkSemaphoreSubmitInfo signal_semaphore_info{
+    VkSemaphoreSubmitInfo const signal_semaphore_info{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
         .semaphore = submit_semaphore,
         .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
@@ -878,21 +880,18 @@ void TriangleApplication::draw_frame( )
 
     // The last step of drawing a frame is submitting the result back to the swap chain to have it eventually show up
     // on the screen. Presentation is configured through a VkPresentInfoKHR structure.
-    VkPresentInfoKHR present_info{};
-    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    VkPresentInfoKHR const present_info{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 
-    // These two parameters specify which semaphores to wait on before presentation can happen.
-    present_info.waitSemaphoreCount = 1;
-    present_info.pWaitSemaphores    = &submit_semaphore;
+        // These two parameters specify which semaphores to wait on before presentation can happen.
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &submit_semaphore,
 
-    // These two parameters specify the swap chains to present images to and the index of the image for each swap chain.
-    present_info.swapchainCount = 1;
-    present_info.pSwapchains    = swapchain_ptr_->handle_ptr( );
-    present_info.pImageIndices  = &image_index;
-
-    // There is one last optional parameter called pResults. It allows you to specify an array of VkResult values to
-    // check for every individual swapchain if presentation was successful.
-    present_info.pResults = nullptr; // Optional
+        // These two parameters specify the swap chains to present images to and the index of the image for each swap chain.
+        .swapchainCount = 1,
+        .pSwapchains = swapchain_ptr_->handle_ptr( ),
+        .pImageIndices = &image_index,
+    };
 
     // 5. Present the swapchain image. The vkQueuePresentKHR function submits the request to present an image to the queue.
     // We check for the callback boolean after the queue presentation to avoid the semaphore to be signaled.
@@ -938,7 +937,7 @@ void TriangleApplication::init_vk( )
     vk_create_texture_sampler( );
 
     load_model( );
-    vk_create_index_buffer( );
+    vk_create_model_buffers( );
     vk_create_uniform_buffers( );
 
     vk_create_descriptor_pool( );
@@ -985,17 +984,13 @@ void TriangleApplication::cleanup( )
     vkDestroySampler( context_->device( ).logical( ), texture_sampler_, nullptr );
     texture_image_ptr_.reset( );
 
-    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
-    {
-        vkDestroyBuffer( context_->device( ).logical( ), uniform_buffers_[i], nullptr );
-        vkFreeMemory( context_->device( ).logical( ), uniform_buffers_memory_[i], nullptr );
-    }
+    uniform_buffers_.clear( );
 
     vkDestroyDescriptorPool( context_->device( ).logical( ), descriptor_pool_, nullptr );
     descriptor_set_layout_ptr_.reset( );
 
-    vkDestroyBuffer( context_->device( ).logical( ), index_buffer_, nullptr );
-    vkFreeMemory( context_->device( ).logical( ), index_buffer_memory_, nullptr );
+    index_buffer_ptr_.reset( );
+    vertex_buffer_ptr_.reset( );
 
     CVK.reset_instance( );
 }

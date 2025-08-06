@@ -20,6 +20,12 @@ namespace cobalt
     }
 
 
+    uint32_t Queue::queue_family_index( ) const
+    {
+        return queue_family_index_;
+    }
+
+
     void Queue::submit( VkSubmitInfo2 const& submit_info, VkFence const fence ) const
     {
         validation::throw_on_bad_result(

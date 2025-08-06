@@ -9,13 +9,16 @@ add_library(${PROJECT_NAME}
 		include/public/UniformBufferObject.h
 		include/public/SingleTimeCommand.h
 
-		"src/assets/Buffer.cpp"
+		"src/__buffer/Buffer.cpp"
 
 		"src/cleanup/DeletionQueue.cpp"
 
 		"src/CobaltVK.cpp"
 		"src/assets/Window.cpp"
 
+		"src/__buffer/CommandBuffer.cpp"
+		"src/__buffer/CommandPool.cpp"
+		"src/__buffer/CommandOperator.cpp"
 		"src/__buffer/Framebuffer.cpp"
 
 		"include/private/__builder/VkBuilder.h"
@@ -29,8 +32,7 @@ add_library(${PROJECT_NAME}
 		"src/__context/InstanceBundle.cpp"
 		"src/__context/VkContext.cpp"
 		"src/__context/ValidationLayers.cpp"
-
-		"src/__enum/DeviceFeatureFlags.cpp"
+		"src/__context/Queue.cpp"
 
 		"include/public/__event/multicast_delegate/MulticastDelegate.h"
 		"include/public/__event/multicast_delegate/Dispatcher.h"
@@ -50,6 +52,8 @@ add_library(${PROJECT_NAME}
 		"src/__model/ModelLoader.cpp"
 		"src/__model/AssimpModelLoader.cpp"
 
+		"include/public/__renderer/BindingDescription.h"
+		"src/__renderer/DescriptorSetLayout.cpp"
 		"src/__renderer/Renderer.cpp"
 
 		"src/__shader/ShaderModule.cpp"
@@ -59,6 +63,8 @@ add_library(${PROJECT_NAME}
 		"include/public/__meta/vk_function_traits.h"
 		"include/public/__meta/pack.h"
 		"include/public/__meta/index_of.h"
+		"include/public/__meta/enum_traits.h"
+		"include/public/__meta/expect_size.h"
 
 		"src/__swapchain/Swapchain.cpp"
 
@@ -68,29 +74,16 @@ add_library(${PROJECT_NAME}
 		"src/__validation/compare.cpp"
 		"src/__validation/selector/PhysicalDeviceSelector.cpp"
 
+		"src/__pipeline/GraphicsPipeline.cpp"
+		"src/__pipeline/Pipeline.cpp"
+
 		"src/__query/device_features_support.cpp"
+		"src/__query/device_queries.cpp"
 		"src/__query/extension_support.cpp"
 		"src/__query/queue_family.cpp"
 		"src/__query/swapchain_support.cpp"
 
 		"src/log.cpp"
-		src/__pipeline/GraphicsPipeline.cpp
-        include/public/__pipeline/GraphicsPipeline.h
-		include/public/__renderer/BindingDescription.h
-		src/__renderer/DescriptorSetLayout.cpp
-		include/public/__renderer/DescriptorSetLayout.h
-		src/__buffer/CommandBuffer.cpp
-		include/public/__buffer/CommandBuffer.h
-		src/__buffer/CommandPool.cpp
-		include/public/__buffer/CommandPool.h
-		src/__pipeline/Pipeline.cpp
-		include/public/__pipeline/Pipeline.h
-		src/__buffer/CommandOperator.cpp
-		include/public/__buffer/CommandOperator.h
-		include/private/__query/device_queries.h
-		src/__query/device_queries.cpp
-		src/__context/Queue.cpp
-		include/public/__context/Queue.h
 )
 
 # set warning level to W4 and warnings as errors

@@ -1,7 +1,6 @@
 #include <__builder/VkSwapchainBuilder.h>
 
 #include <__context/VkContext.h>
-#include <__query/queue_family.h>
 #include <__query/swapchain_support.h>
 
 #include <algorithm>
@@ -54,9 +53,10 @@ namespace cobalt
         create_info.imageArrayLayers = 1;
         create_info.imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-        auto const [graphics_family, present_family] =
-                query::find_queue_families( context_ref_.device( ).physical( ), context_ref_.instance( ) );
-        uint32_t const queue_family_indices[] = { graphics_family.value( ), present_family.value( ) };
+        uint32_t const queue_family_indices[] = {
+            context_ref_.device( ).graphics_queue( ).queue_family_index( ),
+            context_ref_.device( ).present_queue( ).queue_family_index( ),
+        };
 
         // The imageArrayLayers specifies the amount of layers each image consists of. This is always 1 unless you are
         // developing a stereoscopic 3D application.
@@ -66,7 +66,7 @@ namespace cobalt
         // transferred before using it in another queue family. This option offers the best performance.
         // 2. VK_SHARING_MODE_CONCURRENT: Images can be used across multiple queue families without explicit ownership
         // transfers.
-        if ( graphics_family != present_family )
+        if ( queue_family_indices[0] != queue_family_indices[1] )
         {
             create_info.imageSharingMode      = VK_SHARING_MODE_CONCURRENT;
             create_info.queueFamilyIndexCount = 2;

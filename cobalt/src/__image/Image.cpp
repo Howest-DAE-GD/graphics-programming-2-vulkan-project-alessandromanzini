@@ -1,7 +1,7 @@
 #include <__image/Image.h>
 
 #include <log.h>
-#include <__buffer/Framebuffer.h>
+#include <__buffer/FrameBuffer.h>
 #include <__context/DeviceSet.h>
 #include <__meta/expect_size.h>
 #include <__query/device_queries.h>
@@ -38,15 +38,12 @@ namespace cobalt
         }
 
         // 2. Destroy the image and free its memory (if explicitly created)
-        if ( image_ != VK_NULL_HANDLE &&  )
-        {
-            vkDestroyImage( device_ref_.logical( ), image_, nullptr );
-            image_        = VK_NULL_HANDLE;
-        }
-        if ( image_memory_ != VK_NULL_HANDLE )
+        if ( image_ != VK_NULL_HANDLE && image_memory_ != VK_NULL_HANDLE )
         {
             vkFreeMemory( device_ref_.logical( ), image_memory_, nullptr );
+            vkDestroyImage( device_ref_.logical( ), image_, nullptr );
             image_memory_ = VK_NULL_HANDLE;
+            image_        = VK_NULL_HANDLE;
         }
     }
 
