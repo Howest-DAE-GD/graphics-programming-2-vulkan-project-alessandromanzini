@@ -40,7 +40,7 @@ namespace cobalt
 
         void bind_pipeline( VkPipelineBindPoint, Pipeline const& ) const;
         void bind_vertex_buffers( Buffer const&, VkDeviceSize offset ) const;
-        void bind_index_buffer( Buffer const&, VkDeviceSize offset, VkIndexType = VK_INDEX_TYPE_UINT32 ) const;
+        void bind_index_buffer( Buffer const&, VkDeviceSize offset ) const;
         void bind_descriptor_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
 
         void draw_indexed( uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, int32_t vertex_offset = 0,

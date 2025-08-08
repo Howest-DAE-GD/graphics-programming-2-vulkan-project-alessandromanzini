@@ -3,6 +3,8 @@
 
 #include <__context/DeviceSet.h>
 
+#include <span>
+
 
 namespace cobalt
 {
@@ -16,7 +18,7 @@ namespace cobalt
     public:
         using layout_binding_pair_t = std::pair<VkDescriptorType, VkShaderStageFlags>;
 
-        DescriptorSetLayout( DeviceSet const&, std::vector<layout_binding_pair_t> const& bindings );
+        DescriptorSetLayout( DeviceSet const&, std::span<layout_binding_pair_t const> bindings );
         ~DescriptorSetLayout( ) noexcept override;
 
         DescriptorSetLayout( const DescriptorSetLayout& )                = delete;

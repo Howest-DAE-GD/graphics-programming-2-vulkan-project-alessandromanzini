@@ -47,7 +47,6 @@ add_library(${PROJECT_NAME}
 		"src/__memory/handle/HandleTable.cpp"
 
 		"src/__model/Model.cpp"
-		"src/__model/ModelLoader.cpp"
 		"src/__model/AssimpModelLoader.cpp"
 
 		"include/public/__renderer/BindingDescription.h"
@@ -84,6 +83,10 @@ add_library(${PROJECT_NAME}
 		"src/log.cpp"
 		src/__image/StbImageLoader.cpp
 		include/private/__image/StbImageLoader.h
+		src/__renderer/DescriptorAllocator.cpp
+		include/public/__renderer/DescriptorAllocator.h
+		src/__renderer/WriteDescription.cpp
+		include/public/__renderer/WriteDescription.h
 )
 
 # set warning level to W4 and warnings as errors

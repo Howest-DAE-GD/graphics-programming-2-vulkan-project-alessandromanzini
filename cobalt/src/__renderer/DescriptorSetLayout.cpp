@@ -4,7 +4,7 @@
 
 namespace cobalt
 {
-    DescriptorSetLayout::DescriptorSetLayout( DeviceSet const& device, std::vector<layout_binding_pair_t> const& bindings )
+    DescriptorSetLayout::DescriptorSetLayout( DeviceSet const& device, std::span<layout_binding_pair_t const> bindings )
         : device_ref_{ device }
     {
         // The first two fields specify the binding used in the shader and the type of descriptor, which is a uniform buffer object.

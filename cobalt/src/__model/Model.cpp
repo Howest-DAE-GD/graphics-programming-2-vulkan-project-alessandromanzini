@@ -5,8 +5,10 @@
 
 namespace cobalt
 {
-    Model::Model( DeviceSet const& device )
-        : device_ref_{ device } { }
+    Model::Model( loader::ModelLoader<Vertex, index_t> const& loader )
+    {
+        loader.load( vertices_, indices_ );
+    }
 
 
     std::vector<Vertex> const& Model::vertices( ) const

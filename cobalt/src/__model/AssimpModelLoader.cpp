@@ -15,7 +15,7 @@ namespace cobalt::loader
     // +---------------------------+
     // | HELPERS FORWARD DECL      |
     // +---------------------------+
-    void extract( aiScene const*, std::vector<Vertex>&, std::vector<Model::index_t>& );
+    void extract( aiScene const*, std::vector<Vertex>&, std::vector<uint32_t>& );
     void populate_vertex( aiMesh const*, unsigned int, Vertex& );
 
 
@@ -25,7 +25,7 @@ namespace cobalt::loader
     AssimpModelLoader::AssimpModelLoader( std::filesystem::path path ) : ModelLoader{ std::move( path ) } { }
 
 
-    void AssimpModelLoader::load( Model& model ) const
+    void AssimpModelLoader::load( std::vector<Vertex>& vertices, std::vector<unsigned int>& indices ) const
     {
         Assimp::Importer importer;
 
@@ -39,16 +39,16 @@ namespace cobalt::loader
             validation::throw_runtime_error( "Assimp error while loading model: " + std::string( importer.GetErrorString( ) ) );
         }
 
-        extract( scene, get_vertices( model ), get_indices( model ) );
+        extract( scene, vertices, indices );
     }
 
 
     // +---------------------------+
     // | HELPERS IMPL              |
     // +---------------------------+
-    void extract( aiScene const* scene, std::vector<Vertex>& vertices, std::vector<Model::index_t>& indices )
+    void extract( aiScene const* scene, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices )
     {
-        std::unordered_map<Vertex, Model::index_t> unique_vertices{};
+        std::unordered_map<Vertex, uint32_t> unique_vertices{};
 
         for ( unsigned int mesh_idx = 0; mesh_idx < scene->mNumMeshes; ++mesh_idx )
         {
@@ -73,7 +73,7 @@ namespace cobalt::loader
                     else
                     {
                         // else create a new entry in the map
-                        const auto new_index{ static_cast<Model::index_t>( vertices.size( ) ) };
+                        const auto new_index    = static_cast<uint32_t>( vertices.size( ) );
                         unique_vertices[vertex] = new_index;
                         vertices.push_back( vertex );
                         indices.push_back( new_index );

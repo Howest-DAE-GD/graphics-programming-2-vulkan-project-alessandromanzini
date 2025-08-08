@@ -29,8 +29,6 @@
 
 #include <filesystem>
 
-#include "../../cobalt/include/private/__query/queue_family.h"
-
 #include "debug_callback.h"
 #include "UniformBufferObject.h"
 
@@ -81,18 +79,18 @@ TriangleApplication::TriangleApplication( )
         } );
 
     // 5. Render pipeline
-    descriptor_set_layout_ptr_ = std::make_unique<DescriptorSetLayout>(
+    descriptor_allocator_ptr_ = std::make_unique<DescriptorAllocator>(
         context_->device( ),
-        std::vector<DescriptorSetLayout::layout_binding_pair_t>{
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+        std::array{
+            DescriptorSetLayout::layout_binding_pair_t{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+            DescriptorSetLayout::layout_binding_pair_t{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
         }
     );
     create_graphics_pipeline( );
 
     // 6. Command pool and buffers
     command_pool_ptr_ = std::make_unique<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
-    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         command_buffers_[i] = &command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
     }
@@ -114,6 +112,50 @@ TriangleApplication::TriangleApplication( )
             .compare_op = VK_COMPARE_OP_ALWAYS
         } );
 
+    // 8. Model
+    model_            = CVK.create_resource<Model>( loader::AssimpModelLoader{ MODEL_PATH_ } );
+    index_buffer_ptr_ = std::make_unique<Buffer>(
+        buffer::make_index_buffer<Model::index_t>( context_->device( ), *command_pool_ptr_, model_->indices( ) )
+    );
+    vertex_buffer_ptr_ = std::make_unique<Buffer>(
+        buffer::make_vertex_buffer<Vertex>( context_->device( ), *command_pool_ptr_, model_->vertices( ) )
+    );
+
+    // 9. Uniform buffers
+    for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        uniform_buffers_.emplace_back( buffer::make_uniform_buffer( context_->device( ), sizeof( UniformBufferObject ) ) );
+    }
+
+    // 10. Descriptor sets
+    descriptor_allocator_ptr_->allocate_pool_and_sets(
+        MAX_FRAMES_IN_FLIGHT_, std::array{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER } );
+
+    std::array write_ops{
+        WriteDescription{
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            [this]( uint32_t const frame ) -> VkDescriptorBufferInfo
+                {
+                    return {
+                        .buffer = uniform_buffers_[frame].handle( ),
+                        .offset = 0,
+                        .range = sizeof( UniformBufferObject ),
+                    };
+                }
+        },
+        WriteDescription{
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            [this]( uint32_t const ) -> VkDescriptorImageInfo
+                {
+                    return {
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        .imageView = texture_image_ptr_->image( ).view( ).handle( ),
+                        .sampler = texture_image_ptr_->sampler( )
+                    };
+                },
+        }
+    };
+    descriptor_allocator_ptr_->update_sets( MAX_FRAMES_IN_FLIGHT_, write_ops );
 }
 
 
@@ -231,7 +273,7 @@ void TriangleApplication::create_graphics_pipeline( )
         context_->device( ),
         GraphicsPipelineCreateInfo{
             .shader_stages = std::move( shader_stages ),
-            .descriptor_set_layouts = { descriptor_set_layout_ptr_->handle( ) },
+            .descriptor_set_layouts = { descriptor_allocator_ptr_->layout( ).handle( ) },
             .binding_description = { Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) },
             .input_assembly = input_assembly,
             .rasterization = rasterization,
@@ -241,105 +283,6 @@ void TriangleApplication::create_graphics_pipeline( )
             .swapchain_image_format = swapchain_ptr_->image_format( ),
             .depth_image_format = swapchain_ptr_->depth_image( ).format( ),
         } );
-}
-
-
-void TriangleApplication::load_model( )
-{
-    model_ = CVK.create_resource<Model>( context_->device( ) );
-    loader::AssimpModelLoader const loader{ MODEL_PATH_ };
-    loader.load( *model_ );
-}
-
-
-void TriangleApplication::create_model_buffers( )
-{
-    index_buffer_ptr_ = std::make_unique<Buffer>(
-        buffer::make_index_buffer<Model::index_t>( context_->device( ), *command_pool_ptr_, model_->indices( ) )
-    );
-
-    vertex_buffer_ptr_ = std::make_unique<Buffer>(
-        buffer::make_vertex_buffer<Vertex>( context_->device( ), *command_pool_ptr_, model_->vertices( ) )
-    );
-}
-
-
-void TriangleApplication::create_uniform_buffers( )
-{
-    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
-    {
-        uniform_buffers_.emplace_back( buffer::make_uniform_buffer( context_->device( ), sizeof( UniformBufferObject ) ) );
-    }
-}
-
-
-void TriangleApplication::vk_create_descriptor_pool( )
-{
-    std::array<VkDescriptorPoolSize, 2> pool_sizes{};
-    pool_sizes[0].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    pool_sizes[0].descriptorCount = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
-    pool_sizes[1].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_sizes[1].descriptorCount = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
-
-    VkDescriptorPoolCreateInfo pool_info{};
-    pool_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.poolSizeCount = static_cast<uint32_t>( pool_sizes.size( ) );
-    pool_info.pPoolSizes    = pool_sizes.data( );
-
-    pool_info.maxSets = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
-
-    validation::throw_on_bad_result(
-        vkCreateDescriptorPool( context_->device( ).logical( ), &pool_info, nullptr, &descriptor_pool_ ),
-        "Failed to create descriptor pool!" );
-}
-
-
-void TriangleApplication::vk_create_descriptor_sets( )
-{
-    std::vector const layouts( MAX_FRAMES_IN_FLIGHT_, descriptor_set_layout_ptr_->handle( ) );
-    VkDescriptorSetAllocateInfo alloc_info{};
-    alloc_info.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info.descriptorPool     = descriptor_pool_;
-    alloc_info.descriptorSetCount = static_cast<uint32_t>( MAX_FRAMES_IN_FLIGHT_ );
-    alloc_info.pSetLayouts        = layouts.data( );
-
-    descriptor_sets_.resize( MAX_FRAMES_IN_FLIGHT_ );
-    validation::throw_on_bad_result(
-        vkAllocateDescriptorSets( context_->device( ).logical( ), &alloc_info, descriptor_sets_.data( ) ),
-        "Failed to allocate descriptor sets!" );
-
-    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
-    {
-        VkDescriptorBufferInfo buffer_info{};
-        buffer_info.buffer = uniform_buffers_[i].handle( );
-        buffer_info.offset = 0;
-        buffer_info.range  = sizeof( UniformBufferObject );
-
-        VkDescriptorImageInfo image_info{};
-        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_info.imageView   = texture_image_ptr_->image( ).view( ).handle( );
-        image_info.sampler     = texture_image_ptr_->sampler( );
-
-        std::array<VkWriteDescriptorSet, 2> descriptor_writes{};
-        descriptor_writes[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptor_writes[0].dstSet          = descriptor_sets_[i];
-        descriptor_writes[0].dstBinding      = 0;
-        descriptor_writes[0].dstArrayElement = 0;
-        descriptor_writes[0].descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptor_writes[0].descriptorCount = 1;
-        descriptor_writes[0].pBufferInfo     = &buffer_info;
-
-        descriptor_writes[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptor_writes[1].dstSet          = descriptor_sets_[i];
-        descriptor_writes[1].dstBinding      = 1;
-        descriptor_writes[1].dstArrayElement = 0;
-        descriptor_writes[1].descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptor_writes[1].descriptorCount = 1;
-        descriptor_writes[1].pImageInfo      = &image_info;
-
-        vkUpdateDescriptorSets( context_->device( ).logical( ), static_cast<uint32_t>( descriptor_writes.size( ) ),
-                                descriptor_writes.data( ), 0, nullptr );
-    }
 }
 
 
@@ -485,10 +428,11 @@ void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t
     } );
 
     command_op.bind_vertex_buffers( *vertex_buffer_ptr_, 0 );
-    command_op.bind_index_buffer( *index_buffer_ptr_, 0, VK_INDEX_TYPE_UINT32 );
+    command_op.bind_index_buffer( *index_buffer_ptr_, 0 );
 
     // Bind the right descriptor set for each frame to the descriptors in the shader.
-    command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_ptr_, descriptor_sets_[current_frame_] );
+    command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_ptr_,
+                                    descriptor_allocator_ptr_->set_at( current_frame_ ) );
 
     // We now issue the draw command. The number of indices represents the number of vertices that will be passed to
     // the vertex shader.
@@ -509,7 +453,7 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
     UniformBufferObject ubo{};
     ubo.model = glm::rotate( glm::mat4( 1.0f ), time * glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
     ubo.view  = glm::lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ),
-                            glm::vec3( 0.0f, 0.0f, 1.0f ) );
+                             glm::vec3( 0.0f, 0.0f, 1.0f ) );
     ubo.proj = glm::perspective( glm::radians( 45.0f ),
                                  static_cast<float>( swapchain_ptr_->extent( ).width ) / swapchain_ptr_->extent( ).height,
                                  0.1f,
@@ -635,13 +579,6 @@ void TriangleApplication::draw_frame( )
 
 void TriangleApplication::init_vk( )
 {
-    load_model( );
-    create_model_buffers( );
-    create_uniform_buffers( );
-
-    vk_create_descriptor_pool( );
-    vk_create_descriptor_sets( );
-
     vk_create_sync_objects( );
 }
 
@@ -669,8 +606,7 @@ void TriangleApplication::cleanup( )
 
     uniform_buffers_.clear( );
 
-    vkDestroyDescriptorPool( context_->device( ).logical( ), descriptor_pool_, nullptr );
-    descriptor_set_layout_ptr_.reset( );
+    descriptor_allocator_ptr_.reset( );
 
     index_buffer_ptr_.reset( );
     vertex_buffer_ptr_.reset( );

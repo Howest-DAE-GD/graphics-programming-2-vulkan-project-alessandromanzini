@@ -1,17 +1,16 @@
 #ifndef MODELLOADER_H
 #define MODELLOADER_H
 
-#include <__model/Model.h>
-
 #include <filesystem>
 
 
 namespace cobalt::loader
 {
+    template <typename v_t, typename i_t>
     class ModelLoader
     {
     public:
-        explicit ModelLoader( std::filesystem::path&& );
+        explicit ModelLoader( std::filesystem::path&& path ) : model_path_{ std::move( path ) } { }
         virtual ~ModelLoader( ) noexcept = default;
 
         ModelLoader( ModelLoader const& )                = delete;
@@ -19,13 +18,10 @@ namespace cobalt::loader
         ModelLoader& operator=( ModelLoader const& )     = delete;
         ModelLoader& operator=( ModelLoader&& ) noexcept = delete;
 
-        virtual void load( Model& model ) const = 0;
+        virtual void load( std::vector<v_t>& vertices, std::vector<i_t>& indices ) const = 0;
 
     protected:
         std::filesystem::path const model_path_{};
-
-        [[nodiscard]] static decltype(Model::vertices_)& get_vertices( Model& model );
-        [[nodiscard]] static decltype(Model::indices_)& get_indices( Model& model );
 
     };
 

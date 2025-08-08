@@ -128,9 +128,10 @@ namespace cobalt
     }
 
 
-    void CommandOperator::bind_index_buffer( Buffer const& buffer, VkDeviceSize const offset, VkIndexType const type ) const
+    void CommandOperator::bind_index_buffer( Buffer const& buffer, VkDeviceSize const offset ) const
     {
-        vkCmdBindIndexBuffer( command_buffer_, buffer.handle( ), offset, type );
+        VkIndexType const index_type = to_index_type( buffer.content_type( ) );
+        vkCmdBindIndexBuffer( command_buffer_, buffer.handle( ), offset, index_type );
     }
 
 
