@@ -1,4 +1,4 @@
-#include <TriangleApplication.h>
+#include "TriangleApplication.h"
 
 // +---------------------------+
 // | STANDARD HEADERS          |
@@ -16,26 +16,23 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include <xos/filesystem.h>
 #include <xos/info.h>
 
-#include <filesystem>
-
 #include <CobaltVK.h>
-#include <__model/AssimpModelLoader.h>
-
-#include <SingleTimeCommand.h>
-#include <UniformBufferObject.h>
 #include <__enum/ValidationFlags.h>
 #include <__image/ImageView.h>
+#include <__model/AssimpModelLoader.h>
 #include <__shader/ShaderModule.h>
 #include <__swapchain/Swapchain.h>
 #include <__validation/result.h>
 
+#include <filesystem>
+
 #include "../../cobalt/include/private/__query/queue_family.h"
+
+#include "debug_callback.h"
+#include "UniformBufferObject.h"
 
 
 using namespace cobalt;
@@ -63,7 +60,7 @@ TriangleApplication::TriangleApplication( )
         .with<DeviceFeatureFlags>(
             DeviceFeatureFlags::SWAPCHAIN_EXT | DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
             DeviceFeatureFlags::DYNAMIC_RENDERING_EXT | DeviceFeatureFlags::SYNCHRONIZATION_2_EXT )
-        .with<ValidationLayers>( ValidationFlags::KHRONOS_VALIDATION, debug_callback )
+        .with<ValidationLayers>( ValidationFlags::KHRONOS_VALIDATION, ::debug::debug_callback )
     );
 
     // 3. Set the proper root directory to find shader modules and textures.
@@ -82,6 +79,39 @@ TriangleApplication::TriangleApplication( )
                 }
             }
         } );
+
+    // 5. Render pipeline
+    descriptor_set_layout_ptr_ = std::make_unique<DescriptorSetLayout>(
+        context_->device( ),
+        std::vector<DescriptorSetLayout::layout_binding_pair_t>{
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+        }
+    );
+    create_graphics_pipeline( );
+
+    // 6. Command pool and buffers
+    command_pool_ptr_ = std::make_unique<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
+    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        command_buffers_[i] = &command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+    }
+
+    // 7. Texture image
+    texture_image_ptr_ = std::make_unique<TextureImage>(
+        context_->device( ), *command_pool_ptr_,
+        TextureImageCreateInfo{
+            .path_to_img = "resources/viking_room.png",
+            .image_format = VK_FORMAT_R8G8B8A8_SRGB
+        },
+        TextureSamplerCreateInfo{
+            .filter = VK_FILTER_LINEAR,
+            .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .border_color = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
+            .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .unnormalized_coordinates = false
+        } );
+
 }
 
 
@@ -93,7 +123,8 @@ void TriangleApplication::run( )
     while ( keep_running )
     {
         keep_running = not window_->should_close( );
-        main_loop( );
+        glfwPollEvents( );
+        draw_frame( );
     }
     // All the operations in drawFrame are asynchronous. When we exit the loop, drawing and presentation operations may
     // still be going on. We solve it by waiting for the logical device to finish operations before exiting.
@@ -106,19 +137,7 @@ void TriangleApplication::run( )
 // +---------------------------+
 // | PRIVATE                   |
 // +---------------------------+
-void TriangleApplication::vk_create_descriptor_set_layout( )
-{
-    descriptor_set_layout_ptr_ = std::make_unique<DescriptorSetLayout>(
-        context_->device( ),
-        std::vector<DescriptorSetLayout::layout_binding_pair_t>{
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
-        }
-    );
-}
-
-
-void TriangleApplication::vk_create_graphics_pipeline( )
+void TriangleApplication::create_graphics_pipeline( )
 {
     // The compilation and linking of the SPIR-V bytecode to machine code for execution by the GPU doesn't happen until the
     // graphics pipeline is created. That means that we're allowed to destroy the shader modules again as soon as pipeline
@@ -223,28 +242,6 @@ void TriangleApplication::vk_create_graphics_pipeline( )
 }
 
 
-void TriangleApplication::vk_copy_buffer( Buffer const& src, Buffer const& dst )
-{
-    auto const& cmd_buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
-    cmd_buffer.reset( 0 );
-
-    auto buffer_op = cmd_buffer.command_operator( 0 );
-    buffer_op.copy_buffer( src, dst );
-    buffer_op.end_recording( );
-
-    auto const command_buffer_info = cmd_buffer.make_submit_info( );
-
-    VkSubmitInfo2 submit_info{};
-    submit_info.sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submit_info.commandBufferInfoCount = 1;
-    submit_info.pCommandBufferInfos    = &command_buffer_info;
-
-    context_->device( ).graphics_queue( ).submit_and_wait( submit_info );
-
-    cmd_buffer.unlock( );
-}
-
-
 void TriangleApplication::load_model( )
 {
     model_ = CVK.create_resource<Model>( context_->device( ) );
@@ -253,256 +250,23 @@ void TriangleApplication::load_model( )
 }
 
 
-void TriangleApplication::vk_create_texture_image( )
+void TriangleApplication::create_model_buffers( )
 {
-    int tex_width, tex_height, tex_channels;
-    stbi_uc* pixels = stbi_load( "resources/viking_room.png", &tex_width, &tex_height, &tex_channels, STBI_rgb_alpha );
-    VkDeviceSize const image_size = tex_width * tex_height * 4;
+    index_buffer_ptr_ = std::make_unique<Buffer>(
+        buffer::make_index_buffer<Model::index_t>( context_->device( ), *command_pool_ptr_, model_->indices( ) )
+    );
 
-    if ( not pixels )
-    {
-        throw std::runtime_error( "Failed to load texture image!" );
-    }
-
-    Buffer staging_buffer{
-        context_->device( ), image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-    };
-
-    staging_buffer.map_memory( );
-    memcpy( staging_buffer.data( ), pixels, staging_buffer.memory_size( ) );
-    staging_buffer.unmap_memory( );
-
-    // Cleanup original pixel data
-    stbi_image_free( pixels );
-
-    texture_image_ptr_ = std::make_unique<Image>(
-        context_->device( ),
-        ImageCreateInfo{
-            .extent = { static_cast<uint32_t>( tex_width ), static_cast<uint32_t>( tex_height ) },
-            .format = VK_FORMAT_R8G8B8A8_SRGB,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-        } );
-    vk_transition_image_layout( *texture_image_ptr_, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
-    vk_copy_buffer_to_image( staging_buffer, *texture_image_ptr_, static_cast<uint32_t>( tex_width ),
-                             static_cast<uint32_t>( tex_height ) );
-    vk_transition_image_layout( *texture_image_ptr_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL );
+    vertex_buffer_ptr_ = std::make_unique<Buffer>(
+        buffer::make_vertex_buffer<Vertex>( context_->device( ), *command_pool_ptr_, model_->vertices( ) )
+    );
 }
 
 
-void TriangleApplication::vk_create_texture_sampler( )
-{
-    VkSamplerCreateInfo sampler_info{};
-
-    // The magFilter and minFilter fields specify how to interpolate texels that are magnified or minified.
-    sampler_info.sType     = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler_info.magFilter = VK_FILTER_LINEAR;
-    sampler_info.minFilter = VK_FILTER_LINEAR;
-
-    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties( context_->device( ).physical( ), &properties );
-
-    sampler_info.anisotropyEnable = VK_TRUE;
-    sampler_info.maxAnisotropy    = properties.limits.maxSamplerAnisotropy;
-
-    // samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-
-    sampler_info.unnormalizedCoordinates = VK_FALSE;
-    sampler_info.compareEnable           = VK_FALSE;
-    sampler_info.compareOp               = VK_COMPARE_OP_ALWAYS;
-
-    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    sampler_info.mipLodBias = 0.0f;
-    sampler_info.minLod     = 0.0f;
-    sampler_info.maxLod     = 0.0f;
-
-    validation::throw_on_bad_result(
-        vkCreateSampler( context_->device( ).logical( ), &sampler_info, nullptr, &texture_sampler_ ),
-        "Failed to create texture sampler!" );
-}
-
-
-void TriangleApplication::vk_transition_image_layout( Image const& image, VkImageLayout const old_layout,
-                                                      VkImageLayout const new_layout ) const
-{
-    auto const& buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
-
-    buffer.reset( 0 );
-    auto buffer_op = buffer.command_operator( 0 );
-
-    VkImageMemoryBarrier2 barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-        .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
-        .dstStageMask = VK_PIPELINE_STAGE_2_NONE,
-        .srcAccessMask = VK_ACCESS_2_NONE,
-        .dstAccessMask = VK_ACCESS_2_NONE,
-        .oldLayout = old_layout,
-        .newLayout = new_layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image.handle( ),
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        },
-    };
-
-    if ( old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL )
-    {
-        barrier.srcAccessMask = VK_ACCESS_2_NONE;
-        barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-
-        barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-        barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-    }
-    else if ( old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL )
-    {
-        barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-
-        barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-        barrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-    }
-    else if ( old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL )
-    {
-        barrier.srcAccessMask = VK_ACCESS_2_NONE;
-        barrier.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-        barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-        barrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
-    }
-    else
-    {
-        throw std::invalid_argument( "Unsupported layout transition!" );
-    }
-
-    VkDependencyInfo const dep_info{
-        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = &barrier,
-    };
-
-    buffer_op.insert_barrier( dep_info );
-    buffer_op.end_recording( );
-
-    auto const command_buffer_info = buffer.make_submit_info( );
-
-    VkSubmitInfo2 submit_info{};
-    submit_info.sType                  = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-    submit_info.commandBufferInfoCount = 1;
-    submit_info.pCommandBufferInfos    = &command_buffer_info;
-
-    context_->device( ).graphics_queue( ).submit_and_wait( submit_info );
-
-    buffer.unlock( );
-}
-
-
-void TriangleApplication::vk_copy_buffer_to_image( Buffer const& src, Image const& dst, uint32_t const width,
-                                                   uint32_t const height ) const
-{
-    auto const& cmd_buffer = command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
-
-    cmd_buffer.reset( 0 );
-    auto buffer_op = cmd_buffer.command_operator( 0 );
-
-    VkBufferImageCopy const region{
-        .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
-
-        .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-        .imageSubresource.mipLevel = 0,
-        .imageSubresource.baseArrayLayer = 0,
-        .imageSubresource.layerCount = 1,
-
-        .imageOffset = { 0, 0, 0 },
-        .imageExtent = { width, height, 1 }
-    };
-    buffer_op.copy_buffer_to_image( src, dst, region );
-    buffer_op.end_recording( );
-
-    auto const command_buffer_info = cmd_buffer.make_submit_info( );
-
-    VkSubmitInfo2 const submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &command_buffer_info
-    };
-
-    context_->device( ).graphics_queue( ).submit_and_wait( submit_info );
-
-    cmd_buffer.unlock( );
-}
-
-
-void TriangleApplication::vk_create_model_buffers( )
-{
-    // index buffer
-    {
-        VkDeviceSize const buffer_size = sizeof( model_->indices( )[0] ) * model_->indices( ).size( );
-
-        Buffer staging_buffer{
-            context_->device( ), buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        };
-
-        staging_buffer.map_memory( );
-        memcpy( staging_buffer.data( ), model_->indices( ).data( ), staging_buffer.memory_size( ) );
-        staging_buffer.unmap_memory( );
-
-        index_buffer_ptr_ = std::make_unique<Buffer>( context_->device( ), buffer_size,
-                                                      VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                                                      VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
-
-        vk_copy_buffer( staging_buffer, *index_buffer_ptr_ );
-    }
-
-    // vertex buffer
-    {
-        VkDeviceSize const buffer_size = sizeof( model_->vertices( )[0] ) * model_->vertices( ).size( );
-
-        Buffer staging_buffer{
-            context_->device( ), buffer_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-        };
-
-        staging_buffer.map_memory( );
-        memcpy( staging_buffer.data( ), model_->vertices( ).data( ), staging_buffer.memory_size( ) );
-        staging_buffer.unmap_memory( );
-
-        vertex_buffer_ptr_ = std::make_unique<Buffer>( context_->device( ), buffer_size,
-                                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
-
-        vk_copy_buffer( staging_buffer, *vertex_buffer_ptr_ );
-    }
-}
-
-
-void TriangleApplication::vk_create_uniform_buffers( )
+void TriangleApplication::create_uniform_buffers( )
 {
     for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
-        auto& buffer = uniform_buffers_.emplace_back(
-            context_->device( ), sizeof( UniformBufferObject ), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT );
-
-        // The buffer stays mapped to this pointer for the application's whole lifetime. This technique is called
-        // "persistent mapping" and works on all Vulkan implementations.
-        buffer.map_memory( );
+        uniform_buffers_.emplace_back( buffer::make_uniform_buffer( context_->device( ), sizeof( UniformBufferObject ) ) );
     }
 }
 
@@ -551,8 +315,8 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
         VkDescriptorImageInfo image_info{};
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        image_info.imageView   = texture_image_ptr_->view( ).handle( );
-        image_info.sampler     = texture_sampler_;
+        image_info.imageView   = texture_image_ptr_->image( ).view( ).handle( );
+        image_info.sampler     = texture_image_ptr_->sampler( );
 
         std::array<VkWriteDescriptorSet, 2> descriptor_writes{};
         descriptor_writes[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -573,21 +337,6 @@ void TriangleApplication::vk_create_descriptor_sets( )
 
         vkUpdateDescriptorSets( context_->device( ).logical( ), static_cast<uint32_t>( descriptor_writes.size( ) ),
                                 descriptor_writes.data( ), 0, nullptr );
-    }
-}
-
-
-void TriangleApplication::vk_create_command_pool( )
-{
-    command_pool_ptr_ = std::make_unique<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
-}
-
-
-void TriangleApplication::vk_create_command_buffers( )
-{
-    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
-    {
-        command_buffers_[i] = &command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
     }
 }
 
@@ -619,48 +368,6 @@ void TriangleApplication::vk_create_sync_objects( )
             vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &render_finished_semaphores_[i] ),
             "Failed to create render semaphore!" );
     }
-}
-
-
-VkBool32 TriangleApplication::debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT const message_severity,
-                                              VkDebugUtilsMessageTypeFlagsEXT /* messageType */,
-                                              VkDebugUtilsMessengerCallbackDataEXT const* p_callback_data,
-                                              void* /* pUserData */ )
-{
-    std::string severity_color{};
-
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-    constexpr std::string_view reset_color{ "\e[0m" };
-#pragma GCC diagnostic pop
-#else
-#pragma warning(push, 0)
-    constexpr std::string_view reset_color{ "\033[0m" };
-#pragma warning(pop)
-#endif
-
-    switch ( message_severity )
-    {
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-            severity_color = "\033[34m";
-            break;
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-            severity_color = "\033[37m";
-            break;
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-            severity_color = "\033[33m";
-            break;
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-            severity_color = "\033[31m";
-            break;
-        default:
-            severity_color = "\033[36m";
-            break;
-    }
-
-    std::cerr << severity_color << "validation layer: " << p_callback_data->pMessage << reset_color << std::endl;
-    return VK_FALSE;
 }
 
 
@@ -800,7 +507,7 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
     UniformBufferObject ubo{};
     ubo.model = glm::rotate( glm::mat4( 1.0f ), time * glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
     ubo.view  = glm::lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ),
-                             glm::vec3( 0.0f, 0.0f, 1.0f ) );
+                            glm::vec3( 0.0f, 0.0f, 1.0f ) );
     ubo.proj = glm::perspective( glm::radians( 45.0f ),
                                  static_cast<float>( swapchain_ptr_->extent( ).width ) / swapchain_ptr_->extent( ).height,
                                  0.1f,
@@ -926,39 +633,14 @@ void TriangleApplication::draw_frame( )
 
 void TriangleApplication::init_vk( )
 {
-    vk_create_descriptor_set_layout( );
-
-    vk_create_graphics_pipeline( );
-
-    vk_create_command_pool( );
-    vk_create_command_buffers( );
-
-    vk_create_texture_image( );
-    vk_create_texture_sampler( );
-
     load_model( );
-    vk_create_model_buffers( );
-    vk_create_uniform_buffers( );
+    create_model_buffers( );
+    create_uniform_buffers( );
 
     vk_create_descriptor_pool( );
     vk_create_descriptor_sets( );
 
     vk_create_sync_objects( );
-}
-
-
-void TriangleApplication::configure_relative_path( ) const
-{
-    xos::info::log_info( std::clog );
-    xos::filesystem::configure_relative_path( );
-}
-
-
-void TriangleApplication::main_loop( )
-{
-    glfwPollEvents( );
-
-    draw_frame( );
 }
 
 
@@ -981,7 +663,6 @@ void TriangleApplication::cleanup( )
     graphics_pipeline_ptr_.reset( );
     swapchain_ptr_.reset( );
 
-    vkDestroySampler( context_->device( ).logical( ), texture_sampler_, nullptr );
     texture_image_ptr_.reset( );
 
     uniform_buffers_.clear( );
@@ -993,4 +674,11 @@ void TriangleApplication::cleanup( )
     vertex_buffer_ptr_.reset( );
 
     CVK.reset_instance( );
+}
+
+
+void TriangleApplication::configure_relative_path( )
+{
+    xos::info::log_info( std::clog );
+    xos::filesystem::configure_relative_path( );
 }

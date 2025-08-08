@@ -128,8 +128,9 @@ namespace cobalt
 
             for ( auto const& image : swc_imgs )
             {
-                images_.emplace_back( context_ref_.device( ),
-                                      ImageViewCreateInfo{ image, image_format_, VK_IMAGE_ASPECT_COLOR_BIT } );
+                images_.emplace_back(
+                    context_ref_.device( ), extent_,
+                    ImageViewCreateInfo{ image, image_format_, VK_IMAGE_ASPECT_COLOR_BIT } );
             }
         }
 

@@ -1,10 +1,10 @@
 #include <__context/InstanceBundle.h>
 
-#include <assets/Window.h>
+#include <__context/ValidationLayers.h>
+#include <__context/Window.h>
+#include <__query/extension_support.h>
 #include <__validation/dispatch.h>
 #include <__validation/result.h>
-#include <__context/ValidationLayers.h>
-#include <__query/extension_support.h>
 
 
 namespace cobalt

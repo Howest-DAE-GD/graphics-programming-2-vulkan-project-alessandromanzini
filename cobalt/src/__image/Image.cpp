@@ -1,10 +1,13 @@
 #include <__image/Image.h>
 
 #include <log.h>
-#include <__buffer/FrameBuffer.h>
+#include <__buffer/CommandBuffer.h>
+#include <__buffer/CommandPool.h>
 #include <__context/DeviceSet.h>
+#include <__image/ImageLayoutTransition.h>
 #include <__meta/expect_size.h>
 #include <__query/device_queries.h>
+#include <__validation/dispatch.h>
 #include <__validation/result.h>
 
 
@@ -13,15 +16,17 @@ namespace cobalt
     Image::Image( DeviceSet const& device, ImageCreateInfo const& create_info )
         : device_ref_{ device }
         , format_{ create_info.format }
+        , extent_{ create_info.extent }
     {
         init_image( create_info );
         init_view( ImageViewCreateInfo{ image_, create_info.format, create_info.aspect_flags } );
     }
 
 
-    Image::Image( DeviceSet const& device, ImageViewCreateInfo const& create_info )
+    Image::Image( DeviceSet const& device, VkExtent2D const extent, ImageViewCreateInfo const& create_info )
         : device_ref_{ device }
         , format_{ create_info.format }
+        , extent_{ extent }
         , image_{ create_info.image }
     {
         log::logerr<Image>( "Image", "image cannot be VK_NULL_HANDLE!", create_info.image == VK_NULL_HANDLE );
@@ -50,11 +55,13 @@ namespace cobalt
 
     Image::Image( Image&& other ) noexcept
         : device_ref_{ other.device_ref_ }
+        , format_{ other.format_ }
+        , extent_{ other.extent_ }
         , image_{ other.image_ }
         , image_memory_{ other.image_memory_ }
         , view_ptr_{ std::move( other.view_ptr_ ) }
     {
-        meta::expect_size<Image, 48u>( );
+        meta::expect_size<Image, 56u>( );
         other.image_        = VK_NULL_HANDLE;
         other.image_memory_ = VK_NULL_HANDLE;
     }
@@ -75,6 +82,57 @@ namespace cobalt
     VkFormat Image::format( ) const
     {
         return format_;
+    }
+
+
+    VkExtent2D Image::extent( ) const
+    {
+        return extent_;
+    }
+
+
+    void Image::transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool ) const
+    {
+        auto const& cmd_buffer = cmd_pool.acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+
+        cmd_buffer.reset( 0 );
+        auto buffer_op = cmd_buffer.command_operator( 0 );
+
+        VkImageMemoryBarrier2 const barrier{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = transition_info.src_stage_mask,
+            .dstStageMask = transition_info.dst_stage_mask,
+            .srcAccessMask = transition_info.src_access_mask,
+            .dstAccessMask = transition_info.dst_access_mask,
+            .oldLayout = transition_info.old_layout,
+            .newLayout = transition_info.new_layout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image_,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
+
+        buffer_op.insert_barrier( VkDependencyInfo{
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = &barrier
+        } );
+        buffer_op.end_recording( );
+
+        auto const command_buffer_info = cmd_buffer.make_submit_info( );
+        device_ref_.graphics_queue( ).submit_and_wait( VkSubmitInfo2{
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
+            .commandBufferInfoCount = 1,
+            .pCommandBufferInfos = &command_buffer_info
+        } );
+
+        cmd_buffer.unlock( );
     }
 
 

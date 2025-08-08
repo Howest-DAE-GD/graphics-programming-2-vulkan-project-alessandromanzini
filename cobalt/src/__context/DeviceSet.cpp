@@ -52,6 +52,12 @@ namespace cobalt
     }
 
 
+    bool DeviceSet::has_feature( DeviceFeatureFlags const feature ) const
+    {
+        return any( feature_flags_ & feature );
+    }
+
+
     void DeviceSet::wait_idle( ) const
     {
         vkDeviceWaitIdle( device_ );

@@ -28,7 +28,7 @@ namespace cobalt
 
         [[nodiscard]] VkCommandPool handle( ) const;
 
-        [[nodiscard]] CommandBuffer& acquire( VkCommandBufferLevel );
+        [[nodiscard]] CommandBuffer& acquire( VkCommandBufferLevel level );
         void release( size_t index );
 
     private:

@@ -5,8 +5,9 @@ project("application")
 
 # create program target WIN32
 add_executable(${PROJECT_NAME}
-		"src/main.cpp"
-		"src/TriangleApplication.cpp" )
+		"code/main.cpp"
+		"code/TriangleApplication.cpp"
+		"code/debug_callback.h" )
 
 # set warning level to W4 and warnings as errors
 if (MSVC)
@@ -26,8 +27,8 @@ include(stb_fetchcontent)
 # link library
 target_link_libraries(${PROJECT_NAME}
 		PRIVATE "cobalt"
-		PRIVATE "xos"
-		PRIVATE "stb" )
+		PRIVATE "xos" )
+target_compile_definitions("cobalt" PRIVATE COBALT_ENABLE_COMMAND_POOL_LOGGING)
 
 # set the correct relative path for the executable
 if(APPLE)

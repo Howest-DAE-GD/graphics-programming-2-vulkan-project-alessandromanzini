@@ -24,6 +24,7 @@ namespace cobalt
         , device_ref_{ other.device_ref_ }
         , buffer_level_{ other.buffer_level_ }
         , command_buffer_{ other.command_buffer_ }
+        , buffer_index_{ other.buffer_index_ }
     {
         meta::expect_size<CommandBuffer, 48u>( );
         other.command_buffer_ = VK_NULL_HANDLE;

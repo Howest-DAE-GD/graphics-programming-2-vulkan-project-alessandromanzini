@@ -4,6 +4,13 @@
 #include <__query/queue_family.h>
 #include <__validation/result.h>
 
+#include <log.h>
+#ifdef COBALT_ENABLE_COMMAND_POOL_LOGGING
+constexpr bool ENABLE_LOGGING{ true };
+#else
+constexpr bool ENABLE_LOGGING{ false };
+#endif
+
 
 namespace cobalt
 {
@@ -52,6 +59,12 @@ namespace cobalt
             free_pool_.pop_back( );
             return *buffer_pool_[index];
         }
+
+        if constexpr ( ENABLE_LOGGING )
+        {
+            log::loginfo<CommandPool>( "acquire", std::format( "current buffers: {}", buffer_pool_.size( ) + 1 ) );
+        }
+
         return *buffer_pool_.emplace_back( new CommandBuffer{
             *this, context_ref_.device( ), level, buffer_pool_.size( )
         } );

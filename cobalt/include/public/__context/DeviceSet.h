@@ -33,6 +33,8 @@ namespace cobalt
         [[nodiscard]] Queue& graphics_queue( ) const;
         [[nodiscard]] Queue& present_queue( ) const;
 
+        [[nodiscard]] bool has_feature( DeviceFeatureFlags feature ) const;
+
         void wait_idle( ) const;
         void wait_for_fence( VkFence fence, uint64_t timeout = UINT64_MAX ) const;
 

@@ -5,16 +5,12 @@ project("cobalt")
 
 # create library target
 add_library(${PROJECT_NAME}
-		src/UniformBufferObject.cpp
-		include/public/UniformBufferObject.h
-		include/public/SingleTimeCommand.h
-
 		"src/__buffer/Buffer.cpp"
 
-		"src/cleanup/DeletionQueue.cpp"
+		"src/__cleanup/DeletionQueue.cpp"
 
 		"src/CobaltVK.cpp"
-		"src/assets/Window.cpp"
+		"src/__context/Window.cpp"
 
 		"src/__buffer/CommandBuffer.cpp"
 		"src/__buffer/CommandPool.cpp"
@@ -39,6 +35,8 @@ add_library(${PROJECT_NAME}
 
 		"src/__image/Image.cpp"
 		"src/__image/ImageView.cpp"
+		"src/__image/ImageLayoutTransition.cpp"
+		"src/__image/TextureImage.cpp"
 
 		"include/public/__init/InitWizard.h"
 
@@ -84,6 +82,8 @@ add_library(${PROJECT_NAME}
 		"src/__query/swapchain_support.cpp"
 
 		"src/log.cpp"
+		src/__image/StbImageLoader.cpp
+		include/private/__image/StbImageLoader.h
 )
 
 # set warning level to W4 and warnings as errors
@@ -109,7 +109,8 @@ include(assimp_fetchcontent)
 target_link_libraries(${PROJECT_NAME}
 		PUBLIC glfw
 		PUBLIC glm
-		PRIVATE assimp )
+		PRIVATE assimp
+		PRIVATE stb )
 
 # require vulkan
 include(vulkan_require)

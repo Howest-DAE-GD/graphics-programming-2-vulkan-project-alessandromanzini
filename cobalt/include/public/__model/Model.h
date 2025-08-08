@@ -3,9 +3,9 @@
 
 #include <__memory/Resource.h>
 
-#include <Vertex.h>
 #include <__buffer/Buffer.h>
 #include <__buffer/CommandPool.h>
+#include <__model/Vertex.h>
 
 #include <vulkan/vulkan_core.h>
 

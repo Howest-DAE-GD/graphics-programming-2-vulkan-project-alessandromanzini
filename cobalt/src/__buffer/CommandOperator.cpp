@@ -97,7 +97,7 @@ namespace cobalt
     {
         vkCmdCopyBufferToImage(
             command_buffer_,
-            src.handle(  ),
+            src.handle( ),
             dst.handle( ),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1,

@@ -3,6 +3,7 @@
 
 #include <__memory/Resource.h>
 
+#include <__image/ImageLayoutTransition.h>
 #include <__image/ImageView.h>
 
 #include <vulkan/vulkan_core.h>
@@ -13,6 +14,7 @@
 namespace cobalt
 {
     class DeviceSet;
+    class CommandPool;
 }
 
 namespace cobalt
@@ -32,7 +34,7 @@ namespace cobalt
     {
     public:
         explicit Image( DeviceSet const& device, ImageCreateInfo const& create_info );
-        explicit Image( DeviceSet const& device, ImageViewCreateInfo const& create_info );
+        explicit Image( DeviceSet const& device, VkExtent2D extent, ImageViewCreateInfo const& create_info );
         ~Image( ) override;
 
         Image( Image&& ) noexcept;
@@ -44,11 +46,15 @@ namespace cobalt
         [[nodiscard]] ImageView& view( ) const;
 
         [[nodiscard]] VkFormat format( ) const;
+        [[nodiscard]] VkExtent2D extent( ) const;
+
+        void transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool ) const;
 
     private:
         DeviceSet const& device_ref_;
 
-        VkFormat format_{ VK_FORMAT_UNDEFINED };
+        VkFormat const format_{ VK_FORMAT_UNDEFINED };
+        VkExtent2D const extent_{ 0, 0 };
 
         VkImage image_{ VK_NULL_HANDLE };
         VkDeviceMemory image_memory_{ VK_NULL_HANDLE };

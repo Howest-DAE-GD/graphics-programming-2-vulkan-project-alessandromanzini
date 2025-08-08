@@ -3,7 +3,7 @@
 
 #include <__memory/Resource.h>
 
-#include <assets/Window.h>
+#include <__context/Window.h>
 #include <__image/Image.h>
 #include <__init/InitWizard.h>
 
