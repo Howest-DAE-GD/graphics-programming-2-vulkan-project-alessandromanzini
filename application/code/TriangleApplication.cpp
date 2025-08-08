@@ -109,7 +109,9 @@ TriangleApplication::TriangleApplication( )
             .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .border_color = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
             .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-            .unnormalized_coordinates = false
+            .unnormalized_coordinates = false,
+            .compare_enable = false,
+            .compare_op = VK_COMPARE_OP_ALWAYS
         } );
 
 }

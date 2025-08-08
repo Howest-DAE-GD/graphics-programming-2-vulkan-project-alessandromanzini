@@ -130,8 +130,9 @@ namespace cobalt
             .borderColor = sampler_info.border_color,
 
             .unnormalizedCoordinates = sampler_info.unnormalized_coordinates,
-            .compareEnable = VK_FALSE,
-            .compareOp = VK_COMPARE_OP_ALWAYS,
+
+            .compareEnable = sampler_info.compare_enable,
+            .compareOp = sampler_info.compare_op,
 
             .mipmapMode = sampler_info.mipmap_mode,
             .mipLodBias = 0.f,
