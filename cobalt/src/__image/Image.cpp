@@ -125,13 +125,7 @@ namespace cobalt
         } );
         buffer_op.end_recording( );
 
-        auto const command_buffer_info = cmd_buffer.make_submit_info( );
-        device_ref_.graphics_queue( ).submit_and_wait( VkSubmitInfo2{
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-            .commandBufferInfoCount = 1,
-            .pCommandBufferInfos = &command_buffer_info
-        } );
-
+        device_ref_.graphics_queue( ).submit_and_wait( sync::SubmitInfo{ device_ref_.device_index( ) }.execute( cmd_buffer ) );
         cmd_buffer.unlock( );
     }
 

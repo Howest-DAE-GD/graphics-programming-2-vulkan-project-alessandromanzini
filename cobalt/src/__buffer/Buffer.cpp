@@ -155,13 +155,7 @@ namespace cobalt
         buffer_op.copy_buffer( *this, dst );
         buffer_op.end_recording( );
 
-        VkCommandBufferSubmitInfo const command_buffer_info = cmd_buffer.make_submit_info( );
-        device_ref_.graphics_queue( ).submit_and_wait( VkSubmitInfo2{
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-            .commandBufferInfoCount = 1,
-            .pCommandBufferInfos = &command_buffer_info
-        } );
-
+        device_ref_.graphics_queue( ).submit_and_wait( sync::SubmitInfo{ device_ref_.device_index( ) }.execute( cmd_buffer ) );
         cmd_buffer.unlock( );
     }
 
@@ -188,13 +182,7 @@ namespace cobalt
             } );
         buffer_op.end_recording( );
 
-        auto const command_buffer_info = cmd_buffer.make_submit_info( );
-        device_ref_.graphics_queue( ).submit_and_wait( VkSubmitInfo2{
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-            .commandBufferInfoCount = 1,
-            .pCommandBufferInfos = &command_buffer_info
-        } );
-
+        device_ref_.graphics_queue( ).submit_and_wait( sync::SubmitInfo{ device_ref_.device_index( ) }.execute( cmd_buffer ) );
         cmd_buffer.unlock( );
     }
 
@@ -245,7 +233,7 @@ namespace cobalt
         {
             Buffer uniform_buffer{
                 device, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                 BufferContentType::UNIFORM
             };
 

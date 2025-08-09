@@ -3,11 +3,18 @@
 
 #include <__memory/Resource.h>
 
+#include <__synchronization/PresentInfo.h>
+#include <__synchronization/SubmitInfo.h>
+
 #include <vulkan/vulkan_core.h>
 
 
 namespace cobalt
 {
+    namespace sync
+    {
+        class Fence;
+    }
     class DeviceSet;
 }
 
@@ -27,15 +34,15 @@ namespace cobalt
         [[nodiscard]] VkQueue handle( ) const;
         [[nodiscard]] uint32_t queue_family_index( ) const;
 
-        void submit( VkSubmitInfo2 const&, VkFence = VK_NULL_HANDLE ) const;
-        void submit( VkSubmitInfo const&, VkFence = VK_NULL_HANDLE ) const;
+        void submit( sync::SubmitInfo const&, sync::Fence const* fence = nullptr ) const;
+        void submit( VkSubmitInfo const&, sync::Fence const* fence = nullptr ) const;
 
         void wait_idle( ) const;
 
-        void submit_and_wait( VkSubmitInfo2 const&, VkFence = VK_NULL_HANDLE ) const;
-        void submit_and_wait( VkSubmitInfo const&, VkFence = VK_NULL_HANDLE ) const;
+        void submit_and_wait( sync::SubmitInfo const&, sync::Fence const* = nullptr ) const;
+        void submit_and_wait( VkSubmitInfo const&, sync::Fence const* = nullptr ) const;
 
-        VkResult present( VkPresentInfoKHR const& ) const;
+        VkResult present( sync::PresentInfo const& ) const;
 
     private:
         uint32_t const queue_family_index_{ UINT32_MAX };

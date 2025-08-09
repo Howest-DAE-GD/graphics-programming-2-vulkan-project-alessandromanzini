@@ -87,12 +87,12 @@ namespace cobalt
     }
 
 
-    VkCommandBufferSubmitInfo CommandBuffer::make_submit_info( uint32_t const device_mask ) const
+    VkCommandBufferSubmitInfo CommandBuffer::make_submit_info( uint32_t const device_idx ) const
     {
         return {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
             .commandBuffer = command_buffer_,
-            .deviceMask = device_mask
+            .deviceMask = device_idx
         };
     }
 

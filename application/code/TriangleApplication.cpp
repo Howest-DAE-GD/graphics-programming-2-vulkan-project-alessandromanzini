@@ -78,6 +78,13 @@ TriangleApplication::TriangleApplication( )
             }
         } );
 
+    // 6. Command pool and buffers
+    command_pool_ptr_ = std::make_unique<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
+    for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        command_buffers_[i] = &command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+    }
+
     // 5. Render pipeline
     descriptor_allocator_ptr_ = std::make_unique<DescriptorAllocator>(
         context_->device( ),
@@ -87,13 +94,6 @@ TriangleApplication::TriangleApplication( )
         }
     );
     create_graphics_pipeline( );
-
-    // 6. Command pool and buffers
-    command_pool_ptr_ = std::make_unique<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
-    for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
-    {
-        command_buffers_[i] = &command_pool_ptr_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
-    }
 
     // 7. Texture image
     texture_image_ptr_ = std::make_unique<TextureImage>(
@@ -128,8 +128,7 @@ TriangleApplication::TriangleApplication( )
     }
 
     // 10. Descriptor sets
-    descriptor_allocator_ptr_->allocate_pool_and_sets(
-        MAX_FRAMES_IN_FLIGHT_, std::array{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER } );
+    descriptor_allocator_ptr_->allocate_pool_and_sets( MAX_FRAMES_IN_FLIGHT_ );
 
     std::array write_ops{
         WriteDescription{
@@ -156,24 +155,30 @@ TriangleApplication::TriangleApplication( )
         }
     };
     descriptor_allocator_ptr_->update_sets( MAX_FRAMES_IN_FLIGHT_, write_ops );
+
+    // 11. Synchronization objects
+    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        image_available_semaphores_[i] = std::make_unique<sync::Semaphore>( context_->device( ) );
+        in_flight_fences_[i]           = std::make_unique<sync::Fence>( context_->device( ), VK_FENCE_CREATE_SIGNALED_BIT );
+    }
+    for ( size_t i{}; i < 3; i++ )
+    {
+        render_finished_semaphores_[i] = std::make_unique<sync::Semaphore>( context_->device( ) );
+    }
 }
 
 
 void TriangleApplication::run( )
 {
-    init_vk( );
-
-    bool keep_running{ true };
-    while ( keep_running )
+    running_ = true;
+    while ( running_ )
     {
-        keep_running = not window_->should_close( );
         glfwPollEvents( );
         draw_frame( );
-    }
-    // All the operations in drawFrame are asynchronous. When we exit the loop, drawing and presentation operations may
-    // still be going on. We solve it by waiting for the logical device to finish operations before exiting.
-    context_->device( ).wait_idle( );
 
+        running_ = not window_->should_close( );
+    }
     cleanup( );
 }
 
@@ -286,37 +291,7 @@ void TriangleApplication::create_graphics_pipeline( )
 }
 
 
-void TriangleApplication::vk_create_sync_objects( )
-{
-    VkSemaphoreCreateInfo semaphore_info{};
-    semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-    VkFenceCreateInfo fence_info{};
-    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-
-    // The VK_FENCE_CREATE_SIGNALED_BIT flag specifies that the fence object is created in the signaled state.
-    // This allows us to skip the first render frame, or we would otherwise be stuck waiting at the start.
-    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-    for ( size_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
-    {
-        validation::throw_on_bad_result(
-            vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &image_available_semaphores_[i] ),
-            "Failed to create image semaphore!" );
-        validation::throw_on_bad_result(
-            vkCreateFence( context_->device( ).logical( ), &fence_info, nullptr, &in_flight_fences_[i] ),
-            "Failed to create fence!" );
-    }
-    for ( size_t i{}; i < 3; i++ )
-    {
-        validation::throw_on_bad_result(
-            vkCreateSemaphore( context_->device( ).logical( ), &semaphore_info, nullptr, &render_finished_semaphores_[i] ),
-            "Failed to create render semaphore!" );
-    }
-}
-
-
-void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t const image_index ) const
+void TriangleApplication::record_command_buffer( CommandBuffer const& buffer, uint32_t const image_index ) const
 {
     buffer.reset( );
     auto const command_op = buffer.command_operator( 0 );
@@ -324,7 +299,7 @@ void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t
     // Pre-rendering barrier
     {
         auto const swapchain_image = swapchain_ptr_->image_at( image_index ).handle( );
-        VkImageMemoryBarrier2 pre_barrier{
+        VkImageMemoryBarrier2 const pre_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
@@ -350,7 +325,7 @@ void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t
         } );
 
         // Post rendering barrier
-        VkImageMemoryBarrier2 post_barrier{
+        VkImageMemoryBarrier2 const post_barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
@@ -379,30 +354,33 @@ void TriangleApplication::record_command_buffer( CommandBuffer& buffer, uint32_t
     // Now we specify the dynamic rendering information, which allows us to render directly to the swapchain images without
     // setting up a pipeline with a render pass.
     {
-        VkRenderingAttachmentInfo color_attachment_info{};
-        color_attachment_info.sType            = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        color_attachment_info.imageView        = swapchain_ptr_->image_at( image_index ).view( ).handle( );
-        color_attachment_info.imageLayout      = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-        color_attachment_info.loadOp           = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        color_attachment_info.storeOp          = VK_ATTACHMENT_STORE_OP_STORE;
-        color_attachment_info.clearValue.color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } };
+        VkRenderingAttachmentInfo const color_attachment_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = swapchain_ptr_->image_at( image_index ).view( ).handle( ),
+            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue.color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } }
+        };
 
-        VkRenderingAttachmentInfo depth_attachment_info{};
-        depth_attachment_info.sType                         = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-        depth_attachment_info.imageView                     = swapchain_ptr_->depth_image( ).view( ).handle( );
-        depth_attachment_info.imageLayout                   = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-        depth_attachment_info.loadOp                        = VK_ATTACHMENT_LOAD_OP_CLEAR;
-        depth_attachment_info.storeOp                       = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depth_attachment_info.clearValue.depthStencil.depth = 1.0f;
+        VkRenderingAttachmentInfo const depth_attachment_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = swapchain_ptr_->depth_image( ).view( ).handle( ),
+            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .clearValue.depthStencil.depth = 1.0f
+        };
 
-        VkRenderingInfo render_info{};
-        render_info.sType                = VK_STRUCTURE_TYPE_RENDERING_INFO;
-        render_info.renderArea.extent    = swapchain_ptr_->extent( );
-        render_info.renderArea.offset    = { 0, 0 };
-        render_info.layerCount           = 1;
-        render_info.colorAttachmentCount = 1;
-        render_info.pColorAttachments    = &color_attachment_info;
-        render_info.pDepthAttachment     = &depth_attachment_info;
+        VkRenderingInfo const render_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea.extent = swapchain_ptr_->extent( ),
+            .renderArea.offset = { 0, 0 },
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &color_attachment_info,
+            .pDepthAttachment = &depth_attachment_info
+        };
 
         // We can now begin the rendering process by calling vkCmdBeginRendering, which starts recording commands
         command_op.begin_rendering( render_info );
@@ -451,13 +429,12 @@ void TriangleApplication::update_uniform_buffer( uint32_t const current_image ) 
     float const time        = std::chrono::duration<float>( current_time - start_time ).count( );
 
     UniformBufferObject ubo{};
-    ubo.model = glm::rotate( glm::mat4( 1.0f ), time * glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
-    ubo.view  = glm::lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ),
-                             glm::vec3( 0.0f, 0.0f, 1.0f ) );
-    ubo.proj = glm::perspective( glm::radians( 45.0f ),
-                                 static_cast<float>( swapchain_ptr_->extent( ).width ) / swapchain_ptr_->extent( ).height,
-                                 0.1f,
-                                 10.0f );
+    ubo.model = rotate( glm::mat4( 1.0f ), time * glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
+    ubo.view  = lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
+    ubo.proj  = glm::perspective( glm::radians( 45.0f ),
+                                  static_cast<float>( swapchain_ptr_->extent( ).width ) / swapchain_ptr_->extent( ).height,
+                                  0.1f,
+                                  10.0f );
     ubo.proj[1][1] *= -1;
 
     memcpy( uniform_buffers_[current_image].data( ), &ubo, sizeof( ubo ) );
@@ -473,12 +450,12 @@ void TriangleApplication::draw_frame( )
     }
 
     // 1. Wait for the previous frame to finish. We wait for the fence.
-    auto const in_flight_fence = in_flight_fences_[current_frame_];
-    context_->device( ).wait_for_fence( in_flight_fence );
+    auto const& in_flight_fence = *in_flight_fences_[current_frame_];
+    in_flight_fence.wait( );
 
     // 2. Acquire an image from the swapchain.
-    auto const acquire_semaphore = image_available_semaphores_[current_frame_];
-    uint32_t const image_index   = swapchain_ptr_->acquire_next_image( acquire_semaphore );
+    auto const& acquire_semaphore = *image_available_semaphores_[current_frame_];
+    uint32_t const image_index    = swapchain_ptr_->acquire_next_image( acquire_semaphore );
 
     // If the image index is UINT32_MAX, it means that the swapchain could not acquire an image.
     if ( image_index == UINT32_MAX )
@@ -488,68 +465,33 @@ void TriangleApplication::draw_frame( )
 
     // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.
     // We reset the fence only if there's work to do, which is why we're doing it after the acquire image check. DEADLOCK warning!
-    context_->device( ).reset_fence( in_flight_fence );
+    in_flight_fence.reset( );
 
     // 3. Record a command buffer which draws the scene onto that image.
     // With the imageIndex specifying the swap chain image to use in hand, we can now record the command buffer.
-    record_command_buffer( *command_buffers_[current_frame_], image_index );
+    auto const& cmd_buffer = *command_buffers_[current_frame_];
+    record_command_buffer( cmd_buffer, image_index );
 
     // We need to submit the recorded command buffer to the graphics queue before submitting the image to the swap chain.
     update_uniform_buffer( current_frame_ );
 
-    VkSemaphoreSubmitInfo const wait_semaphore_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = acquire_semaphore,
-        .stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-        .deviceIndex = 0,
-        .value = 0 // 0 for binary semaphore, non-zero for timeline
-    };
-
-    auto const command_buffer_info = command_buffers_[current_frame_]->make_submit_info( );
-
-    auto const submit_semaphore = render_finished_semaphores_[image_index];
-    VkSemaphoreSubmitInfo const signal_semaphore_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-        .semaphore = submit_semaphore,
-        .stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR,
-        .deviceIndex = 0,
-        .value = 0,
-    };
-
-    VkSubmitInfo2 const submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .waitSemaphoreInfoCount = 1,
-        .pWaitSemaphoreInfos = &wait_semaphore_info,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &command_buffer_info,
-        .signalSemaphoreInfoCount = 1,
-        .pSignalSemaphoreInfos = &signal_semaphore_info,
-    };
-
     // 4. Submit the recorded command buffer.
-    // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
-    // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it inFlightFence.
-    context_->device( ).graphics_queue( ).submit( submit_info, in_flight_fence );
+    auto const& submit_semaphore = *render_finished_semaphores_[image_index];
+    context_->device( ).graphics_queue( ).submit(
+        sync::SubmitInfo{ context_->device( ).device_index( ) }
+        .wait( acquire_semaphore, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR )
+        .execute( cmd_buffer )
+        .signal( submit_semaphore, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR ),
 
-    // The last step of drawing a frame is submitting the result back to the swap chain to have it eventually show up
-    // on the screen. Presentation is configured through a VkPresentInfoKHR structure.
-    VkPresentInfoKHR const present_info{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-
-        // These two parameters specify which semaphores to wait on before presentation can happen.
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &submit_semaphore,
-
-        // These two parameters specify the swap chains to present images to and the index of the image for each swap chain.
-        .swapchainCount = 1,
-        .pSwapchains = swapchain_ptr_->handle_ptr( ),
-        .pImageIndices = &image_index,
-    };
+        // The last parameter references an optional fence that will be signaled when the command buffers finish execution.
+        // This allows us to know when it is safe for the command buffer to be reused, thus we want to give it in_flight_fence.
+        &in_flight_fence );
 
     // 5. Present the swapchain image. The vkQueuePresentKHR function submits the request to present an image to the queue.
     // We check for the callback boolean after the queue presentation to avoid the semaphore to be signaled.
-    if ( VkResult const queue_present_result = context_->device( ).graphics_queue( ).present( present_info );
-        queue_present_result == VK_ERROR_OUT_OF_DATE_KHR || queue_present_result == VK_SUBOPTIMAL_KHR )
+    if ( VkResult const present_result = context_->device( ).graphics_queue( ).present(
+            sync::PresentInfo{}.wait( submit_semaphore ).present( *swapchain_ptr_, image_index ) );
+        present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR )
     {
         window_->force_framebuffer_resize( );
     }
@@ -577,24 +519,22 @@ void TriangleApplication::draw_frame( )
 }
 
 
-void TriangleApplication::init_vk( )
-{
-    vk_create_sync_objects( );
-}
-
-
 void TriangleApplication::cleanup( )
 {
-    // Allocation and de-allocation functions in Vulkan have an optional allocator callback
-    // that we'll ignore by passing nullptr.
-    for ( size_t i = 0; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    // We wait for the device to finish all operations before cleaning up, since the render is asynchronous in the GPU.
+    context_->device( ).wait_idle( );
+
+    for ( auto& sync : in_flight_fences_ )
     {
-        vkDestroySemaphore( context_->device( ).logical( ), image_available_semaphores_[i], nullptr );
-        vkDestroyFence( context_->device( ).logical( ), in_flight_fences_[i], nullptr );
+        sync.reset( );
     }
-    for ( size_t i = 0; i < 3; i++ )
+    for ( auto& sync : image_available_semaphores_ )
     {
-        vkDestroySemaphore( context_->device( ).logical( ), render_finished_semaphores_[i], nullptr );
+        sync.reset( );
+    }
+    for ( auto& sync : render_finished_semaphores_ )
+    {
+        sync.reset( );
     }
 
     command_pool_ptr_.reset( );

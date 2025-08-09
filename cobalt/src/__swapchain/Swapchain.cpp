@@ -4,6 +4,7 @@
 #include <__context/VkContext.h>
 #include <__init/InitWizard.h>
 #include <__query/device_queries.h>
+#include <__synchronization/Semaphore.h>
 #include <__validation/result.h>
 
 
@@ -69,14 +70,14 @@ namespace cobalt
     }
 
 
-    uint32_t Swapchain::acquire_next_image( VkSemaphore const semaphore, uint64_t const timeout )
+    uint32_t Swapchain::acquire_next_image( sync::Semaphore const& semaphore, uint64_t const timeout )
     {
         uint32_t image_index{};
 
         // The first two parameters of vkAcquireNextImageKHR are the logical device and the swap chain from which we wish
         // to acquire an image.
         auto const result = vkAcquireNextImageKHR( context_ref_.device( ).logical( ), swapchain_,
-                                                   timeout, semaphore, VK_NULL_HANDLE, &image_index );
+                                                   timeout, semaphore.handle( ), VK_NULL_HANDLE, &image_index );
 
         // If viewport changes, recreate the swapchain.
         // - VK_ERROR_OUT_OF_DATE_KHR: The swapchain has become incompatible with the surface and can no longer be used for

@@ -58,6 +58,12 @@ namespace cobalt
     }
 
 
+    uint32_t DeviceSet::device_index( ) const
+    {
+        return device_index_;
+    }
+
+
     void DeviceSet::wait_idle( ) const
     {
         vkDeviceWaitIdle( device_ );
@@ -88,7 +94,7 @@ namespace cobalt
 
         if ( device_count == 0 )
         {
-            throw std::runtime_error( "Failed to find GPUs with Vulkan support!" );
+            log::logerr<DeviceSet>( "pick_physical_device", "failed to find GPUs with Vulkan support!" );
         }
 
         // Fetch the physical devices
@@ -102,6 +108,7 @@ namespace cobalt
             if ( auto [adequate, extensions] = selector.select( device ); adequate )
             {
                 physical_device_ = device;
+                device_index_    = 0;
                 extensions_      = std::move( extensions );
                 break;
             }
@@ -109,7 +116,7 @@ namespace cobalt
 
         if ( physical_device_ == VK_NULL_HANDLE )
         {
-            throw std::runtime_error( "Failed to find a suitable GPU!" );
+            log::logerr<DeviceSet>( "pick_physical_device", "failed to find a suitable GPU!" );
         }
     }
 
@@ -147,13 +154,13 @@ namespace cobalt
         // The next information to specify is the set of device features that we'll be using.
         // These are the features that we queried support for with vkGetPhysicalDeviceFeatures.
         VkPhysicalDeviceFeatures2 device_features{};
-        device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        device_features.sType                      = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         device_features.features.samplerAnisotropy = VK_TRUE;
 
         // Set additional Vulkan 1+ features that we want to use.
         VkPhysicalDeviceVulkan13Features device_features13{};
         device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-        device_features.pNext = &device_features13;
+        device_features.pNext   = &device_features13;
 
         // todo: refactor flag checking and extension checking into the validation class that gets passed to the physical selector.
         if ( any( feature_flags_ & DeviceFeatureFlags::DYNAMIC_RENDERING_EXT ) )
@@ -183,7 +190,7 @@ namespace cobalt
 
         create_info.queueCreateInfoCount = static_cast<uint32_t>( queue_create_infos.size( ) );
         create_info.pQueueCreateInfos    = queue_create_infos.data( );
-        create_info.pNext            = &device_features;
+        create_info.pNext                = &device_features;
 
         // The remainder of the information bears a resemblance to the VkInstanceCreateInfo struct and requires you
         // to specify extensions and validation layers. The difference is that these are device specific this time.
@@ -214,7 +221,7 @@ namespace cobalt
 
         // Now we can create the queues by extraction
         graphics_queue_ptr_ = std::make_unique<Queue>( *this, graphics_family.value( ), 0 );
-        present_queue_ptr_ = std::make_unique<Queue>( *this, present_family.value( ), 0 );
+        present_queue_ptr_  = std::make_unique<Queue>( *this, present_family.value( ), 0 );
     }
 
 }

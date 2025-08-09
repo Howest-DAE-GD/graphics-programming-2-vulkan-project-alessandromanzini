@@ -34,6 +34,7 @@ namespace cobalt
         [[nodiscard]] Queue& present_queue( ) const;
 
         [[nodiscard]] bool has_feature( DeviceFeatureFlags feature ) const;
+        [[nodiscard]] uint32_t device_index( ) const;
 
         void wait_idle( ) const;
         void wait_for_fence( VkFence fence, uint64_t timeout = UINT64_MAX ) const;
@@ -44,6 +45,8 @@ namespace cobalt
         InstanceBundle const& instance_ref_;
         DeviceFeatureFlags feature_flags_{};
         std::vector<char const*> extensions_{};
+
+        uint32_t device_index_{ UINT32_MAX };
 
         VkDevice device_{ VK_NULL_HANDLE };
         VkPhysicalDevice physical_device_{ VK_NULL_HANDLE };

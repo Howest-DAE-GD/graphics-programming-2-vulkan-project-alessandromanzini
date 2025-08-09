@@ -37,6 +37,7 @@ add_library(${PROJECT_NAME}
 		"src/__image/ImageView.cpp"
 		"src/__image/ImageLayoutTransition.cpp"
 		"src/__image/TextureImage.cpp"
+		"src/__image/StbImageLoader.cpp"
 
 		"include/public/__init/InitWizard.h"
 
@@ -46,15 +47,6 @@ add_library(${PROJECT_NAME}
 		"include/public/__memory/Resource.h"
 		"src/__memory/handle/HandleTable.cpp"
 
-		"src/__model/Model.cpp"
-		"src/__model/AssimpModelLoader.cpp"
-
-		"include/public/__renderer/BindingDescription.h"
-		"src/__renderer/DescriptorSetLayout.cpp"
-		"src/__renderer/Renderer.cpp"
-
-		"src/__shader/ShaderModule.cpp"
-
 		"include/public/__meta/crtp.h"
 		"include/public/__meta/function_traits.h"
 		"include/public/__meta/vk_function_traits.h"
@@ -63,13 +55,8 @@ add_library(${PROJECT_NAME}
 		"include/public/__meta/enum_traits.h"
 		"include/public/__meta/expect_size.h"
 
-		"src/__swapchain/Swapchain.cpp"
-
-		"src/__validation/result.cpp"
-		"src/__validation/device_features.cpp"
-		"src/__validation/dispatch.cpp"
-		"src/__validation/compare.cpp"
-		"src/__validation/selector/PhysicalDeviceSelector.cpp"
+		"src/__model/Model.cpp"
+		"src/__model/AssimpModelLoader.cpp"
 
 		"src/__pipeline/GraphicsPipeline.cpp"
 		"src/__pipeline/Pipeline.cpp"
@@ -80,13 +67,30 @@ add_library(${PROJECT_NAME}
 		"src/__query/queue_family.cpp"
 		"src/__query/swapchain_support.cpp"
 
+		"include/public/__renderer/BindingDescription.h"
+		"src/__renderer/DescriptorSetLayout.cpp"
+		"src/__renderer/Renderer.cpp"
+		"src/__renderer/DescriptorAllocator.cpp"
+		"src/__renderer/WriteDescription.cpp"
+
+		"src/__shader/ShaderModule.cpp"
+
+		"src/__swapchain/Swapchain.cpp"
+
+		"src/__synchronization/Semaphore.cpp"
+		"src/__synchronization/SubmitInfo.cpp"
+
+		"src/__validation/selector/PhysicalDeviceSelector.cpp"
+		"src/__validation/result.cpp"
+		"src/__validation/device_features.cpp"
+		"src/__validation/dispatch.cpp"
+		"src/__validation/compare.cpp"
+
 		"src/log.cpp"
-		src/__image/StbImageLoader.cpp
-		include/private/__image/StbImageLoader.h
-		src/__renderer/DescriptorAllocator.cpp
-		include/public/__renderer/DescriptorAllocator.h
-		src/__renderer/WriteDescription.cpp
-		include/public/__renderer/WriteDescription.h
+		src/__synchronization/PresentInfo.cpp
+		include/public/__synchronization/PresentInfo.h
+		src/__synchronization/Fence.cpp
+		include/public/__synchronization/Fence.h
 )
 
 # set warning level to W4 and warnings as errors

@@ -30,10 +30,10 @@ namespace cobalt
         CommandBuffer& operator=( CommandBuffer&& ) noexcept = delete;
 
         void unlock( ) const noexcept;
-        void reset( VkCommandBufferResetFlags = 0 ) const;
+        void reset( VkCommandBufferResetFlags reset_flags = 0 ) const;
 
-        [[nodiscard]] CommandOperator command_operator( VkCommandBufferUsageFlags = 0 ) const;
-        [[nodiscard]] VkCommandBufferSubmitInfo make_submit_info( uint32_t device_mask = 0 ) const;
+        [[nodiscard]] CommandOperator command_operator( VkCommandBufferUsageFlags usage_flags = 0 ) const;
+        [[nodiscard]] VkCommandBufferSubmitInfo make_submit_info( uint32_t device_idx = 0 ) const;
 
     private:
         CommandPool& pool_ref_;

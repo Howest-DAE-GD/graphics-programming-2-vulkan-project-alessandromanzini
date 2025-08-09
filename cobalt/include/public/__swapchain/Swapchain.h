@@ -14,6 +14,10 @@
 
 namespace cobalt
 {
+    namespace sync
+    {
+        class Semaphore;
+    }
     class VkContext;
     class FrameBuffer;
     using SwapchainWizard = InitWizard<VkContext const&, Window&, struct SwapchainCreateInfo const&>::WithFeatures<>;
@@ -51,7 +55,7 @@ namespace cobalt
         [[nodiscard]] Image const& image_at( size_t index ) const;
         [[nodiscard]] Image const& depth_image( ) const;
 
-        [[nodiscard]] uint32_t acquire_next_image( VkSemaphore semaphore, uint64_t timeout = UINT64_MAX );
+        [[nodiscard]] uint32_t acquire_next_image( sync::Semaphore const& semaphore, uint64_t timeout = UINT64_MAX );
 
     private:
         VkContext const& context_ref_;

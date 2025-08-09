@@ -13,6 +13,8 @@
 #include <__model/Model.h>
 #include <__pipeline/GraphicsPipeline.h>
 #include <__renderer/DescriptorAllocator.h>
+#include <__synchronization/Fence.h>
+#include <__synchronization/Semaphore.h>
 
 
 namespace cobalt
@@ -39,6 +41,8 @@ namespace cobalt
 
         static constexpr std::string_view TEXTURE_PATH_{ "resources/viking_room.png" };
         static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
+
+        bool running_{ false };
 
         // 1.
         WindowHandle window_{};
@@ -71,26 +75,19 @@ namespace cobalt
         // ............
         mutable uint64_t current_frame_{ 0 };
 
-        std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT_> image_available_semaphores_{ VK_NULL_HANDLE };
-        std::array<VkSemaphore, 3> render_finished_semaphores_{ VK_NULL_HANDLE };
-        std::array<VkFence, MAX_FRAMES_IN_FLIGHT_> in_flight_fences_{ VK_NULL_HANDLE };
+        std::array<std::unique_ptr<sync::Semaphore>, MAX_FRAMES_IN_FLIGHT_> image_available_semaphores_{};
+        std::array<std::unique_ptr<sync::Semaphore>, 3> render_finished_semaphores_{};
+        std::array<std::unique_ptr<sync::Fence>, MAX_FRAMES_IN_FLIGHT_> in_flight_fences_{};
 
         void create_graphics_pipeline( );
 
 
         // ............
-        void vk_create_sync_objects( );
-        // ............
-
-
-        // ............
-        void record_command_buffer( CommandBuffer& buffer, uint32_t image_index ) const;
+        void record_command_buffer( CommandBuffer const& buffer, uint32_t image_index ) const;
         void update_uniform_buffer( uint32_t current_image ) const;
         void draw_frame( );
         // ............
 
-
-        void init_vk( );
         void cleanup( );
 
         static void configure_relative_path( );
