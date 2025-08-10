@@ -3,18 +3,19 @@
 
 #include <__memory/Resource.h>
 
-#include <__renderer/DescriptorSetLayout.h>
-#include <__renderer/WriteDescription.h>
+#include <__render/DescriptorSetLayout.h>
+#include <__render/WriteDescription.h>
 
 #include <span>
 
 
 namespace cobalt
 {
-    class DescriptorAllocator final : memory::Resource
+    class DescriptorAllocator final : public memory::Resource
     {
     public:
-        explicit DescriptorAllocator( DeviceSet const&, std::span<DescriptorSetLayout::layout_binding_pair_t const> bindings );
+        explicit DescriptorAllocator( DeviceSet const&, uint32_t max_frame_in_flight,
+                                      std::span<DescriptorSetLayout::layout_binding_pair_t const> bindings );
         ~DescriptorAllocator( ) noexcept override;
 
         DescriptorAllocator( const DescriptorAllocator& )                = delete;
@@ -25,15 +26,16 @@ namespace cobalt
         [[nodiscard]] DescriptorSetLayout const& layout( ) const noexcept;
         [[nodiscard]] VkDescriptorSet set_at( uint32_t frame ) const noexcept;
 
-        void allocate_pool_and_sets( uint32_t max_frame_in_flight, std::span<VkDescriptorType const> desc_types );
-        void update_sets( uint32_t max_frame_in_flight, std::span<WriteDescription> descriptions ) const;
+        void update_sets( std::span<WriteDescription> descriptions ) const;
 
     private:
         DeviceSet const& device_ref_;
-        DescriptorSetLayout const descriptor_set_layout_;
+        DescriptorSetLayout const layout_;
 
-        VkDescriptorPool descriptor_pool_{ VK_NULL_HANDLE };
-        std::vector<VkDescriptorSet> descriptor_sets_{};
+        uint32_t const max_frame_in_flight_;
+
+        VkDescriptorPool pool_{ VK_NULL_HANDLE };
+        std::vector<VkDescriptorSet> sets_{};
 
         void create_descriptor_pool( std::span<VkDescriptorType const> desc_types, uint32_t max_frame_in_flight );
         void allocate_descriptor_sets( uint32_t max_frame_in_flight );

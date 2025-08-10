@@ -1,47 +1,43 @@
 #include <assert.h>
-#include <__renderer/DescriptorAllocator.h>
-#include <__renderer/WriteDescription.h>
+#include <__render/DescriptorAllocator.h>
+#include <__render/WriteDescription.h>
 #include <__validation/result.h>
 
 
 namespace cobalt
 {
-    DescriptorAllocator::DescriptorAllocator( DeviceSet const& device,
-                                              std::span<DescriptorSetLayout::layout_binding_pair_t const> const bindings )
+    DescriptorAllocator::DescriptorAllocator( DeviceSet const& device, uint32_t const max_frame_in_flight,
+                           std::span<DescriptorSetLayout::layout_binding_pair_t const> const bindings )
         : device_ref_{ device }
-        , descriptor_set_layout_{ device, bindings } { }
+        , layout_{ device, bindings }
+        , max_frame_in_flight_{ max_frame_in_flight }
+    {
+        create_descriptor_pool( layout_.descriptor_types( ), max_frame_in_flight );
+        allocate_descriptor_sets( max_frame_in_flight );
+    }
 
 
     DescriptorAllocator::~DescriptorAllocator( ) noexcept
     {
-        vkDestroyDescriptorPool( device_ref_.logical( ), descriptor_pool_, nullptr );
+        vkDestroyDescriptorPool( device_ref_.logical( ), pool_, nullptr );
     }
 
 
     DescriptorSetLayout const& DescriptorAllocator::layout( ) const noexcept
     {
-        return descriptor_set_layout_;
+        return layout_;
     }
 
 
     VkDescriptorSet DescriptorAllocator::set_at( uint32_t const frame ) const noexcept
     {
-        return descriptor_sets_.at( frame );
+        return sets_.at( frame );
     }
 
 
-    void DescriptorAllocator::allocate_pool_and_sets( uint32_t const max_frame_in_flight,
-                                                      std::span<VkDescriptorType const> const desc_types )
+    void DescriptorAllocator::update_sets( std::span<WriteDescription> const descriptions ) const
     {
-        create_descriptor_pool( desc_types, max_frame_in_flight );
-        allocate_descriptor_sets( max_frame_in_flight );
-    }
-
-
-    void DescriptorAllocator::update_sets( uint32_t const max_frame_in_flight,
-                                           std::span<WriteDescription> const descriptions ) const
-    {
-        for ( uint32_t i{}; i < max_frame_in_flight; i++ )
+        for ( uint32_t i{}; i < max_frame_in_flight_; i++ )
         {
             std::array<VkWriteDescriptorSet, 16u> descriptor_writes{};
             assert( descriptions.size( ) <= descriptor_writes.size( ) && "too many descriptor writes!" );
@@ -49,7 +45,7 @@ namespace cobalt
             std::ranges::transform( descriptions, descriptor_writes.begin( ),
                                     [this, i, write_offset = 0u]( WriteDescription& desc ) mutable -> VkWriteDescriptorSet
                                         {
-                                            return desc.create_write_descriptor( descriptor_sets_[i], i, write_offset++ );
+                                            return desc.create_write_descriptor( sets_[i], i, write_offset++ );
                                         } );
 
             vkUpdateDescriptorSets( device_ref_.logical( ), static_cast<uint32_t>( descriptions.size( ) ),
@@ -80,25 +76,25 @@ namespace cobalt
         };
 
         validation::throw_on_bad_result(
-            vkCreateDescriptorPool( device_ref_.logical( ), &pool_info, nullptr, &descriptor_pool_ ),
+            vkCreateDescriptorPool( device_ref_.logical( ), &pool_info, nullptr, &pool_ ),
             "failed to create descriptor pool!" );
     }
 
 
     void DescriptorAllocator::allocate_descriptor_sets( uint32_t const max_frame_in_flight )
     {
-        std::vector const layouts{ max_frame_in_flight, descriptor_set_layout_.handle( ) };
+        std::vector const layouts{ max_frame_in_flight, layout_.handle( ) };
         VkDescriptorSetAllocateInfo const alloc_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
 
-            .descriptorPool = descriptor_pool_,
+            .descriptorPool = pool_,
             .descriptorSetCount = max_frame_in_flight,
             .pSetLayouts = layouts.data( )
         };
 
-        descriptor_sets_.resize( max_frame_in_flight );
+        sets_.resize( max_frame_in_flight );
         validation::throw_on_bad_result(
-            vkAllocateDescriptorSets( device_ref_.logical( ), &alloc_info, descriptor_sets_.data( ) ),
+            vkAllocateDescriptorSets( device_ref_.logical( ), &alloc_info, sets_.data( ) ),
             "failed to allocate descriptor sets!" );
     }
 

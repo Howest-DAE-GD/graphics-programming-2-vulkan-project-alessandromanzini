@@ -27,10 +27,13 @@ namespace cobalt
         DescriptorSetLayout& operator=( DescriptorSetLayout&& ) noexcept = delete;
 
         [[nodiscard]] VkDescriptorSetLayout handle( ) const noexcept;
+        [[nodiscard]] std::span<VkDescriptorType const> descriptor_types( ) const noexcept;
 
     private:
         DeviceSet const& device_ref_;
-        VkDescriptorSetLayout descriptor_set_layout_{ VK_NULL_HANDLE };
+
+        std::vector<VkDescriptorType> desc_types_{};
+        VkDescriptorSetLayout desc_set_layout_{ VK_NULL_HANDLE };
 
     };
 

@@ -1,4 +1,4 @@
-#include "TriangleApplication.h"
+#include "MyApplication.h"
 
 #include <iostream>
 
@@ -7,7 +7,7 @@ int main( )
 {
     try
     {
-        cobalt::TriangleApplication app{};
+        MyApplication app{};
         app.run( );
     }
     catch ( std::exception const& e )
@@ -15,6 +15,5 @@ int main( )
         std::cerr << e.what( ) << std::endl;
         return EXIT_FAILURE;
     }
-
     return EXIT_SUCCESS;
 }

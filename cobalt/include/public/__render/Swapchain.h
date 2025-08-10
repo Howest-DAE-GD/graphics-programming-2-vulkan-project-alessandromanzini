@@ -51,7 +51,7 @@ namespace cobalt
         [[nodiscard]] VkFormat image_format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;
 
-        [[nodiscard]] std::size_t image_count( ) const;
+        [[nodiscard]] uint32_t image_count( ) const;
         [[nodiscard]] Image const& image_at( size_t index ) const;
         [[nodiscard]] Image const& depth_image( ) const;
 

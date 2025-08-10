@@ -1,4 +1,4 @@
-#include <__swapchain/Swapchain.h>
+#include <__render/Swapchain.h>
 
 #include <__builder/VkSwapchainBuilder.h>
 #include <__context/VkContext.h>
@@ -51,9 +51,9 @@ namespace cobalt
     }
 
 
-    std::size_t Swapchain::image_count( ) const
+    uint32_t Swapchain::image_count( ) const
     {
-        return images_.size( );
+        return static_cast<uint32_t>( images_.size( ) );
     }
 
 

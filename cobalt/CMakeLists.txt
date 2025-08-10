@@ -67,18 +67,19 @@ add_library(${PROJECT_NAME}
 		"src/__query/queue_family.cpp"
 		"src/__query/swapchain_support.cpp"
 
-		"include/public/__renderer/BindingDescription.h"
-		"src/__renderer/DescriptorSetLayout.cpp"
-		"src/__renderer/Renderer.cpp"
-		"src/__renderer/DescriptorAllocator.cpp"
-		"src/__renderer/WriteDescription.cpp"
+		"include/public/__render/BindingDescription.h"
+		"src/__render/DescriptorSetLayout.cpp"
+		"src/__render/Renderer.cpp"
+		"src/__render/DescriptorAllocator.cpp"
+		"src/__render/WriteDescription.cpp"
+		"src/__render/Swapchain.cpp"
 
 		"src/__shader/ShaderModule.cpp"
 
-		"src/__swapchain/Swapchain.cpp"
-
 		"src/__synchronization/Semaphore.cpp"
 		"src/__synchronization/SubmitInfo.cpp"
+		"src/__synchronization/PresentInfo.cpp"
+		"src/__synchronization/Fence.cpp"
 
 		"src/__validation/selector/PhysicalDeviceSelector.cpp"
 		"src/__validation/result.cpp"
@@ -87,10 +88,8 @@ add_library(${PROJECT_NAME}
 		"src/__validation/compare.cpp"
 
 		"src/log.cpp"
-		src/__synchronization/PresentInfo.cpp
-		include/public/__synchronization/PresentInfo.h
-		src/__synchronization/Fence.cpp
-		include/public/__synchronization/Fence.h
+		src/__synchronization/RenderSync.cpp
+		include/public/__synchronization/RenderSync.h
 )
 
 # set warning level to W4 and warnings as errors

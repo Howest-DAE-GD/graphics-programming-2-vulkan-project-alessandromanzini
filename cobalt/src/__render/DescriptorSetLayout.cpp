@@ -1,4 +1,4 @@
-#include <__renderer/DescriptorSetLayout.h>
+#include <__render/DescriptorSetLayout.h>
 #include <__validation/result.h>
 
 
@@ -10,14 +10,15 @@ namespace cobalt
         // The first two fields specify the binding used in the shader and the type of descriptor, which is a uniform buffer object.
         // It is possible for the shader variable to represent an array of uniform buffer objects, and descriptorCount specifies the
         // number of values in the array.
+        desc_types_.reserve( bindings.size( ) );
         std::vector<VkDescriptorSetLayoutBinding> layout_bindings( bindings.size( ) );
         std::ranges::transform( bindings, layout_bindings.begin( ),
-                                [i = 0u]( auto const& binding_pair ) mutable -> VkDescriptorSetLayoutBinding
+                                [this, i = 0u]( auto const& binding_pair ) mutable -> VkDescriptorSetLayoutBinding
                                     {
                                         return {
                                             .binding = i++,
                                             .descriptorCount = 1,
-                                            .descriptorType = binding_pair.first,
+                                            .descriptorType = desc_types_.emplace_back( binding_pair.first ),
                                             .stageFlags = binding_pair.second
                                         };
                                     } );
@@ -31,20 +32,26 @@ namespace cobalt
         };
 
         validation::throw_on_bad_result(
-            vkCreateDescriptorSetLayout( device_ref_.logical( ), &layout_info, nullptr, &descriptor_set_layout_ ),
+            vkCreateDescriptorSetLayout( device_ref_.logical( ), &layout_info, nullptr, &desc_set_layout_ ),
             "Failed to create descriptor set layout!" );
     }
 
 
     DescriptorSetLayout::~DescriptorSetLayout( ) noexcept
     {
-        vkDestroyDescriptorSetLayout( device_ref_.logical( ), descriptor_set_layout_, nullptr );
+        vkDestroyDescriptorSetLayout( device_ref_.logical( ), desc_set_layout_, nullptr );
     }
 
 
     VkDescriptorSetLayout DescriptorSetLayout::handle( ) const noexcept
     {
-        return descriptor_set_layout_;
+        return desc_set_layout_;
+    }
+
+
+    std::span<VkDescriptorType const> DescriptorSetLayout::descriptor_types( ) const noexcept
+    {
+        return desc_types_;
     }
 
 }
