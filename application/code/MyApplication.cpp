@@ -111,8 +111,8 @@ MyApplication::MyApplication( )
         ImageSamplerCreateInfo{
             .filter = VK_FILTER_LINEAR,
             .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-            .border_color = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
             .mipmap_mode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .border_color = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
             .unnormalized_coordinates = false,
             .compare_enable = false,
             .compare_op = VK_COMPARE_OP_ALWAYS
@@ -313,8 +313,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
                 .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
                 .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -334,8 +334,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                 .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
                 .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
@@ -355,8 +355,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                 .srcAccessMask = VK_ACCESS_2_NONE,
+                .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                 .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -376,8 +376,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
                 .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
                 .dstAccessMask = VK_ACCESS_2_NONE,
                 .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
@@ -409,13 +409,19 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .clearValue.depthStencil.depth = 1.0f
+            .clearValue = {
+                .depthStencil = {
+                    .depth = 1.0f
+                }
+            }
         };
 
         VkRenderingInfo const depth_prepass_render_info{
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-            .renderArea.extent = image.extent( ),
-            .renderArea.offset = { 0, 0 },
+            .renderArea = {
+                .offset = { 0, 0 },
+                .extent = image.extent(),
+            },
             .layerCount = 1,
             .colorAttachmentCount = 0,
             .pColorAttachments = nullptr,
@@ -456,7 +462,9 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .clearValue.color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } }
+            .clearValue = {
+                .color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 1.0f}}
+            }
         };
 
         VkRenderingAttachmentInfo const depth_attachment_info{
@@ -465,13 +473,19 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
             .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .clearValue.depthStencil.depth = 1.0f // not used since loadOp=LOAD
+            .clearValue = {
+                .depthStencil = {
+                    .depth = 1.0f
+                }
+            }
         };
 
         VkRenderingInfo const render_info{
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-            .renderArea.extent = image.extent( ),
-            .renderArea.offset = { 0, 0 },
+            .renderArea = {
+                .offset = { 0, 0 },
+                .extent = image.extent(),
+            },
             .layerCount = 1,
             .colorAttachmentCount = 1,
             .pColorAttachments = &color_attachment_info,
@@ -543,18 +557,18 @@ GraphicsPipelineCreateInfo make_graphics_pipeline_create_info( std::span<VkPipel
         .depthClampEnable = VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .lineWidth = 1.0f,
         .cullMode = VK_CULL_MODE_BACK_BIT,
         .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE
+        .depthBiasEnable = VK_FALSE,
+        .lineWidth = 1.0f,
     };
 
     // The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform
     // antialiasing.
     constexpr VkPipelineMultisampleStateCreateInfo multisampling{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
         .sampleShadingEnable = VK_FALSE,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
     };
 
     // After a fragment shader has returned a color, it needs to be combined with the color that is already in the
@@ -562,9 +576,9 @@ GraphicsPipelineCreateInfo make_graphics_pipeline_create_info( std::span<VkPipel
     // 1. Mix the old and new value to produce a final color.
     // 2. Combine the old and new value using a bitwise operation.
     constexpr VkPipelineColorBlendAttachmentState color_blend_attachment{
+        .blendEnable = VK_FALSE,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                           VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable = VK_FALSE,
     };
 
     // Depth stencil creation

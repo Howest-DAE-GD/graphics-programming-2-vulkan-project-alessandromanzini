@@ -2,6 +2,8 @@
 #include <__render/LayoutBindingDescription.h>
 #include <__validation/result.h>
 
+#include <algorithm>
+
 
 namespace cobalt
 {
@@ -18,8 +20,8 @@ namespace cobalt
                                     {
                                         return {
                                             .binding = i++,
-                                            .descriptorCount = binding.descriptor_count,
                                             .descriptorType = binding.descriptor_type,
+                                            .descriptorCount = binding.descriptor_count,
                                             .stageFlags = binding.stage_flags
                                         };
                                     } );

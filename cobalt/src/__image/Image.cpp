@@ -101,8 +101,8 @@ namespace cobalt
         VkImageMemoryBarrier2 const barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = transition_info.src_stage_mask,
-            .dstStageMask = transition_info.dst_stage_mask,
             .srcAccessMask = transition_info.src_access_mask,
+            .dstStageMask = transition_info.dst_stage_mask,
             .dstAccessMask = transition_info.dst_access_mask,
             .oldLayout = transition_info.old_layout,
             .newLayout = transition_info.new_layout,

@@ -74,7 +74,7 @@ namespace cobalt
     void CommandPool::release( size_t const index )
     {
         assert( index < buffer_pool_.size( ) && "index is out of range!" );
-        free_pool_.push_back( index );
+        free_pool_.push_back( static_cast<uint32_t>( index ) );
     }
 
 }

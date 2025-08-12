@@ -20,24 +20,26 @@ namespace cobalt
             .magFilter = create_info.filter,
             .minFilter = create_info.filter,
 
+            .mipmapMode = create_info.mipmap_mode,
+
             .addressModeU = create_info.address_mode,
             .addressModeV = create_info.address_mode,
             .addressModeW = create_info.address_mode,
 
+            .mipLodBias = 0.f,
+
             .anisotropyEnable = device_ref_.has_feature( DeviceFeatureFlags::ANISOTROPIC_SAMPLING ),
             .maxAnisotropy = properties.properties.limits.maxSamplerAnisotropy,
-
-            .borderColor = create_info.border_color,
-
-            .unnormalizedCoordinates = create_info.unnormalized_coordinates,
 
             .compareEnable = create_info.compare_enable,
             .compareOp = create_info.compare_op,
 
-            .mipmapMode = create_info.mipmap_mode,
-            .mipLodBias = 0.f,
             .minLod = 0.f,
-            .maxLod = 0.f
+            .maxLod = 0.f,
+            
+            .borderColor = create_info.border_color,
+
+            .unnormalizedCoordinates = create_info.unnormalized_coordinates,
         };
 
         validation::throw_on_bad_result(

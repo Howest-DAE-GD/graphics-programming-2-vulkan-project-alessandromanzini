@@ -29,7 +29,7 @@ public:
     void stop( ) noexcept;
 
     [[nodiscard]] uint32_t fps( ) const noexcept;
-    [[nodiscard]] float dfps( ) const noexcept;
+    [[nodiscard]] double dfps( ) const noexcept;
 
     [[nodiscard]] float total( ) const noexcept;
     [[nodiscard]] float elapsed( ) const noexcept;

@@ -12,8 +12,8 @@ namespace cobalt
             .dstSet = set,
             .dstBinding = dst_binding,
             .dstArrayElement = 0,
+            .descriptorCount = 1,
             .descriptorType = desc_type_,
-            .descriptorCount = 1
         };
 
         info_ = generator_( frame );

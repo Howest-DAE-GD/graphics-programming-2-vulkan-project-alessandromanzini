@@ -70,7 +70,7 @@ namespace cobalt
 
     void CommandOperator::set_viewport( std::span<VkViewport> const viewports ) const
     {
-        vkCmdSetViewport( command_buffer_, 0, viewports.size( ), &viewports[0] );
+        vkCmdSetViewport( command_buffer_, 0, static_cast<uint32_t>( viewports.size( ) ), &viewports[0] );
     }
 
 
@@ -82,7 +82,7 @@ namespace cobalt
 
     void CommandOperator::set_scissor( std::span<VkRect2D> const scissors ) const
     {
-        vkCmdSetScissor( command_buffer_, 0, scissors.size( ), &scissors[0] );
+        vkCmdSetScissor( command_buffer_, 0, static_cast<uint32_t>( scissors.size( ) ), &scissors[0] );
     }
 
 

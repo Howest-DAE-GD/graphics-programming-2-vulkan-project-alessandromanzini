@@ -6,6 +6,7 @@
 #include <numeric>
 
 #include <fstream>
+#include <algorithm>
 
 
 Timer::Timer( float const elapsed_upper_bound ) noexcept
@@ -76,7 +77,7 @@ void Timer::update( )
 
         if ( benchmark_active_ )
         {
-            benchmarks_[benchmark_current_frame_++] = dfps_;
+            benchmarks_[benchmark_current_frame_++] = static_cast<float>( dfps_ );
 
             if ( benchmark_current_frame_ >= benchmark_frames_ )
             {
@@ -128,7 +129,7 @@ uint32_t Timer::fps( ) const noexcept
 }
 
 
-float Timer::dfps( ) const noexcept
+double Timer::dfps( ) const noexcept
 {
     return dfps_;
 }

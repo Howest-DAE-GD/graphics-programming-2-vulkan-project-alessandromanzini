@@ -50,7 +50,7 @@ namespace cobalt
     void StbImageLoader::load_image( std::filesystem::path const& path, uint32_t const desired_channels )
     {
         int found_channels;
-        pixels_ptr_ = stbi_load( path.c_str( ),
+        pixels_ptr_ = stbi_load( reinterpret_cast<char const*>( path.c_str( ) ),
                                  reinterpret_cast<int*>( &img_width_ ), reinterpret_cast<int*>( &img_height_ ),
                                  &found_channels,desired_channels );
         img_channels_ = desired_channels != 0 ? desired_channels : found_channels;

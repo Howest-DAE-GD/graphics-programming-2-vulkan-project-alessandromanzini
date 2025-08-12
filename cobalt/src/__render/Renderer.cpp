@@ -33,7 +33,7 @@ namespace cobalt
     VkResult Renderer::render( ) const
     {
         auto const& [cmd_buffer, in_flight_fence, acquire_semaphore] =
-                render_sync_.frame_sync( current_frame_ );
+                render_sync_.frame_sync( static_cast<uint32_t>( current_frame_ ) );
 
         // 1. Wait for the previous frame to finish. We wait for the fence.
         in_flight_fence.wait( );
@@ -55,11 +55,11 @@ namespace cobalt
         if ( record_command_buffer_fn_ )
         {
             record_command_buffer_fn_( cmd_buffer, swapchain_ref_.image_at( image_index ),
-                                       desc_allocator_ref_.set_at( current_frame_ ) );
+                                       desc_allocator_ref_.set_at( static_cast<uint32_t>( current_frame_ ) ) );
         }
         if ( update_uniform_buffer_fn_ )
         {
-            update_uniform_buffer_fn_( current_frame_ );
+            update_uniform_buffer_fn_( static_cast<uint32_t>( current_frame_ ) );
         }
 
         // 4. We need to submit the recorded command buffer to the graphics queue before submitting the image to the swapchain.

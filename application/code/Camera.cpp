@@ -4,6 +4,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
+
 
 Camera::Camera( GLFWwindow& window, VkExtent2D viewport, float fov, float near_plane, float far_plane,
                 glm::vec3 const& origin )
@@ -58,9 +60,9 @@ void Camera::set_viewport( VkExtent2D const extent ) noexcept
 void Camera::apply_rotations( )
 {
     forward_ = normalize( glm::vec3{
-        sinf( yaw_ ) * cosf( glm::radians( pitch_ ) ),
-        sinf( pitch_ ),
-        cosf( yaw_ ) * cosf( glm::radians( pitch_ ) )
+        sin( yaw_ ) * cos( glm::radians( pitch_ ) ),
+        sin( pitch_ ),
+        cos( yaw_ ) * cos( glm::radians( pitch_ ) )
     } );
     right_ = normalize( cross( forward_, WORLD_UP_ ) );
     up_    = normalize( cross( right_, forward_ ) );
@@ -103,7 +105,9 @@ void Camera::process_mouse_input( double const yaw, double const pitch, float co
     float const speed{ dt * CAMERA_ROTATION_SPEED_ * INVERT_CAMERA_AXIS_ };
 
     yaw_ += yaw * speed;
-    pitch_ = glm::clamp( pitch_ + pitch * speed, -M_PI_2, M_PI_2 );
+
+    auto const vertical_thresh = static_cast<double>(glm::radians( 90.f ) );
+    pitch_ = std::clamp( pitch_ + pitch * speed, -vertical_thresh, vertical_thresh );
 
     apply_rotations( );
 }

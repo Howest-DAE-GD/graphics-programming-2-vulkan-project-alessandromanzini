@@ -27,7 +27,7 @@ namespace cobalt::buffer
         switch ( content_type )
         {
             case BufferContentType::INDEX_UINT8:
-                return VK_INDEX_TYPE_UINT8;
+                return static_cast<VkIndexType>( 0 );
             case BufferContentType::INDEX_UINT16:
                 return VK_INDEX_TYPE_UINT16;
             case BufferContentType::INDEX_UINT32:

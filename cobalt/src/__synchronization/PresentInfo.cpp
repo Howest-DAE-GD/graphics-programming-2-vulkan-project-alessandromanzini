@@ -11,7 +11,6 @@ namespace cobalt::sync
         present_info_ = VkPresentInfoKHR{
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .pNext = nullptr,
-            .pResults = nullptr,
 
             .waitSemaphoreCount = 0,
             .pWaitSemaphores = wait_semaphores_.data(),

@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <tuple>
+#include <optional>
 
 
 namespace cobalt

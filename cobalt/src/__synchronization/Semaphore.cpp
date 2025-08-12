@@ -49,9 +49,9 @@ namespace cobalt::sync
         return {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .semaphore = semaphore_,
+            .value = 0, // 0 for binary semaphore, non-zero for timeline
             .stageMask = mask,
             .deviceIndex = device_idx,
-            .value = 0 // 0 for binary semaphore, non-zero for timeline
         };
     }
 

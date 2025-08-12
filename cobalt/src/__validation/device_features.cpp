@@ -39,7 +39,7 @@ namespace cobalt::validation
 
     bool is_swapchain_maintenance_1_supported( ValidationCallbackData& data )
     {
-        return has_extension( data, VK_KHR_SWAPCHAIN_MAINTENANCE_1_EXTENSION_NAME );
+        return has_extension( data, "maint1");
     }
 
 

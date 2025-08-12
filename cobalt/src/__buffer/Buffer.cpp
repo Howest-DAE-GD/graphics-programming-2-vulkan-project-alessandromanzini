@@ -172,10 +172,12 @@ namespace cobalt
                 .bufferRowLength = 0,
                 .bufferImageHeight = 0,
 
-                .imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .imageSubresource.mipLevel = 0,
-                .imageSubresource.baseArrayLayer = 0,
-                .imageSubresource.layerCount = 1,
+                .imageSubresource = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = 0,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
 
                 .imageOffset = { 0, 0, 0 },
                 .imageExtent = { dst.extent( ).width, dst.extent( ).height, 1 }

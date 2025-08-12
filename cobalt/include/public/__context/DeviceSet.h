@@ -9,6 +9,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include <vector>
+#include <memory>
 
 
 namespace cobalt

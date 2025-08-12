@@ -3,6 +3,8 @@
 #include <__render/WriteDescription.h>
 #include <__validation/result.h>
 
+#include <algorithm>
+
 
 namespace cobalt
 {
@@ -69,10 +71,10 @@ namespace cobalt
         VkDescriptorPoolCreateInfo const pool_info{
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 
+            .maxSets = max_frame_in_flight,
+
             .poolSizeCount = static_cast<uint32_t>( pool_sizes.size( ) ),
             .pPoolSizes = pool_sizes.data( ),
-
-            .maxSets = max_frame_in_flight
         };
 
         validation::throw_on_bad_result(
