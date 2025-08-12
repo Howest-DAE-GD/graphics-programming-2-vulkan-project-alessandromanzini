@@ -76,7 +76,7 @@ MyApplication::MyApplication( )
         } );
     command_pool_ = CVK.create_resource<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
     swapchain_->depth_image(  ).transition_layout( { VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
-        *command_pool_, VK_IMAGE_ASPECT_DEPTH_BIT );
+        *command_pool_ );
 
     // 5. Render pipeline
     descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(

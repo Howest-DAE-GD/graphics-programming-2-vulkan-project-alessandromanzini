@@ -34,8 +34,13 @@ namespace cobalt
 
         [[nodiscard]] VkImageView& handle( );
 
+        [[nodiscard]] VkImageAspectFlags aspect_flags( ) const;
+
     private:
         DeviceSet const& device_ref_;
+
+        VkImageAspectFlags aspect_flags_{ VK_IMAGE_ASPECT_NONE };
+
         VkImageView image_view_{ VK_NULL_HANDLE };
 
     };

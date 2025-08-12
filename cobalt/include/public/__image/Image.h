@@ -33,8 +33,8 @@ namespace cobalt
     class Image final : public memory::Resource
     {
     public:
-        explicit Image( DeviceSet const& device, ImageCreateInfo const& create_info );
-        explicit Image( DeviceSet const& device, VkExtent2D extent, ImageViewCreateInfo const& create_info );
+        explicit Image( DeviceSet const& device, ImageCreateInfo const& );
+        explicit Image( DeviceSet const& device, VkExtent2D, ImageViewCreateInfo const& );
         ~Image( ) override;
 
         Image( Image&& ) noexcept;
@@ -48,14 +48,15 @@ namespace cobalt
         [[nodiscard]] VkFormat format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;
 
-        void transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool,
-                                VkImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT ) const;
+        void transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool ) const;
 
     private:
         DeviceSet const& device_ref_;
 
         VkFormat const format_{ VK_FORMAT_UNDEFINED };
         VkExtent2D const extent_{ 0, 0 };
+
+        //VkImageLayout layout_{ VK_IMAGE_LAYOUT_UNDEFINED };
 
         VkImage image_{ VK_NULL_HANDLE };
         VkDeviceMemory image_memory_{ VK_NULL_HANDLE };

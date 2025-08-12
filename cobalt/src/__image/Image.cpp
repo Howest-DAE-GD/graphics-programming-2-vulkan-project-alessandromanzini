@@ -91,7 +91,7 @@ namespace cobalt
     }
 
 
-    void Image::transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool, VkImageAspectFlags const flags ) const
+    void Image::transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool ) const
     {
         auto const& cmd_buffer = cmd_pool.acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
 
@@ -110,7 +110,7 @@ namespace cobalt
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = image_,
             .subresourceRange = {
-                .aspectMask = flags,
+                .aspectMask = view( ).aspect_flags( ),
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,

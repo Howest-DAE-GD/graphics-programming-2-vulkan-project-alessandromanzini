@@ -9,6 +9,7 @@ namespace cobalt
 {
     ImageView::ImageView( DeviceSet const& device, ImageViewCreateInfo const& create_info )
         : device_ref_{ device }
+        , aspect_flags_{ create_info.aspect_flags }
     {
         VkImageViewCreateInfo image_view_info{};
 
@@ -46,6 +47,12 @@ namespace cobalt
     VkImageView& ImageView::handle( )
     {
         return image_view_;
+    }
+
+
+    VkImageAspectFlags ImageView::aspect_flags( ) const
+    {
+        return aspect_flags_;
     }
 
 }
