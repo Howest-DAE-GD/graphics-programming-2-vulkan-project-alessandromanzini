@@ -35,7 +35,7 @@ namespace cobalt
     class Renderer final : public memory::Resource
     {
     public:
-        using record_command_buffer_sig_t = void( CommandBuffer const&, Image const&, VkDescriptorSet desc_set );
+        using record_command_buffer_sig_t = void( CommandBuffer const&, Image&, VkDescriptorSet desc_set );
         using update_uniform_buffer_sig_t = void( uint32_t );
 
         explicit Renderer( RendererCreateInfo const& );

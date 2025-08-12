@@ -67,7 +67,7 @@ private:
     void create_main_render_pipeline( );
 
     // .RENDERING
-    void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Image const&, VkDescriptorSet desc_set ) const;
+    void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Image&, VkDescriptorSet desc_set ) const;
     void update_uniform_buffer( uint32_t current_image ) const;
 
     static void configure_relative_path( );

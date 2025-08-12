@@ -68,10 +68,9 @@ namespace cobalt
                 .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
             } );
-        texture_image_ptr_->transition_layout( { VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL }, cmd_pool );
+        texture_image_ptr_->transition_layout( { VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL }, cmd_pool );
         staging_buffer.copy_to( *texture_image_ptr_, cmd_pool );
-        texture_image_ptr_->transition_layout(
-            { VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, cmd_pool );
+        texture_image_ptr_->transition_layout( { VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, cmd_pool );
     }
 
 

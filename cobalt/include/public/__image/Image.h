@@ -15,6 +15,7 @@ namespace cobalt
 {
     class DeviceSet;
     class CommandPool;
+    class CommandOperator;
 }
 
 namespace cobalt
@@ -48,7 +49,8 @@ namespace cobalt
         [[nodiscard]] VkFormat format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;
 
-        void transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool ) const;
+        void transition_layout( ImageLayoutTransition const&, CommandPool& cmd_pool );
+        void transition_layout( ImageLayoutTransition, CommandOperator const& cmd_operator );
 
     private:
         DeviceSet const& device_ref_;
@@ -56,7 +58,7 @@ namespace cobalt
         VkFormat const format_{ VK_FORMAT_UNDEFINED };
         VkExtent2D const extent_{ 0, 0 };
 
-        //VkImageLayout layout_{ VK_IMAGE_LAYOUT_UNDEFINED };
+        VkImageLayout layout_{ VK_IMAGE_LAYOUT_UNDEFINED };
 
         VkImage image_{ VK_NULL_HANDLE };
         VkDeviceMemory image_memory_{ VK_NULL_HANDLE };

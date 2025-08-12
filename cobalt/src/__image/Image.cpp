@@ -91,21 +91,34 @@ namespace cobalt
     }
 
 
-    void Image::transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool ) const
+    void Image::transition_layout( ImageLayoutTransition const& transition, CommandPool& cmd_pool )
     {
         auto const& cmd_buffer = cmd_pool.acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
 
         cmd_buffer.reset( 0 );
-        auto buffer_op = cmd_buffer.command_operator( 0 );
+        auto cmd_operator = cmd_buffer.command_operator( 0 );
+
+        transition_layout( transition, cmd_operator );
+
+        cmd_operator.end_recording( );
+
+        device_ref_.graphics_queue( ).submit_and_wait( sync::SubmitInfo{ device_ref_.device_index( ) }.execute( cmd_buffer ) );
+        cmd_buffer.unlock( );
+    }
+
+
+    void Image::transition_layout( ImageLayoutTransition transition, CommandOperator const& cmd_operator )
+    {
+        transition.transition_from( layout_ );
 
         VkImageMemoryBarrier2 const barrier{
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-            .srcStageMask = transition_info.src_stage_mask,
-            .srcAccessMask = transition_info.src_access_mask,
-            .dstStageMask = transition_info.dst_stage_mask,
-            .dstAccessMask = transition_info.dst_access_mask,
-            .oldLayout = transition_info.old_layout,
-            .newLayout = transition_info.new_layout,
+            .srcStageMask = transition.src_stage_mask,
+            .srcAccessMask = transition.src_access_mask,
+            .dstStageMask = transition.dst_stage_mask,
+            .dstAccessMask = transition.dst_access_mask,
+            .oldLayout = layout_,
+            .newLayout = transition.to_layout,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .image = image_,
@@ -117,16 +130,13 @@ namespace cobalt
                 .layerCount = 1,
             },
         };
+        layout_ = transition.to_layout;
 
-        buffer_op.insert_barrier( VkDependencyInfo{
+        cmd_operator.insert_barrier( VkDependencyInfo{
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .imageMemoryBarrierCount = 1,
             .pImageMemoryBarriers = &barrier
         } );
-        buffer_op.end_recording( );
-
-        device_ref_.graphics_queue( ).submit_and_wait( sync::SubmitInfo{ device_ref_.device_index( ) }.execute( cmd_buffer ) );
-        cmd_buffer.unlock( );
     }
 
 

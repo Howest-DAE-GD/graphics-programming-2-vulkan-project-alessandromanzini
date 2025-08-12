@@ -52,8 +52,8 @@ namespace cobalt
         [[nodiscard]] VkExtent2D extent( ) const;
 
         [[nodiscard]] uint32_t image_count( ) const;
-        [[nodiscard]] Image const& image_at( size_t index ) const;
-        [[nodiscard]] Image const& depth_image( ) const;
+        [[nodiscard]] Image& image_at( size_t index );
+        [[nodiscard]] Image& depth_image( ) const;
 
         [[nodiscard]] uint32_t acquire_next_image( sync::Semaphore const& semaphore, uint64_t timeout = UINT64_MAX );
 

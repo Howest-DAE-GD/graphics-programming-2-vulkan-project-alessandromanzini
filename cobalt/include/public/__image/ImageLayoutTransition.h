@@ -13,16 +13,22 @@ namespace cobalt
         using layout_pair_t = std::pair<VkImageLayout, VkImageLayout>;
         using masks_tuple_t = std::tuple<VkPipelineStageFlags2, VkPipelineStageFlags2, VkAccessFlags2, VkAccessFlags2>;
 
-        ImageLayoutTransition( VkImageLayout from, VkImageLayout to ) noexcept;
-        constexpr ImageLayoutTransition( VkImageLayout from, VkImageLayout to, masks_tuple_t const& ) noexcept;
+        ImageLayoutTransition( VkImageLayout to ) noexcept;
 
-        VkImageLayout const old_layout;
-        VkImageLayout const new_layout;
+        ImageLayoutTransition& from_access( VkAccessFlags ) noexcept;
+        ImageLayoutTransition& to_access( VkAccessFlags ) noexcept;
 
-        VkAccessFlags2 const src_access_mask;
-        VkAccessFlags2 const dst_access_mask;
-        VkPipelineStageFlags2 const src_stage_mask;
-        VkPipelineStageFlags2 const dst_stage_mask;
+        ImageLayoutTransition& from_stage( VkAccessFlags ) noexcept;
+        ImageLayoutTransition& to_stage( VkAccessFlags ) noexcept;
+
+        void transition_from( VkImageLayout const from ) noexcept;
+
+        VkImageLayout const to_layout;
+
+        VkAccessFlags2 src_access_mask{ UINT64_MAX };
+        VkAccessFlags2 dst_access_mask{ UINT64_MAX };
+        VkPipelineStageFlags2 src_stage_mask{ UINT64_MAX };
+        VkPipelineStageFlags2 dst_stage_mask{ UINT64_MAX };
 
     };
 

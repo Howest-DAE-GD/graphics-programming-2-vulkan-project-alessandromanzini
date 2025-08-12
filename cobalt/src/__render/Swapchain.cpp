@@ -57,14 +57,14 @@ namespace cobalt
     }
 
 
-    Image const& Swapchain::image_at( size_t const index ) const
+    Image& Swapchain::image_at( size_t const index )
     {
         assert( index < images_.size( ) && "index out of bounds!" );
         return images_[index];
     }
 
 
-    Image const& Swapchain::depth_image( ) const
+    Image& Swapchain::depth_image( ) const
     {
         return *depth_image_ptr_;
     }

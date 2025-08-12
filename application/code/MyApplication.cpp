@@ -75,8 +75,7 @@ MyApplication::MyApplication( )
             }
         } );
     command_pool_ = CVK.create_resource<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
-    swapchain_->depth_image(  ).transition_layout( { VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
-        *command_pool_ );
+    swapchain_->depth_image(  ).transition_layout( { VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }, *command_pool_ );
 
     // 5. Render pipeline
     descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
@@ -253,6 +252,7 @@ void MyApplication::create_depth_prepass_pipeline( )
     // Set depth test and write enable
     info.depth_stencil.depthTestEnable  = VK_TRUE;
     info.depth_stencil.depthWriteEnable = VK_TRUE;
+    info.depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS,
 
     // No color attachment in depth prepass
     info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
@@ -292,6 +292,7 @@ void MyApplication::create_main_render_pipeline( )
     // Set only depth test enable
     info.depth_stencil.depthTestEnable  = VK_TRUE;
     info.depth_stencil.depthWriteEnable = VK_FALSE;
+    info.depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS,
 
     info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
     info.swapchain_image_format = swapchain_->image_format( );
@@ -301,104 +302,44 @@ void MyApplication::create_main_render_pipeline( )
 }
 
 
-void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image const& image, VkDescriptorSet const desc_set ) const
+void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& image, VkDescriptorSet const desc_set ) const
 {
     buffer.reset( );
     auto const command_op = buffer.command_operator( 0 );
 
     // 1. We set the memory barriers for the swapchain image.
     {
-        std::array const barriers{
-            // Pre-rendering depth barrier
-            VkImageMemoryBarrier2{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
-                .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
-                .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = swapchain_->depth_image( ).handle( ),
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                }
-            },
+        // Pre depth pass barrier
+        swapchain_->depth_image( ).transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT )
+            .from_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT )
+            .to_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT ), command_op );
 
-            // depth after pre-pass barrier
-            VkImageMemoryBarrier2{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-                .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = swapchain_->depth_image( ).handle( ),
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                }
-            },
+        // Post depth pass barrier
+        swapchain_->depth_image( ).transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT )
+            .from_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT )
+            .to_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT ), command_op );
 
-            // Pre-rendering barrier
-            VkImageMemoryBarrier2{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-                .srcAccessMask = VK_ACCESS_2_NONE,
-                .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = image.handle( ),
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                }
-            },
+        // Pre color pass barrier
+        image.transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_TRANSFER_BIT )
+            .from_access( VK_ACCESS_2_NONE )
+            .to_access( VK_ACCESS_2_TRANSFER_WRITE_BIT ), command_op );
 
-            // Post-rendering barrier
-            VkImageMemoryBarrier2{
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-                .dstAccessMask = VK_ACCESS_2_NONE,
-                .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = image.handle( ),
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                }
-            }
-        };
-
-        command_op.insert_barrier( VkDependencyInfo{
-            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-            .imageMemoryBarrierCount = static_cast<uint32_t>( barriers.size( ) ),
-            .pImageMemoryBarriers = barriers.data( )
-        } );
+        // Post color pass barrier
+        image.transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
+            .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT )
+            .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
+            .to_access( VK_ACCESS_2_NONE ), command_op );
     }
 
     // 2. Depth Pre-Pass: render geometry to depth only, no color attachment
@@ -584,7 +525,6 @@ GraphicsPipelineCreateInfo make_graphics_pipeline_create_info( std::span<VkPipel
     // Depth stencil creation
     constexpr VkPipelineDepthStencilStateCreateInfo depth_stencil{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
         .depthBoundsTestEnable = VK_FALSE,
         .stencilTestEnable = VK_FALSE,
     };
