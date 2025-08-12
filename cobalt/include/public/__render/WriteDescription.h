@@ -11,7 +11,8 @@ namespace cobalt
 {
     namespace internal
     {
-        using write_desc_info_variant_t = std::variant<VkDescriptorBufferInfo, VkDescriptorImageInfo>;
+        using write_desc_info_variant_t = std::variant<VkDescriptorBufferInfo, VkDescriptorImageInfo,
+            std::vector<VkDescriptorImageInfo>>;
     }
 
 
@@ -20,7 +21,6 @@ namespace cobalt
     public:
         template <typename gen_fn_t>
         WriteDescription( VkDescriptorType type, gen_fn_t&& gen );
-
         [[nodiscard]] VkWriteDescriptorSet create_write_descriptor( VkDescriptorSet set, uint32_t frame, uint32_t dst_binding );
 
     private:

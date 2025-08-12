@@ -43,8 +43,10 @@ namespace cobalt
         void bind_index_buffer( Buffer const&, VkDeviceSize offset ) const;
         void bind_descriptor_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
 
-        void draw_indexed( uint32_t index_count, uint32_t instance_count, uint32_t first_index = 0, int32_t vertex_offset = 0,
-                           uint32_t first_instance = 0 ) const;
+        void push_constants( VkPipelineLayout, VkShaderStageFlags, uint32_t offset, uint32_t size, void const* data ) const;
+
+        void draw_indexed( uint32_t index_count, uint32_t instance_count, uint32_t index_offset = 0, int32_t vertex_offset = 0,
+                           uint32_t instance_offset = 0 ) const;
 
         void copy_buffer_to_image( Buffer const& src, Image const& dst, VkBufferImageCopy const& ) const;
         void copy_buffer( Buffer const& src, Buffer const& dst ) const;

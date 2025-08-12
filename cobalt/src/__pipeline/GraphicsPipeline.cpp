@@ -51,8 +51,11 @@ namespace cobalt
         // pass the transformation matrix to the vertex shader, or to create texture samplers in the fragment shader.
         VkPipelineLayoutCreateInfo pipeline_layout_info{};
         pipeline_layout_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipeline_layout_info.setLayoutCount = 1;
+        pipeline_layout_info.setLayoutCount = static_cast<uint32_t>( create_info.descriptor_set_layouts.size( ) );
         pipeline_layout_info.pSetLayouts    = create_info.descriptor_set_layouts.data( );
+        pipeline_layout_info.pushConstantRangeCount =
+                static_cast<uint32_t>( create_info.push_constant_ranges.size( ) );
+        pipeline_layout_info.pPushConstantRanges = create_info.push_constant_ranges.data( );
         create_layout( pipeline_layout_info );
 
         // We can now combine all the structures and objects to create the graphics pipeline.
@@ -67,7 +70,7 @@ namespace cobalt
         // 1. We start by referencing the array of VkPipelineShaderStageCreateInfo structs.
         VkGraphicsPipelineCreateInfo pipeline_info{};
         pipeline_info.sType      = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipeline_info.stageCount = 2;
+        pipeline_info.stageCount = static_cast<uint32_t>( create_info.shader_stages.size( ) );
         pipeline_info.pStages    = create_info.shader_stages.data( );
 
         // 2. Then we reference all the structures describing the fixed-function stage.

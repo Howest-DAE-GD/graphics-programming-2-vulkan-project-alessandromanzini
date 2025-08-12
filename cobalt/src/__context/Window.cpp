@@ -28,10 +28,17 @@ namespace cobalt
     }
 
 
+    GLFWwindow& Window::handle( ) const
+    {
+        return *window_ptr_;
+    }
+
+
     bool Window::should_close( ) const
     {
         constexpr int GLFW_WINDOW_OPEN{ 0 };
-        return glfwWindowShouldClose( window_ptr_ ) != GLFW_WINDOW_OPEN;
+        return glfwWindowShouldClose( window_ptr_ ) != GLFW_WINDOW_OPEN ||
+               glfwGetKey( window_ptr_, GLFW_KEY_ESCAPE ) != GLFW_FALSE;
     }
 
 
@@ -44,7 +51,8 @@ namespace cobalt
 
     VkExtent2D Window::extent( ) const
     {
-        int width{}; int height{};
+        int width{};
+        int height{};
         glfwGetFramebufferSize( window_ptr_, &width, &height );
         return { static_cast<uint32_t>( width ), static_cast<uint32_t>( height ) };
     }

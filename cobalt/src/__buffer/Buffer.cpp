@@ -126,10 +126,10 @@ namespace cobalt
     }
 
 
-    void* Buffer::data( ) const
+    void Buffer::write( void const* const data, size_t const size ) const
     {
         assert( memory_map_ptr_ != nullptr && "Buffer::data: call map memory before getting data." );
-        return memory_map_ptr_;
+        memcpy( memory_map_ptr_, data, size );
     }
 
 
@@ -207,7 +207,7 @@ namespace cobalt
             Buffer staging_buffer = make_staging_buffer( device, size );
 
             staging_buffer.map_memory( );
-            memcpy( staging_buffer.data( ), data, staging_buffer.memory_size( ) );
+            staging_buffer.write( data, staging_buffer.memory_size( ) );
             staging_buffer.unmap_memory( );
 
             Buffer data_buffer{

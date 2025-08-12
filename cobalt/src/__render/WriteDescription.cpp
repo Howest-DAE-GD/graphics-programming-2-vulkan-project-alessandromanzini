@@ -29,6 +29,15 @@ namespace cobalt
                 write_descriptor.pImageInfo = &std::get<VkDescriptorImageInfo>( info_ );
                 break;
 
+            // std::vector<VkDescriptorImageInfo>
+            case 2:
+            {
+                auto const& image_info_vec       = std::get<std::vector<VkDescriptorImageInfo>>( info_ );
+                write_descriptor.pImageInfo      = image_info_vec.data( );
+                write_descriptor.descriptorCount = static_cast<uint32_t>( image_info_vec.size( ) );
+                break;
+            }
+
             // Fallback
             default:
                 log::logerr<WriteDescription>( "create_write_descriptor", "Invalid write descriptor info type!" );

@@ -34,6 +34,28 @@ namespace cobalt
     }
 
 
+    void CommandOperator::end_recording( )
+    {
+        if ( recording_ )
+        {
+            validation::throw_on_bad_result( vkEndCommandBuffer( command_buffer_ ), "Failed to end recording command buffer!" );
+            recording_ = false;
+        }
+    }
+
+
+    void CommandOperator::begin_rendering( VkRenderingInfo const& render_info ) const
+    {
+        vkCmdBeginRendering( command_buffer_, &render_info );
+    }
+
+
+    void CommandOperator::end_rendering( ) const
+    {
+        vkCmdEndRendering( command_buffer_ );
+    }
+
+
     void CommandOperator::insert_barrier( VkDependencyInfo const& dep_info ) const
     {
         vkCmdPipelineBarrier2( command_buffer_, &dep_info );
@@ -64,57 +86,6 @@ namespace cobalt
     }
 
 
-    void CommandOperator::end_recording( )
-    {
-        if ( recording_ )
-        {
-            validation::throw_on_bad_result( vkEndCommandBuffer( command_buffer_ ), "Failed to end recording command buffer!" );
-            recording_ = false;
-        }
-    }
-
-
-    void CommandOperator::begin_rendering( VkRenderingInfo const& render_info ) const
-    {
-        vkCmdBeginRendering( command_buffer_, &render_info );
-    }
-
-
-    void CommandOperator::end_rendering( ) const
-    {
-        vkCmdEndRendering( command_buffer_ );
-    }
-
-
-    void CommandOperator::draw_indexed( uint32_t const index_count, uint32_t const instance_count, uint32_t const first_index,
-                                        int32_t const vertex_offset, uint32_t const first_instance ) const
-    {
-        vkCmdDrawIndexed( command_buffer_, index_count, instance_count, first_index, vertex_offset, first_instance );
-    }
-
-
-    void CommandOperator::copy_buffer_to_image( Buffer const& src, Image const& dst, VkBufferImageCopy const& region ) const
-    {
-        vkCmdCopyBufferToImage(
-            command_buffer_,
-            src.handle( ),
-            dst.handle( ),
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1,
-            &region
-        );
-    }
-
-
-    void CommandOperator::copy_buffer( Buffer const& src, Buffer const& dst ) const
-    {
-        VkBufferCopy const copy_region{
-            .size = src.buffer_size( )
-        };
-        vkCmdCopyBuffer( command_buffer_, src.handle( ), dst.handle( ), 1, &copy_region );
-    }
-
-
     void CommandOperator::bind_pipeline( VkPipelineBindPoint const bind_point, Pipeline const& pipeline ) const
     {
         vkCmdBindPipeline( command_buffer_, bind_point, pipeline.handle( ) );
@@ -140,6 +111,42 @@ namespace cobalt
     {
         vkCmdBindDescriptorSets( command_buffer_, bind_point, pipeline.layout( ), 0, 1,
                                  &desc_set, 0, nullptr );
+    }
+
+
+    void CommandOperator::push_constants( VkPipelineLayout const layout, VkShaderStageFlags const stage_flags,
+                                          uint32_t const offset, uint32_t const size, void const* data ) const
+    {
+        vkCmdPushConstants( command_buffer_, layout, stage_flags, offset, size, data );
+    }
+
+
+    void CommandOperator::draw_indexed( uint32_t const index_count, uint32_t const instance_count, uint32_t const index_offset,
+                                        int32_t const vertex_offset, uint32_t const instance_offset ) const
+    {
+        vkCmdDrawIndexed( command_buffer_, index_count, instance_count, index_offset, vertex_offset, instance_offset );
+    }
+
+
+    void CommandOperator::copy_buffer_to_image( Buffer const& src, Image const& dst, VkBufferImageCopy const& region ) const
+    {
+        vkCmdCopyBufferToImage(
+            command_buffer_,
+            src.handle( ),
+            dst.handle( ),
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &region
+        );
+    }
+
+
+    void CommandOperator::copy_buffer( Buffer const& src, Buffer const& dst ) const
+    {
+        VkBufferCopy const copy_region{
+            .size = src.buffer_size( )
+        };
+        vkCmdCopyBuffer( command_buffer_, src.handle( ), dst.handle( ), 1, &copy_region );
     }
 
 }

@@ -5,6 +5,7 @@
 #include <__context/DeviceSet.h>
 #include <__image/Image.h>
 #include <__image/StbImageLoader.h>
+#include <__meta/expect_size.h>
 #include <__validation/result.h>
 
 
@@ -47,47 +48,14 @@ namespace cobalt
     // +---------------------------+
     // | TEXTURE IMAGE             |
     // +---------------------------+
-    TextureImage::TextureImage( DeviceSet const& device, CommandPool& cmd_pool, TextureImageCreateInfo const& image_create_info,
-                                TextureSamplerCreateInfo const& sampler_create_info )
+    TextureImage::TextureImage( DeviceSet const& device, CommandPool& cmd_pool, TextureImageCreateInfo const& create_info )
         : device_ref_{ device }
-    {
-        // 1. Create the image from the provided path and format.
-        create_image( image_create_info, cmd_pool );
-
-        // 2. Create the sampler for the image.
-        create_sampler( sampler_create_info );
-    }
-
-
-    TextureImage::~TextureImage( ) noexcept
-    {
-        // 1. Destroy the sampler
-        vkDestroySampler( device_ref_.logical( ), texture_sampler_, nullptr );
-
-        // 2. Destroy the image
-        texture_image_ptr_.reset( );
-    }
-
-
-    Image const& TextureImage::image( ) const
-    {
-        return *texture_image_ptr_;
-    }
-
-
-    VkSampler TextureImage::sampler( ) const
-    {
-        return texture_sampler_;
-    }
-
-
-    void TextureImage::create_image( TextureImageCreateInfo const& create_info, CommandPool& cmd_pool )
     {
         StbImageLoader const loader{ create_info.path_to_img, to_channel_count( create_info.image_format ) };
 
         Buffer staging_buffer = buffer::make_staging_buffer( device_ref_, loader.img_size( ) );
         staging_buffer.map_memory( );
-        memcpy( staging_buffer.data( ), loader.pixels( ), staging_buffer.memory_size( ) );
+        staging_buffer.write( loader.pixels( ), staging_buffer.memory_size( ) );
         staging_buffer.unmap_memory( );
 
         texture_image_ptr_ = std::make_unique<Image>(
@@ -107,41 +75,23 @@ namespace cobalt
     }
 
 
-    void TextureImage::create_sampler( TextureSamplerCreateInfo const& sampler_info )
+    TextureImage::~TextureImage( ) noexcept
     {
-        VkPhysicalDeviceProperties2 properties{
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2
-        };
-        vkGetPhysicalDeviceProperties2( device_ref_.physical( ), &properties );
-
-        VkSamplerCreateInfo const create_info{
-            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-
-            .magFilter = sampler_info.filter,
-            .minFilter = sampler_info.filter,
-
-            .addressModeU = sampler_info.address_mode,
-            .addressModeV = sampler_info.address_mode,
-            .addressModeW = sampler_info.address_mode,
-
-            .anisotropyEnable = device_ref_.has_feature( DeviceFeatureFlags::ANISOTROPIC_SAMPLING ),
-            .maxAnisotropy = properties.properties.limits.maxSamplerAnisotropy,
-
-            .borderColor = sampler_info.border_color,
-
-            .unnormalizedCoordinates = sampler_info.unnormalized_coordinates,
-
-            .compareEnable = sampler_info.compare_enable,
-            .compareOp = sampler_info.compare_op,
-
-            .mipmapMode = sampler_info.mipmap_mode,
-            .mipLodBias = 0.f,
-            .minLod = 0.f,
-            .maxLod = 0.f
-        };
-
-        validation::throw_on_bad_result(
-            vkCreateSampler( device_ref_.logical( ), &create_info, nullptr, &texture_sampler_ ),
-            "failed to create texture sampler!" );
+        texture_image_ptr_.reset( );
     }
+
+
+    TextureImage::TextureImage( TextureImage&& other ) noexcept
+        : device_ref_{ other.device_ref_ }
+        , texture_image_ptr_{ std::move( other.texture_image_ptr_ ) }
+    {
+        meta::expect_size<TextureImage, 24>( );
+    }
+
+
+    Image const& TextureImage::image( ) const
+    {
+        return *texture_image_ptr_;
+    }
+
 }

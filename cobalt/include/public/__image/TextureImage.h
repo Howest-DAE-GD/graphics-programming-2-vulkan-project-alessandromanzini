@@ -23,28 +23,14 @@ namespace cobalt
         VkFormat image_format{ VK_FORMAT_UNDEFINED };
     };
 
-
-    struct TextureSamplerCreateInfo
-    {
-        VkFilter filter{ VK_FILTER_MAX_ENUM };
-        VkSamplerAddressMode address_mode{ VK_SAMPLER_ADDRESS_MODE_MAX_ENUM };
-        VkSamplerMipmapMode mipmap_mode{ VK_SAMPLER_MIPMAP_MODE_MAX_ENUM };
-        VkBorderColor border_color{ VK_BORDER_COLOR_MAX_ENUM };
-        bool unnormalized_coordinates{ false };
-        bool compare_enable{ false };
-        VkCompareOp compare_op{ VK_COMPARE_OP_MAX_ENUM };
-
-    };
-
-
     class TextureImage final : public memory::Resource
     {
     public:
-        explicit TextureImage( DeviceSet const&, CommandPool&, TextureImageCreateInfo const&, TextureSamplerCreateInfo const& );
+        explicit TextureImage( DeviceSet const&, CommandPool&, TextureImageCreateInfo const& );
         ~TextureImage( ) noexcept override;
 
+        TextureImage( TextureImage&& ) noexcept;
         TextureImage( const TextureImage& )                = delete;
-        TextureImage( TextureImage&& ) noexcept            = delete;
         TextureImage& operator=( const TextureImage& )     = delete;
         TextureImage& operator=( TextureImage&& ) noexcept = delete;
 
@@ -53,12 +39,7 @@ namespace cobalt
 
     private:
         DeviceSet const& device_ref_;
-
         std::unique_ptr<Image> texture_image_ptr_{ nullptr };
-        VkSampler texture_sampler_{ VK_NULL_HANDLE };
-
-        void create_image( TextureImageCreateInfo const&, CommandPool& );
-        void create_sampler( TextureSamplerCreateInfo const& );
 
     };
 

@@ -15,8 +15,15 @@ namespace cobalt::loader
     // +---------------------------+
     // | HELPERS FORWARD DECL      |
     // +---------------------------+
-    void extract( aiScene const*, std::vector<Vertex>&, std::vector<uint32_t>& );
-    void populate_vertex( aiMesh const*, unsigned int, Vertex& );
+    void extract_meshes( aiScene const*, std::vector<Vertex>&, std::vector<uint32_t>&, std::vector<Mesh>& );
+    void extract_materials( aiScene const*, std::vector<Material>&, std::vector<TextureGroup>&, std::filesystem::path const& );
+    int fetch_texture( aiMaterial const*, aiTextureType, std::vector<TextureGroup>&, std::filesystem::path const& );
+
+    [[nodiscard]] glm::vec3 to_vec3( aiVector3D const& vec ) { return { vec.x, vec.y, vec.z }; }
+    [[nodiscard]] glm::vec3 to_vec3( aiColor3D const& color ) { return { color.r, color.g, color.b }; }
+    [[nodiscard]] glm::vec2 to_vec2( aiVector3D const& vec ) { return { vec.x, vec.y }; }
+
+    [[nodiscard]] TextureType to_tex_type( aiTextureType const type );
 
 
     // +---------------------------+
@@ -25,91 +32,110 @@ namespace cobalt::loader
     AssimpModelLoader::AssimpModelLoader( std::filesystem::path path ) : ModelLoader{ std::move( path ) } { }
 
 
-    void AssimpModelLoader::load( std::vector<Vertex>& vertices, std::vector<unsigned int>& indices ) const
+    void AssimpModelLoader::load( std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::vector<Mesh>& meshes,
+                                  std::vector<Material>& materials, std::vector<TextureGroup>& textures ) const
     {
-        Assimp::Importer importer;
-
-        // Load the model file
-        aiScene const* scene = importer.ReadFile(
+        Assimp::Importer importer{};
+        aiScene const* const scene = importer.ReadFile(
             model_path_.string( ),
-            aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace );
+            aiProcess_Triangulate | aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace |
+            aiProcess_ConvertToLeftHanded | aiProcess_PreTransformVertices | aiProcess_JoinIdenticalVertices |
+            aiProcess_OptimizeMeshes | aiProcess_ValidateDataStructure );
 
         if ( !scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode )
         {
             validation::throw_runtime_error( "Assimp error while loading model: " + std::string( importer.GetErrorString( ) ) );
         }
-
-        extract( scene, vertices, indices );
+        extract_meshes( scene, vertices, indices, meshes );
+        extract_materials( scene, materials, textures, base_path_ );
     }
 
 
     // +---------------------------+
     // | HELPERS IMPL              |
     // +---------------------------+
-    void extract( aiScene const* scene, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices )
+    void extract_meshes( aiScene const* scene, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices,
+                         std::vector<Mesh>& meshes )
     {
-        std::unordered_map<Vertex, uint32_t> unique_vertices{};
+        int32_t vertex_offset{};
+        uint32_t index_offset{};
 
-        for ( unsigned int mesh_idx = 0; mesh_idx < scene->mNumMeshes; ++mesh_idx )
+        for ( size_t mesh_idx{}; mesh_idx < scene->mNumMeshes; ++mesh_idx )
         {
-            const aiMesh* mesh = scene->mMeshes[mesh_idx];
+            aiMesh const* const mesh = scene->mMeshes[mesh_idx];
 
-            for ( unsigned int i = 0; i < mesh->mNumFaces; ++i )
+            uint32_t const num_vertices = mesh->mNumVertices;
+            vertices.reserve( vertices.size( ) + num_vertices );
+            for ( size_t vertex_idx{}; vertex_idx < num_vertices; ++vertex_idx )
             {
-                const aiFace face = mesh->mFaces[i];
-                for ( unsigned int j = 0; j < face.mNumIndices; ++j )
-                {
-                    const unsigned int vertex_index = face.mIndices[j];
-
-                    Vertex vertex{};
-                    populate_vertex( mesh, vertex_index, vertex );
-
-                    // De-duplication of vertices
-                    // If the vertex already exists in the map, just push the index
-                    if ( unique_vertices.contains( vertex ) )
-                    {
-                        indices.push_back( unique_vertices[vertex] );
-                    }
-                    else
-                    {
-                        // else create a new entry in the map
-                        const auto new_index    = static_cast<uint32_t>( vertices.size( ) );
-                        unique_vertices[vertex] = new_index;
-                        vertices.push_back( vertex );
-                        indices.push_back( new_index );
-                    }
-                }
+                vertices.emplace_back(
+                    to_vec3( mesh->mVertices[vertex_idx] ),
+                    to_vec2( mesh->mTextureCoords[0][vertex_idx] ),
+                    to_vec3( mesh->mNormals[vertex_idx] ),
+                    to_vec3( mesh->mTangents[vertex_idx] ),
+                    to_vec3( mesh->mBitangents[vertex_idx] ) );
             }
+
+            uint32_t const num_indices = mesh->mNumFaces * 3;
+            indices.reserve( indices.size( ) + num_indices );
+            for ( size_t face_idx{}; face_idx < mesh->mNumFaces; ++face_idx )
+            {
+                aiFace const& face = mesh->mFaces[face_idx];
+                std::copy( face.mIndices, std::next( face.mIndices, face.mNumIndices ), std::back_inserter( indices ) );
+            }
+
+            meshes.emplace_back( num_indices, index_offset, vertex_offset, mesh->mMaterialIndex );
+            vertex_offset += num_vertices;
+            index_offset += num_indices;
         }
     }
 
 
-    void populate_vertex( aiMesh const* mesh, unsigned int const vertex_index, Vertex& vertex )
+    void extract_materials( aiScene const* scene, std::vector<Material>& materials, std::vector<TextureGroup>& textures,
+        std::filesystem::path const& base_path )
     {
-        vertex.position = {
-            mesh->mVertices[vertex_index].x,
-            mesh->mVertices[vertex_index].y,
-            mesh->mVertices[vertex_index].z
-        };
-
-        if ( mesh->HasNormals( ) )
+        materials.reserve( scene->mNumMaterials );
+        for ( size_t mat_idx{}; mat_idx < scene->mNumMaterials; ++mat_idx )
         {
-            // vertex.normal = {
-            //     mesh->mNormals[vertexIndex].x,
-            //     mesh->mNormals[vertexIndex].y,
-            //     mesh->mNormals[vertexIndex].z
-            // };
+            aiMaterial const* mat = scene->mMaterials[mat_idx];
+            materials.emplace_back( fetch_texture( mat, aiTextureType_BASE_COLOR, textures, base_path ) );
+        }
+    }
+
+
+    int fetch_texture( aiMaterial const* mat, aiTextureType const type, std::vector<TextureGroup>& textures,
+                       std::filesystem::path const& base_path )
+    {
+        if ( mat->GetTextureCount( type ) <= 0 )
+        {
+            return -1;
         }
 
-        if ( mesh->HasTextureCoords( 0 ) )
+        aiString relative_path{};
+        mat->GetTexture( type, 0, &relative_path );
+        std::filesystem::path const texture_path{ base_path / relative_path.C_Str( ) };
+        if ( not exists( texture_path ) )
         {
-            vertex.tex_coord = {
-                mesh->mTextureCoords[0][vertex_index].x,
-                mesh->mTextureCoords[0][vertex_index].y
-            };
+            return -1;
         }
 
-        vertex.color = { 1.0f, 1.0f, 1.0f };
+        textures.emplace_back( to_tex_type( type ), std::move( texture_path ) );
+        return static_cast<int>( textures.size( ) - 1 );
+    }
+
+
+    TextureType to_tex_type( aiTextureType const type )
+    {
+        switch ( type )
+        {
+            case aiTextureType_DIFFUSE:
+            case aiTextureType_BASE_COLOR:
+                return TextureType::DIFFUSE;
+
+            // Add other texture types as needed
+            default:
+                throw std::runtime_error( "unsupported texture type" );
+        }
     }
 
 }

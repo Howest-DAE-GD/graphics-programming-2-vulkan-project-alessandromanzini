@@ -29,6 +29,8 @@ namespace cobalt
         Window& operator=( Window const& )     = delete;
         Window& operator=( Window&& ) noexcept = delete;
 
+        [[nodiscard]] GLFWwindow& handle( ) const;
+
         [[nodiscard]] bool should_close( ) const;
         [[nodiscard]] bool is_minimized( ) const;
 

@@ -38,8 +38,7 @@ namespace cobalt
         [[nodiscard]] VkDeviceSize buffer_size( ) const;
         [[nodiscard]] VkDeviceSize memory_size( ) const;
 
-        [[nodiscard]] void* data( ) const;
-
+        void write( void const* data, size_t size ) const;
         void map_memory( VkDeviceSize offset = 0, VkMemoryMapFlags flags = 0 );
         void unmap_memory( );
 

@@ -1,14 +1,19 @@
 #include "MyApplication.h"
 
+#include "Camera.h"
 #include "debug_callback.h"
+#include "Timer.h"
 #include "UniformBufferObject.h"
 
 #include <CobaltVK.h>
+#include <__buffer/Buffer.h>
 #include <__buffer/CommandPool.h>
 #include <__context/VkContext.h>
 #include <__enum/ValidationFlags.h>
+#include <__image/ImageSampler.h>
 #include <__model/AssimpModelLoader.h>
 #include <__model/Model.h>
+#include <__pipeline/GraphicsPipeline.h>
 #include <__render/DescriptorAllocator.h>
 #include <__render/Renderer.h>
 #include <__render/Swapchain.h>
@@ -17,16 +22,8 @@
 #include <xos/filesystem.h>
 #include <xos/info.h>
 
-#define GLM_FORCE_RADIANS
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-#include <chrono>
 #include <filesystem>
 #include <iostream>
-#include <__buffer/Buffer.h>
-#include <__image/TextureImage.h>
-#include <__pipeline/GraphicsPipeline.h>
 
 
 using namespace cobalt;
@@ -36,8 +33,11 @@ using namespace cobalt;
 // +---------------------------+
 MyApplication::MyApplication( )
 {
-    // 1. Create Window
+    // 1. Create Window and Camera
     window_ = CVK.create_resource<Window>( WIDTH_, HEIGHT_, "Vulkan App" );
+
+    camera_ptr_ = std::make_unique<Camera>( window_->handle( ), window_->extent( ), glm::radians( 45.f ), 0.1f, 20.f );
+    window_->on_framebuffer_resize.bind( camera_ptr_.get( ), &Camera::set_viewport );
 
     // 2. Register VK Instance
     constexpr VkApplicationInfo app_info{
@@ -78,8 +78,10 @@ MyApplication::MyApplication( )
     descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
         context_->device( ), MAX_FRAMES_IN_FLIGHT_,
         std::array{
-            DescriptorSetLayout::layout_binding_pair_t{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT },
-            DescriptorSetLayout::layout_binding_pair_t{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT }
+            LayoutBindingDescription{ VK_SHADER_STAGE_VERTEX_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 24 },
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }
         }
     );
     create_graphics_pipeline( );
@@ -99,13 +101,9 @@ MyApplication::MyApplication( )
         std::bind( &MyApplication::update_uniform_buffer, this, std::placeholders::_1 ) );
 
     // 8. Texture image
-    texture_image_ = CVK.create_resource<TextureImage>(
-        context_->device( ), *command_pool_,
-        TextureImageCreateInfo{
-            .path_to_img = TEXTURE_PATH_,
-            .image_format = VK_FORMAT_R8G8B8A8_SRGB
-        },
-        TextureSamplerCreateInfo{
+    texture_sampler_ = CVK.create_resource<ImageSampler>(
+        context_->device( ),
+        ImageSamplerCreateInfo{
             .filter = VK_FILTER_LINEAR,
             .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .border_color = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK,
@@ -116,13 +114,7 @@ MyApplication::MyApplication( )
         } );
 
     // 9. Model
-    model_        = CVK.create_resource<Model>( loader::AssimpModelLoader{ MODEL_PATH_ } );
-    index_buffer_ = CVK.create_resource<Buffer>(
-        buffer::make_index_buffer<Model::index_t>( context_->device( ), *command_pool_, model_->indices( ) )
-    );
-    vertex_buffer_ = CVK.create_resource<Buffer>(
-        buffer::make_vertex_buffer<Vertex>( context_->device( ), *command_pool_, model_->vertices( ) )
-    );
+    model_ = CVK.create_resource<Model>( context_->device( ), *command_pool_, loader::AssimpModelLoader{ MODEL_PATH_ } );
 
     // 10. Uniform buffers
     for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
@@ -145,15 +137,41 @@ MyApplication::MyApplication( )
                 }
         },
         WriteDescription{
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_DESCRIPTOR_TYPE_SAMPLER,
             [this]( uint32_t const ) -> VkDescriptorImageInfo
                 {
                     return {
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                        .imageView = texture_image_->image( ).view( ).handle( ),
-                        .sampler = texture_image_->sampler( )
+                        .sampler = texture_sampler_->handle( )
                     };
                 },
+        },
+        WriteDescription{
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            [this]( uint32_t ) -> std::vector<VkDescriptorImageInfo>
+                {
+                    auto const texture_images = model_->textures( );
+                    std::vector<VkDescriptorImageInfo> infos;
+                    infos.reserve( texture_images.size( ) );
+                    for ( auto const& tex : texture_images )
+                    {
+                        infos.push_back( {
+                            .imageView = tex.image( ).view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        } );
+                    }
+                    return infos;
+                }
+        },
+        WriteDescription{
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            [this]( uint32_t ) -> VkDescriptorBufferInfo
+                {
+                    return {
+                        .buffer = model_->materials_buffer( ).handle( ),
+                        .offset = 0,
+                        .range = model_->materials_buffer( ).memory_size( )
+                    };
+                }
         }
     };
     descriptor_allocator_->update_sets( write_ops );
@@ -170,10 +188,16 @@ MyApplication::~MyApplication( ) noexcept
 
 void MyApplication::run( )
 {
+    Timer timer{};
+
+    timer.start( );
     running_ = true;
     while ( running_ )
     {
         glfwPollEvents( );
+
+        timer.update( );
+        camera_ptr_->update( &timer );
 
         if ( window_->is_minimized( ) )
         {
@@ -287,6 +311,13 @@ void MyApplication::create_graphics_pipeline( )
         GraphicsPipelineCreateInfo{
             .shader_stages = std::move( shader_stages ),
             .descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) },
+            .push_constant_ranges = {
+                VkPushConstantRange{
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    .offset = 0,
+                    .size = sizeof( uint32_t )
+                }
+            },
             .binding_description = { Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) },
             .input_assembly = input_assembly,
             .rasterization = rasterization,
@@ -411,14 +442,19 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
     } );
 
     // 5. We attach the vertex and index buffers.
-    command_op.bind_vertex_buffers( *vertex_buffer_, 0 );
-    command_op.bind_index_buffer( *index_buffer_, 0 );
+    command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
+    command_op.bind_index_buffer( model_->index_buffer( ), 0 );
 
     // 6. We bind the right descriptor set for each frame to the descriptors in the shader.
     command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_, desc_set );
 
     // 7. We can finally issue the draw command.
-    command_op.draw_indexed( static_cast<uint32_t>( model_->indices( ).size( ) ), 1 );
+    for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
+    {
+        command_op.push_constants( graphics_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
+                                   0, sizeof( uint32_t ), &material_index );
+        command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
+    }
 
     // 8. Now that we've finished recording the command buffer, we end the rendering process.
     command_op.end_rendering( );
@@ -427,21 +463,12 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
 
 void MyApplication::update_uniform_buffer( uint32_t const current_image ) const
 {
-    static auto start_time = std::chrono::high_resolution_clock::now( );
-
-    auto const current_time = std::chrono::high_resolution_clock::now( );
-    float const time        = std::chrono::duration<float>( current_time - start_time ).count( );
-
-    UniformBufferObject ubo{};
-    ubo.model = rotate( glm::mat4( 1.0f ), time * glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
-    ubo.view  = lookAt( glm::vec3( 2.0f, 2.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
-    ubo.proj  = glm::perspective( glm::radians( 45.0f ),
-                                  static_cast<float>( swapchain_->extent( ).width ) / swapchain_->extent( ).height,
-                                  0.1f,
-                                  10.0f );
-    ubo.proj[1][1] *= -1;
-
-    memcpy( uniform_buffers_[current_image]->data( ), &ubo, sizeof( ubo ) );
+    UniformBufferObject const ubo{
+        .model = glm::mat4( 1.0f ), //rotate( glm::mat4( 1.0f ), glm::radians( 90.0f ), glm::vec3( 0.0f, 0.0f, 1.0f ) );
+        .view = camera_ptr_->camera_to_world( ),
+        .proj = camera_ptr_->projection( )
+    };
+    uniform_buffers_[current_image]->write( &ubo, sizeof( UniformBufferObject ) );
 }
 
 

@@ -90,6 +90,12 @@ add_library(${PROJECT_NAME}
 		"src/log.cpp"
 		src/__synchronization/RenderSync.cpp
 		include/public/__synchronization/RenderSync.h
+		include/public/__model/Mesh.h
+		include/public/__model/Material.h
+		include/public/__model/TextureGroup.h
+		src/__image/ImageSampler.cpp
+		include/public/__image/ImageSampler.h
+		include/public/__render/LayoutBindingDescription.h
 )
 
 # set warning level to W4 and warnings as errors

@@ -1,6 +1,10 @@
 #ifndef MODELLOADER_H
 #define MODELLOADER_H
 
+#include <__model/Material.h>
+#include <__model/Mesh.h>
+#include <__model/TextureGroup.h>
+
 #include <filesystem>
 
 
@@ -10,7 +14,12 @@ namespace cobalt::loader
     class ModelLoader
     {
     public:
-        explicit ModelLoader( std::filesystem::path&& path ) : model_path_{ std::move( path ) } { }
+        explicit ModelLoader( std::filesystem::path&& path )
+        {
+            base_path_ = path.parent_path(  );
+            model_path_ = std::move( path );
+        }
+
         virtual ~ModelLoader( ) noexcept = default;
 
         ModelLoader( ModelLoader const& )                = delete;
@@ -18,10 +27,12 @@ namespace cobalt::loader
         ModelLoader& operator=( ModelLoader const& )     = delete;
         ModelLoader& operator=( ModelLoader&& ) noexcept = delete;
 
-        virtual void load( std::vector<v_t>& vertices, std::vector<i_t>& indices ) const = 0;
+        virtual void load( std::vector<v_t>& vertices, std::vector<i_t>& indices, std::vector<Mesh>& meshes,
+                           std::vector<Material>& materials, std::vector<TextureGroup>& textures ) const = 0;
 
     protected:
-        std::filesystem::path const model_path_{};
+        std::filesystem::path model_path_{};
+        std::filesystem::path base_path_{};
 
     };
 

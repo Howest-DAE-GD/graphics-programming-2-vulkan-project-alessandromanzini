@@ -20,7 +20,7 @@ namespace cobalt
     using CommandPoolHandle = DefaultHandle<class CommandPool>;
     using DescriptorAllocatorHandle = DefaultHandle<class DescriptorAllocator>;
     using GraphicsPipelineHandle = DefaultHandle<class GraphicsPipeline>;
-    using TextureImageHandle = DefaultHandle<class TextureImage>;
+    using ImageSamplerHandle = DefaultHandle<class ImageSampler>;
     using RendererHandle = DefaultHandle<class Renderer>;
     using ModelHandle = DefaultHandle<class Model>;
 

@@ -8,6 +8,8 @@
 
 #include <span>
 
+#include "LayoutBindingDescription.h"
+
 
 namespace cobalt
 {
@@ -15,7 +17,7 @@ namespace cobalt
     {
     public:
         explicit DescriptorAllocator( DeviceSet const&, uint32_t max_frame_in_flight,
-                                      std::span<DescriptorSetLayout::layout_binding_pair_t const> bindings );
+                                      std::span<LayoutBindingDescription const> bindings );
         ~DescriptorAllocator( ) noexcept override;
 
         DescriptorAllocator( const DescriptorAllocator& )                = delete;
@@ -37,7 +39,7 @@ namespace cobalt
         VkDescriptorPool pool_{ VK_NULL_HANDLE };
         std::vector<VkDescriptorSet> sets_{};
 
-        void create_descriptor_pool( std::span<VkDescriptorType const> desc_types, uint32_t max_frame_in_flight );
+        void create_descriptor_pool( std::span<LayoutBindingDescription const> desc_bindings, uint32_t max_frame_in_flight );
         void allocate_descriptor_sets( uint32_t max_frame_in_flight );
 
     };

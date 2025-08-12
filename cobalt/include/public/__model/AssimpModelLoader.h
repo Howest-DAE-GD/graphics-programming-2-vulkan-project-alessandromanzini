@@ -14,7 +14,8 @@ namespace cobalt::loader
     {
     public:
         explicit AssimpModelLoader( std::filesystem::path );
-        void load( std::vector<Vertex>& vertices, std::vector<unsigned>& indices ) const override;
+        void load( std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::vector<Mesh>& meshes,
+                   std::vector<Material>& materials, std::vector<TextureGroup>& textures ) const override;
 
     };
 

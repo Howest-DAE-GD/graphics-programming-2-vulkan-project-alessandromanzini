@@ -7,12 +7,12 @@
 namespace cobalt
 {
     DescriptorAllocator::DescriptorAllocator( DeviceSet const& device, uint32_t const max_frame_in_flight,
-                           std::span<DescriptorSetLayout::layout_binding_pair_t const> const bindings )
+                           std::span<LayoutBindingDescription const> const bindings )
         : device_ref_{ device }
         , layout_{ device, bindings }
         , max_frame_in_flight_{ max_frame_in_flight }
     {
-        create_descriptor_pool( layout_.descriptor_types( ), max_frame_in_flight );
+        create_descriptor_pool( layout_.descriptor_bindings( ), max_frame_in_flight );
         allocate_descriptor_sets( max_frame_in_flight );
     }
 
@@ -54,15 +54,15 @@ namespace cobalt
     }
 
 
-    void DescriptorAllocator::create_descriptor_pool( std::span<VkDescriptorType const> desc_types, uint32_t max_frame_in_flight )
+    void DescriptorAllocator::create_descriptor_pool( std::span<LayoutBindingDescription const> desc_bindings, uint32_t max_frame_in_flight )
     {
-        std::vector<VkDescriptorPoolSize> pool_sizes( desc_types.size( ) );
-        std::ranges::transform( desc_types, pool_sizes.begin( ),
-                                [max_frame_in_flight]( VkDescriptorType const type ) -> VkDescriptorPoolSize
+        std::vector<VkDescriptorPoolSize> pool_sizes( desc_bindings.size( ) );
+        std::ranges::transform( desc_bindings, pool_sizes.begin( ),
+                                [max_frame_in_flight]( auto const& binding ) -> VkDescriptorPoolSize
                                     {
                                         return {
-                                            .type = type,
-                                            .descriptorCount = max_frame_in_flight
+                                            .type = binding.descriptor_type,
+                                            .descriptorCount = max_frame_in_flight * binding.descriptor_count
                                         };
                                     } );
 

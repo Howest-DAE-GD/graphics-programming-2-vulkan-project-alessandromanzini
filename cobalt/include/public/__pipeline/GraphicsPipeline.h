@@ -16,6 +16,7 @@ namespace cobalt
     {
         std::vector<VkPipelineShaderStageCreateInfo> shader_stages{};
         std::vector<VkDescriptorSetLayout> descriptor_set_layouts{};
+        std::vector<VkPushConstantRange> push_constant_ranges{};
         BindingDescription binding_description{};
         VkPipelineInputAssemblyStateCreateInfo input_assembly{};
         VkPipelineRasterizationStateCreateInfo rasterization{};

@@ -14,6 +14,8 @@ namespace cobalt
     class CommandBuffer;
     class Image;
 }
+class Camera;
+
 
 class MyApplication final
 {
@@ -36,9 +38,12 @@ private:
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT_{ 2 };
 
     static constexpr std::string_view TEXTURE_PATH_{ "resources/viking_room.png" };
-    static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
+    // static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
+    static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
 
     bool running_{ false };
+
+    std::unique_ptr<Camera> camera_ptr_{ nullptr };
 
     cobalt::WindowHandle window_{};
     cobalt::VkContextHandle context_{};
@@ -51,11 +56,8 @@ private:
 
     cobalt::RendererHandle renderer_{};
 
-    cobalt::TextureImageHandle texture_image_{};
-
+    cobalt::ImageSamplerHandle texture_sampler_{};
     cobalt::ModelHandle model_{};
-    cobalt::BufferHandle index_buffer_{};
-    cobalt::BufferHandle vertex_buffer_{};
 
     std::vector<cobalt::BufferHandle> uniform_buffers_{};
 

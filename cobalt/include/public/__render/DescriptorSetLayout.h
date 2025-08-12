@@ -2,6 +2,7 @@
 #define DESCRIPTORSETLAYOUT_H
 
 #include <__context/DeviceSet.h>
+#include <__render/LayoutBindingDescription.h>
 
 #include <span>
 
@@ -16,9 +17,7 @@ namespace cobalt
     class DescriptorSetLayout final : memory::Resource
     {
     public:
-        using layout_binding_pair_t = std::pair<VkDescriptorType, VkShaderStageFlags>;
-
-        DescriptorSetLayout( DeviceSet const&, std::span<layout_binding_pair_t const> bindings );
+        DescriptorSetLayout( DeviceSet const&, std::span<LayoutBindingDescription const> bindings );
         ~DescriptorSetLayout( ) noexcept override;
 
         DescriptorSetLayout( const DescriptorSetLayout& )                = delete;
@@ -27,13 +26,13 @@ namespace cobalt
         DescriptorSetLayout& operator=( DescriptorSetLayout&& ) noexcept = delete;
 
         [[nodiscard]] VkDescriptorSetLayout handle( ) const noexcept;
-        [[nodiscard]] std::span<VkDescriptorType const> descriptor_types( ) const noexcept;
+        [[nodiscard]] std::span<LayoutBindingDescription const> descriptor_bindings( ) const noexcept;
 
     private:
         DeviceSet const& device_ref_;
-
-        std::vector<VkDescriptorType> desc_types_{};
         VkDescriptorSetLayout desc_set_layout_{ VK_NULL_HANDLE };
+
+        std::vector<LayoutBindingDescription> desc_bindings_{};
 
     };
 

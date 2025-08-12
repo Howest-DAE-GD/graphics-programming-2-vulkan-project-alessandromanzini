@@ -14,14 +14,10 @@
 struct Vertex
 {
     glm::vec3 position;
-    glm::vec3 color;
-    glm::vec2 tex_coord;
-
-
-    bool operator==( Vertex const& other ) const
-    {
-        return position == other.position && color == other.color && tex_coord == other.tex_coord;
-    }
+    glm::vec2 uv;
+    glm::vec3 normal;
+    glm::vec3 tangent;
+    glm::vec3 bi_tangent;
 
 
     static consteval VkVertexInputBindingDescription get_binding_description( )
@@ -49,32 +45,30 @@ struct Vertex
             VkVertexInputAttributeDescription{
                 .binding = 0,
                 .location = 1,
-                .format = VK_FORMAT_R32G32B32_SFLOAT,
-                .offset = offsetof( Vertex, color )
+                .format = VK_FORMAT_R32G32_SFLOAT,
+                .offset = offsetof( Vertex, uv )
             },
             VkVertexInputAttributeDescription{
                 .binding = 0,
                 .location = 2,
-                .format = VK_FORMAT_R32G32_SFLOAT,
-                .offset = offsetof( Vertex, tex_coord )
-            }
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = offsetof( Vertex, normal )
+            },
+            VkVertexInputAttributeDescription{
+                .binding = 0,
+                .location = 3,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = offsetof( Vertex, tangent )
+            },
+            VkVertexInputAttributeDescription{
+                .binding = 0,
+                .location = 4,
+                .format = VK_FORMAT_R32G32B32_SFLOAT,
+                .offset = offsetof( Vertex, bi_tangent )
+            },
         };
     }
 
-};
-
-
-// +---------------------------+
-// | VERTEX HASHING            |
-// +---------------------------+
-template <>
-struct std::hash<Vertex>
-{
-    size_t operator()( Vertex const& vertex ) const noexcept
-    {
-        return ( hash<glm::vec3>( )( vertex.color ) << 1 ^ hash<glm::vec3>( )( vertex.position ) ) >> 1 ^
-               hash<glm::vec2>( )( vertex.tex_coord ) << 1;
-    }
 };
 
 

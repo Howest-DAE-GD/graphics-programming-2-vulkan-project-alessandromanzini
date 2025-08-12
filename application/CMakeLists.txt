@@ -7,7 +7,11 @@ project("application")
 add_executable(${PROJECT_NAME}
 		"code/main.cpp"
 		"code/MyApplication.cpp"
-		"code/debug_callback.h" )
+		"code/debug_callback.h"
+		code/Camera.cpp
+		code/Camera.h
+		code/Timer.cpp
+		code/Timer.h)
 
 # set warning level to W4 and warnings as errors
 if (MSVC)
