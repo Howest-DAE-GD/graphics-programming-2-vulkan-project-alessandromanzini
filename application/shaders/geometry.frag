@@ -44,11 +44,5 @@ void main( )
     const int diffuse_id = nonuniformEXT( material.diffuse_id );
     vec4 diffuse_color = texture( sampler2D( textures[diffuse_id], shared_sampler ), frag_uv ).rgba;
 
-    // alpha cutout
-    if ( diffuse_color.a < 0.95 )
-    {
-        discard;
-    }
-
     out_color = diffuse_color;
 }

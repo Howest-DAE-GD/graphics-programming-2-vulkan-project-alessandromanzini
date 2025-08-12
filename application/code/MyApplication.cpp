@@ -28,6 +28,10 @@
 
 using namespace cobalt;
 
+
+GraphicsPipelineCreateInfo make_graphics_pipeline_create_info( std::span<VkPipelineShaderStageCreateInfo const> shaders );
+
+
 // +---------------------------+
 // | PUBLIC                    |
 // +---------------------------+
@@ -67,14 +71,14 @@ MyApplication::MyApplication( )
             SwapchainCreateInfo{
                 .image_count = 3,
                 .present_mode = VK_PRESENT_MODE_MAILBOX_KHR,
-                .surface_format = {
-                    VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
-                }
+                .surface_format = { VK_FORMAT_B8G8R8A8_SRGB, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR }
             }
         } );
+    command_pool_ = CVK.create_resource<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
+    swapchain_->depth_image(  ).transition_layout( { VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL },
+        *command_pool_, VK_IMAGE_ASPECT_DEPTH_BIT );
 
     // 5. Render pipeline
-    command_pool_         = CVK.create_resource<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
     descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
         context_->device( ), MAX_FRAMES_IN_FLIGHT_,
         std::array{
@@ -84,7 +88,8 @@ MyApplication::MyApplication( )
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }
         }
     );
-    create_graphics_pipeline( );
+    create_depth_prepass_pipeline( );
+    create_main_render_pipeline( );
 
     // 7. Renderer
     renderer_ = CVK.create_resource<Renderer>( RendererCreateInfo{
@@ -218,115 +223,81 @@ void MyApplication::run( )
 // +---------------------------+
 // | PRIVATE                   |
 // +---------------------------+
-void MyApplication::create_graphics_pipeline( )
+void MyApplication::create_depth_prepass_pipeline( )
+{
+    // Create shader modules for depth prepass
+    shader::ShaderModule const vert_shader{ context_->device( ), "shaders/geometry.vert.spv" };
+    shader::ShaderModule const frag_shader{ context_->device( ), "shaders/depth.frag.spv" };
+
+    GraphicsPipelineCreateInfo info = make_graphics_pipeline_create_info(
+        std::array<VkPipelineShaderStageCreateInfo, 2>{
+            {
+                {
+                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                    .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                    .module = vert_shader.handle( ),
+                    .pName = "main"
+                },
+                {
+                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                    .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    .module = frag_shader.handle( ),
+                    .pName = "main"
+                }
+            }
+        } );
+
+    // Disable color writes completely for depth prepass
+    info.color_blend_attachment = std::nullopt;
+
+    // Set depth test and write enable
+    info.depth_stencil.depthTestEnable  = VK_TRUE;
+    info.depth_stencil.depthWriteEnable = VK_TRUE;
+
+    // No color attachment in depth prepass
+    info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
+    info.swapchain_image_format = VK_FORMAT_UNDEFINED;
+    info.depth_image_format     = swapchain_->depth_image( ).format( );
+
+    depth_prepass_pipeline_ = CVK.create_resource<GraphicsPipeline>( context_->device( ), info );
+}
+
+
+void MyApplication::create_main_render_pipeline( )
 {
     // The compilation and linking of the SPIR-V bytecode to machine code for execution by the GPU doesn't happen until the
     // graphics pipeline is created. That means that we're allowed to destroy the shader modules again as soon as pipeline
     // creation is finished. Therefore, we create them as local temporary variables.
-    shader::ShaderModule const vert_shader{ context_->device( ), "shaders/shader.vert.spv" };
-    shader::ShaderModule const frag_shader{ context_->device( ), "shaders/shader.frag.spv" };
+    shader::ShaderModule const vert_shader{ context_->device( ), "shaders/geometry.vert.spv" };
+    shader::ShaderModule const frag_shader{ context_->device( ), "shaders/geometry.frag.spv" };
 
-    // We assign the shaders to specific pipelines stages through the shaderStages member of the VkPipelineShaderStageCreateInfo
-    std::vector shader_stages{
-        VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = vert_shader.handle( ),
-            .pName = "main"
-        },
-        VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = frag_shader.handle( ),
-            .pName = "main"
-        }
-    };
-
-    // The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn from
-    // the vertices and if primitive restart should be enabled.
-    constexpr VkPipelineInputAssemblyStateCreateInfo input_assembly{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
-    // The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns it into
-    // fragments to be colored by the fragment shader. It also performs depth testing, face culling and the scissor
-    // test.
-    constexpr VkPipelineRasterizationStateCreateInfo rasterization{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .lineWidth = 1.0f,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE
-    };
-
-    // The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform
-    // antialiasing.
-    constexpr VkPipelineMultisampleStateCreateInfo multisampling{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .sampleShadingEnable = VK_FALSE,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .minSampleShading = 1.0f,          // Optional
-        .pSampleMask = nullptr,            // Optional
-        .alphaToCoverageEnable = VK_FALSE, // Optional
-        .alphaToOneEnable = VK_FALSE,      // Optional
-    };
-
-    // After a fragment shader has returned a color, it needs to be combined with the color that is already in the
-    // framebuffer. This transformation is known as color blending and there are two ways to do it:
-    // 1. Mix the old and new value to produce a final color.
-    // 2. Combine the old and new value using a bitwise operation.
-    constexpr VkPipelineColorBlendAttachmentState color_blend_attachment{
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-                          VK_COLOR_COMPONENT_A_BIT,
-        .blendEnable = VK_FALSE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,  // Optional
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO, // Optional
-        .colorBlendOp = VK_BLEND_OP_ADD,             // Optional
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,  // Optional
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO, // Optional
-        .alphaBlendOp = VK_BLEND_OP_ADD              // Optional
-    };
-
-    // Depth stencil creation
-    constexpr VkPipelineDepthStencilStateCreateInfo depth_stencil{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_TRUE,
-        .depthWriteEnable = VK_TRUE,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
-        .depthBoundsTestEnable = VK_FALSE,
-        .minDepthBounds = 0.0f, // Optional
-        .maxDepthBounds = 1.0f, // Optional
-        .stencilTestEnable = VK_FALSE,
-        .front = {}, // Optional
-        .back = {}   // Optional
-    };
-
-    graphics_pipeline_ = CVK.create_resource<GraphicsPipeline>(
-        context_->device( ),
-        GraphicsPipelineCreateInfo{
-            .shader_stages = std::move( shader_stages ),
-            .descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) },
-            .push_constant_ranges = {
-                VkPushConstantRange{
-                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                    .offset = 0,
-                    .size = sizeof( uint32_t )
+    GraphicsPipelineCreateInfo info = make_graphics_pipeline_create_info(
+        std::array<VkPipelineShaderStageCreateInfo, 2>{
+            {
+                {
+                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                    .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                    .module = vert_shader.handle( ),
+                    .pName = "main"
+                },
+                {
+                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                    .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    .module = frag_shader.handle( ),
+                    .pName = "main"
                 }
-            },
-            .binding_description = { Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) },
-            .input_assembly = input_assembly,
-            .rasterization = rasterization,
-            .multisampling = multisampling,
-            .color_blend_attachment = color_blend_attachment,
-            .depth_stencil = depth_stencil,
-            .swapchain_image_format = swapchain_->image_format( ),
-            .depth_image_format = swapchain_->depth_image( ).format( ),
+            }
         } );
+
+    // Set only depth test enable
+    info.depth_stencil.depthTestEnable  = VK_TRUE;
+    info.depth_stencil.depthWriteEnable = VK_FALSE;
+
+    info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
+    info.swapchain_image_format = swapchain_->image_format( );
+    info.depth_image_format     = swapchain_->depth_image( ).format( );
+
+    main_render_pipeline_ = CVK.create_resource<GraphicsPipeline>( context_->device( ), info );
 }
 
 
@@ -338,6 +309,48 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
     // 1. We set the memory barriers for the swapchain image.
     {
         std::array const barriers{
+            // Pre-rendering depth barrier
+            VkImageMemoryBarrier2{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+                .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = swapchain_->depth_image( ).handle( ),
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                }
+            },
+
+            // depth after pre-pass barrier
+            VkImageMemoryBarrier2{
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                .dstStageMask = VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+                .srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image = swapchain_->depth_image( ).handle( ),
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                }
+            },
+
             // Pre-rendering barrier
             VkImageMemoryBarrier2{
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -383,13 +396,59 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
 
         command_op.insert_barrier( VkDependencyInfo{
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-            .imageMemoryBarrierCount = 2,
+            .imageMemoryBarrierCount = static_cast<uint32_t>( barriers.size( ) ),
             .pImageMemoryBarriers = barriers.data( )
         } );
     }
 
-    // 2. Now we specify the dynamic rendering information, which allows us to render directly to the swapchain images without
-    // setting up a pipeline with a render pass.
+    // 2. Depth Pre-Pass: render geometry to depth only, no color attachment
+    {
+        VkRenderingAttachmentInfo const depth_prepass_attachment_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = swapchain_->depth_image( ).view( ).handle( ),
+            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .clearValue.depthStencil.depth = 1.0f
+        };
+
+        VkRenderingInfo const depth_prepass_render_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea.extent = image.extent( ),
+            .renderArea.offset = { 0, 0 },
+            .layerCount = 1,
+            .colorAttachmentCount = 0,
+            .pColorAttachments = nullptr,
+            .pDepthAttachment = &depth_prepass_attachment_info
+        };
+
+        command_op.begin_rendering( depth_prepass_render_info );
+        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *depth_prepass_pipeline_ );
+
+        command_op.set_viewport( VkViewport{
+            .x = 0.f, .y = 0.f,
+            .width = static_cast<float>( image.extent( ).width ),
+            .height = static_cast<float>( image.extent( ).height ),
+            .minDepth = 0.f, .maxDepth = 1.f
+        } );
+        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = image.extent( ) } );
+
+        command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
+        command_op.bind_index_buffer( model_->index_buffer( ), 0 );
+
+        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *depth_prepass_pipeline_, desc_set );
+
+        for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
+        {
+            command_op.push_constants( main_render_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
+                                       0, sizeof( uint32_t ), &material_index );
+            command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
+        }
+
+        command_op.end_rendering( );
+    }
+
+    // 3. Main render pass: color + depth read-only
     {
         VkRenderingAttachmentInfo const color_attachment_info{
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -403,10 +462,10 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
         VkRenderingAttachmentInfo const depth_attachment_info{
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = swapchain_->depth_image( ).view( ).handle( ),
-            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
             .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .clearValue.depthStencil.depth = 1.0f
+            .clearValue.depthStencil.depth = 1.0f // not used since loadOp=LOAD
         };
 
         VkRenderingInfo const render_info{
@@ -419,45 +478,32 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image co
             .pDepthAttachment = &depth_attachment_info
         };
 
-        // We begin the rendering process by calling vkCmdBeginRendering, which starts recording commands
         command_op.begin_rendering( render_info );
+
+        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *main_render_pipeline_ );
+
+        command_op.set_viewport( VkViewport{
+            .x = 0.f, .y = 0.f,
+            .width = static_cast<float>( image.extent( ).width ),
+            .height = static_cast<float>( image.extent( ).height ),
+            .minDepth = 0.f, .maxDepth = 1.f
+        } );
+        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = image.extent( ) } );
+
+        command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
+        command_op.bind_index_buffer( model_->index_buffer( ), 0 );
+
+        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *main_render_pipeline_, desc_set );
+
+        for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
+        {
+            command_op.push_constants( main_render_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
+                                       0, sizeof( uint32_t ), &material_index );
+            command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
+        }
+
+        command_op.end_rendering( );
     }
-
-    // 3. We can now bind the graphics pipeline.
-    command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_ );
-
-    // 4. We did specify viewport and scissor state for this pipeline to be dynamic. So we need to set them in the command
-    // buffer before issuing our draw command.
-    command_op.set_viewport( VkViewport{
-        .x = 0.0f,
-        .y = 0.0f,
-        .width = static_cast<float>( image.extent( ).width ),
-        .height = static_cast<float>( image.extent( ).height ),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f
-    } );
-    command_op.set_scissor( VkRect2D{
-        .offset = { 0, 0 },
-        .extent = image.extent( )
-    } );
-
-    // 5. We attach the vertex and index buffers.
-    command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
-    command_op.bind_index_buffer( model_->index_buffer( ), 0 );
-
-    // 6. We bind the right descriptor set for each frame to the descriptors in the shader.
-    command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *graphics_pipeline_, desc_set );
-
-    // 7. We can finally issue the draw command.
-    for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
-    {
-        command_op.push_constants( graphics_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
-                                   0, sizeof( uint32_t ), &material_index );
-        command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
-    }
-
-    // 8. Now that we've finished recording the command buffer, we end the rendering process.
-    command_op.end_rendering( );
 }
 
 
@@ -476,4 +522,73 @@ void MyApplication::configure_relative_path( )
 {
     xos::info::log_info( std::clog );
     xos::filesystem::configure_relative_path( );
+}
+
+
+GraphicsPipelineCreateInfo make_graphics_pipeline_create_info( std::span<VkPipelineShaderStageCreateInfo const> shaders )
+{
+    // The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn from
+    // the vertices and if primitive restart should be enabled.
+    constexpr VkPipelineInputAssemblyStateCreateInfo input_assembly{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+    };
+
+    // The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns it into
+    // fragments to be colored by the fragment shader. It also performs depth testing, face culling and the scissor
+    // test.
+    constexpr VkPipelineRasterizationStateCreateInfo rasterization{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .lineWidth = 1.0f,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE
+    };
+
+    // The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform
+    // antialiasing.
+    constexpr VkPipelineMultisampleStateCreateInfo multisampling{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .sampleShadingEnable = VK_FALSE,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT
+    };
+
+    // After a fragment shader has returned a color, it needs to be combined with the color that is already in the
+    // framebuffer. This transformation is known as color blending and there are two ways to do it:
+    // 1. Mix the old and new value to produce a final color.
+    // 2. Combine the old and new value using a bitwise operation.
+    constexpr VkPipelineColorBlendAttachmentState color_blend_attachment{
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                          VK_COLOR_COMPONENT_A_BIT,
+        .blendEnable = VK_FALSE,
+    };
+
+    // Depth stencil creation
+    constexpr VkPipelineDepthStencilStateCreateInfo depth_stencil{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+    };
+
+    return GraphicsPipelineCreateInfo{
+        .shader_stages = { shaders.begin( ), shaders.end( ) },
+        .push_constant_ranges = {
+            VkPushConstantRange{
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .offset = 0,
+                .size = sizeof( uint32_t )
+            }
+        },
+        .binding_description = { Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) },
+        .input_assembly = input_assembly,
+        .rasterization = rasterization,
+        .multisampling = multisampling,
+        .color_blend_attachment = color_blend_attachment,
+        .depth_stencil = depth_stencil
+    };
 }

@@ -52,7 +52,8 @@ private:
 
     cobalt::CommandPoolHandle command_pool_{};
     cobalt::DescriptorAllocatorHandle descriptor_allocator_{};
-    cobalt::GraphicsPipelineHandle graphics_pipeline_{};
+    cobalt::GraphicsPipelineHandle depth_prepass_pipeline_{};
+    cobalt::GraphicsPipelineHandle main_render_pipeline_{};
 
     cobalt::RendererHandle renderer_{};
 
@@ -62,7 +63,8 @@ private:
     std::vector<cobalt::BufferHandle> uniform_buffers_{};
 
     // .CREATION
-    void create_graphics_pipeline( );
+    void create_depth_prepass_pipeline( );
+    void create_main_render_pipeline( );
 
     // .RENDERING
     void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Image const&, VkDescriptorSet desc_set ) const;

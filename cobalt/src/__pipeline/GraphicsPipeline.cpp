@@ -20,16 +20,19 @@ namespace cobalt
 
         // The second structure references the array of structures for all the frame buffers and allows you to set blend
         // constants that you can use as blend factors.
+        uint32_t color_attachment_count{};
         VkPipelineColorBlendStateCreateInfo color_blending{};
-        color_blending.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        color_blending.logicOpEnable     = VK_FALSE;
-        color_blending.logicOp           = VK_LOGIC_OP_COPY; // Optional
-        color_blending.attachmentCount   = 1;
-        color_blending.pAttachments      = &create_info.color_blend_attachment;
-        color_blending.blendConstants[0] = 0.0f; // Optional
-        color_blending.blendConstants[1] = 0.0f; // Optional
-        color_blending.blendConstants[2] = 0.0f; // Optional
-        color_blending.blendConstants[3] = 0.0f; // Optional
+        color_blending.sType         = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        color_blending.logicOpEnable = VK_FALSE;
+        if ( create_info.color_blend_attachment.has_value( ) )
+        {
+            color_blending.attachmentCount = color_attachment_count = 1;
+            color_blending.pAttachments    = &create_info.color_blend_attachment.value( );
+        }
+        else
+        {
+            color_blending.attachmentCount = color_attachment_count = 0;
+        }
 
         // Dynamic state represents the states that can be changed without recreating the pipeline.
         // This setup will cause the configuration of these values to be ignored, and you will be able (and required) to
@@ -50,9 +53,9 @@ namespace cobalt
         // at drawing time to alter the behavior of your shaders without having to recreate them. They are commonly used to
         // pass the transformation matrix to the vertex shader, or to create texture samplers in the fragment shader.
         VkPipelineLayoutCreateInfo pipeline_layout_info{};
-        pipeline_layout_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipeline_layout_info.setLayoutCount = static_cast<uint32_t>( create_info.descriptor_set_layouts.size( ) );
-        pipeline_layout_info.pSetLayouts    = create_info.descriptor_set_layouts.data( );
+        pipeline_layout_info.sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipeline_layout_info.setLayoutCount         = static_cast<uint32_t>( create_info.descriptor_set_layouts.size( ) );
+        pipeline_layout_info.pSetLayouts            = create_info.descriptor_set_layouts.data( );
         pipeline_layout_info.pushConstantRangeCount =
                 static_cast<uint32_t>( create_info.push_constant_ranges.size( ) );
         pipeline_layout_info.pPushConstantRanges = create_info.push_constant_ranges.data( );
@@ -89,7 +92,7 @@ namespace cobalt
         // 4. Finally, we specify the dynamic rendering information.
         VkPipelineRenderingCreateInfo pipeline_rendering_info{};
         pipeline_rendering_info.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-        pipeline_rendering_info.colorAttachmentCount    = 1;
+        pipeline_rendering_info.colorAttachmentCount    = color_attachment_count;
         pipeline_rendering_info.pColorAttachmentFormats = &create_info.swapchain_image_format;
         pipeline_rendering_info.depthAttachmentFormat   = create_info.depth_image_format;
 

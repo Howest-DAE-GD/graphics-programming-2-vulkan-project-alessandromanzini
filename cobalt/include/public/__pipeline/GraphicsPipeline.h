@@ -21,7 +21,7 @@ namespace cobalt
         VkPipelineInputAssemblyStateCreateInfo input_assembly{};
         VkPipelineRasterizationStateCreateInfo rasterization{};
         VkPipelineMultisampleStateCreateInfo multisampling{};
-        VkPipelineColorBlendAttachmentState color_blend_attachment{};
+        std::optional<VkPipelineColorBlendAttachmentState> color_blend_attachment{};
         VkPipelineDepthStencilStateCreateInfo depth_stencil{};
         VkFormat swapchain_image_format{ VK_FORMAT_UNDEFINED };
         VkFormat depth_image_format{ VK_FORMAT_UNDEFINED };

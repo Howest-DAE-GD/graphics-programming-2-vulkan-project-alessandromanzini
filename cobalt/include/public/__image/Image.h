@@ -38,7 +38,7 @@ namespace cobalt
         ~Image( ) override;
 
         Image( Image&& ) noexcept;
-        Image( const Image& ) = delete;
+        Image( const Image& )                = delete;
         Image& operator=( const Image& )     = delete;
         Image& operator=( Image&& ) noexcept = delete;
 
@@ -48,7 +48,8 @@ namespace cobalt
         [[nodiscard]] VkFormat format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;
 
-        void transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool ) const;
+        void transition_layout( ImageLayoutTransition const& transition_info, CommandPool& cmd_pool,
+                                VkImageAspectFlags = VK_IMAGE_ASPECT_COLOR_BIT ) const;
 
     private:
         DeviceSet const& device_ref_;

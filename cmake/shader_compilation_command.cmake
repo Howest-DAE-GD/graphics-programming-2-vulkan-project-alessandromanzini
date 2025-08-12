@@ -6,7 +6,7 @@ set(SHADERS_SRC_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/shaders/")
 set(SHADERS_DST_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/shaders/")
 
 # collect all shader files
-file(GLOB MY_SHADERS "${SHADERS_SRC_FOLDER}/shader.*")
+file(GLOB MY_SHADERS "${SHADERS_SRC_FOLDER}/*.*")
 
 if (MY_SHADERS)
     get_filename_component(GLSLC "$ENV{VULKAN_SDK}/bin/glslc" ABSOLUTE)
