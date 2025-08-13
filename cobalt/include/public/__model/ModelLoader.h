@@ -1,7 +1,7 @@
 #ifndef MODELLOADER_H
 #define MODELLOADER_H
 
-#include <__model/Material.h>
+#include <__model/SurfaceMap.h>
 #include <__model/Mesh.h>
 #include <__model/TextureGroup.h>
 
@@ -28,7 +28,7 @@ namespace cobalt::loader
         ModelLoader& operator=( ModelLoader&& ) noexcept = delete;
 
         virtual void load( std::vector<v_t>& vertices, std::vector<i_t>& indices, std::vector<Mesh>& meshes,
-                           std::vector<Material>& materials, std::vector<TextureGroup>& textures ) const = 0;
+                           std::vector<SurfaceMap>& surface_maps, std::vector<TextureGroup>& textures ) const = 0;
 
     protected:
         std::filesystem::path model_path_{};

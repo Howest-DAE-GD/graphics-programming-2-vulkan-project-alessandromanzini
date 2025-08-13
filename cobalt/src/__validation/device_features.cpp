@@ -67,4 +67,10 @@ namespace cobalt::validation
     }
 
 
+    bool is_independent_blend_supported( ValidationCallbackData& data )
+    {
+        return data.features.features.independentBlend;
+    }
+
+
 }

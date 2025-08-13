@@ -39,7 +39,7 @@ namespace cobalt
         [[nodiscard]] Buffer const& vertex_buffer( ) const;
         [[nodiscard]] Buffer const& index_buffer( ) const;
 
-        [[nodiscard]] Buffer const& materials_buffer( ) const;
+        [[nodiscard]] Buffer const& surface_buffer( ) const;
 
         [[nodiscard]] std::span<TextureImage const> textures( ) const;
 
@@ -49,10 +49,11 @@ namespace cobalt
         std::unique_ptr<Buffer> index_buffer_ptr_{ nullptr };
         std::unique_ptr<Buffer> vertex_buffer_ptr_{ nullptr };
 
-        std::unique_ptr<Buffer> materials_buffer_ptr_{ nullptr };
+        std::unique_ptr<Buffer> surface_buffer_ptr_{ nullptr };
         std::vector<TextureImage> textures_{};
 
-        void create_materials_buffer( DeviceSet const& device, CommandPool& cmd_pool, std::span<Material const> materials );
+        void create_texture_images( DeviceSet const&, CommandPool&, std::span<TextureGroup const> textures );
+        void create_materials_buffer( DeviceSet const&, CommandPool&, std::span<SurfaceMap const> materials );
 
     };
 

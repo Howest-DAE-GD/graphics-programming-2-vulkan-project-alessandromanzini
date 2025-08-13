@@ -54,7 +54,8 @@ MyApplication::MyApplication( )
         ContextWizard{ { window_.get( ), app_info } }
         .with<DeviceFeatureFlags>(
             DeviceFeatureFlags::SWAPCHAIN_EXT | DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
-            DeviceFeatureFlags::DYNAMIC_RENDERING_EXT | DeviceFeatureFlags::SYNCHRONIZATION_2_EXT )
+            DeviceFeatureFlags::DYNAMIC_RENDERING_EXT | DeviceFeatureFlags::SYNCHRONIZATION_2_EXT |
+            DeviceFeatureFlags::INDEPENDENT_BLEND )
         .with<ValidationLayers>( ValidationFlags::KHRONOS_VALIDATION, ::debug::debug_callback )
     );
 
@@ -86,12 +87,15 @@ MyApplication::MyApplication( )
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
 
             // Textures
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 24 },
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, TEXTURES_COUNT_ },
 
             // Texture Indices Buffer
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
 
             // Albedo Image Buffer
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+
+            // Normal Image Buffer
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE }
         }
     );
@@ -127,6 +131,16 @@ MyApplication::MyApplication( )
         context_->device( ), ImageCreateInfo{
             .extent = swapchain_->extent( ),
             .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+        }
+    );
+    normal_image_ = CVK.create_resource<Image>(
+        context_->device( ), ImageCreateInfo{
+            .extent = swapchain_->extent( ),
+            .format = VK_FORMAT_R32G32_SFLOAT,
             .tiling = VK_IMAGE_TILING_OPTIMAL,
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -191,9 +205,9 @@ MyApplication::MyApplication( )
             [this]( uint32_t ) -> VkDescriptorBufferInfo
                 {
                     return {
-                        .buffer = model_->materials_buffer( ).handle( ),
+                        .buffer = model_->surface_buffer( ).handle( ),
                         .offset = 0,
-                        .range = model_->materials_buffer( ).memory_size( )
+                        .range = model_->surface_buffer( ).memory_size( )
                     };
                 }
         },
@@ -203,6 +217,16 @@ MyApplication::MyApplication( )
                 {
                     return {
                         .imageView = albedo_image_->view( ).handle( ),
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    };
+                }
+        },
+        WriteDescription{
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            [this]( uint32_t ) -> VkDescriptorImageInfo
+                {
+                    return {
+                        .imageView = normal_image_->view( ).handle( ),
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     };
                 }
@@ -323,6 +347,11 @@ void MyApplication::create_pipelines( )
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
                 }, albedo_image_->format( ) )
+            .add_color_attachment_description(
+                VkPipelineColorBlendAttachmentState{
+                    .blendEnable = VK_FALSE,
+                    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT,
+                }, normal_image_->format( ) )
             .build( context_->device( ), *textures_pipeline_layout_ ) );
     }
 
@@ -331,9 +360,9 @@ void MyApplication::create_pipelines( )
         color_pass_pipeline_ = CVK.create_resource<Pipeline>(
             builder::GraphicsPipelineBuilder{}
             .add_shader_module( { context_->device( ), "shaders/quad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
-            .add_shader_module( { context_->device( ), "shaders/geometry.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } )
+            .add_shader_module( { context_->device( ), "shaders/lighting.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } )
             .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
-            .set_depth_stencil_mode( VK_TRUE, VK_FALSE, VK_COMPARE_OP_EQUAL )
+            .set_depth_stencil_mode( VK_FALSE, VK_FALSE )
             .set_depth_image_description( swapchain_->depth_image( ).format( ) )
             .set_cull_mode( VK_CULL_MODE_NONE )
             .add_color_attachment_description(
@@ -431,15 +460,34 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .from_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT )
             .to_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ),
             command_op );
+        normal_image_->transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+            .from_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT )
+            .to_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ),
+            command_op );
 
-        VkRenderingAttachmentInfo const albedo_attachment_info{
-            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = albedo_image_->view( ).handle( ),
-            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .clearValue = {
-                .color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } }
+        std::array const color_attachments_info{
+            VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = albedo_image_->view( ).handle( ),
+                .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .clearValue = {
+                    .color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } }
+                }
+            },
+            VkRenderingAttachmentInfo{
+                .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                .imageView = normal_image_->view( ).handle( ),
+                .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .clearValue = {
+                    .color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } }
+                }
             }
         };
 
@@ -463,8 +511,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
                 .extent = albedo_image_->extent( ),
             },
             .layerCount = 1,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &albedo_attachment_info,
+            .colorAttachmentCount = color_attachments_info.size( ),
+            .pColorAttachments = color_attachments_info.data( ),
             .pDepthAttachment = &depth_attachment_info
         } );
 
@@ -500,6 +548,13 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
             .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ),
             command_op );
+        normal_image_->transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
+            .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
+            .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ),
+            command_op );
     }
 
     // 3. Color pass: color + depth read-only
@@ -523,19 +578,6 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             }
         };
 
-        VkRenderingAttachmentInfo const depth_attachment_info{
-            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = swapchain_->depth_image( ).view( ).handle( ),
-            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .clearValue = {
-                .depthStencil = {
-                    .depth = 1.0f
-                }
-            }
-        };
-
         command_op.begin_rendering( VkRenderingInfo{
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = {
@@ -545,7 +587,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .layerCount = 1,
             .colorAttachmentCount = 1,
             .pColorAttachments = &color_attachment_info,
-            .pDepthAttachment = &depth_attachment_info
+            .pDepthAttachment = nullptr
         } );
 
         command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *color_pass_pipeline_ );

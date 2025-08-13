@@ -9,10 +9,10 @@ namespace cobalt
     {
         std::vector<Vertex> vertices{};
         std::vector<index_t> indices{};
-        std::vector<Material> materials{};
+        std::vector<SurfaceMap> surface_maps{};
         std::vector<TextureGroup> textures{};
 
-        loader.load( vertices, indices, meshes_, materials, textures );
+        loader.load( vertices, indices, meshes_, surface_maps, textures );
 
         // Create buffers
         index_buffer_ptr_ = std::make_unique<Buffer>(
@@ -22,24 +22,8 @@ namespace cobalt
             buffer::make_vertex_buffer<Vertex>( device, cmd_pool, vertices )
         );
 
-        for ( auto const& [type, path] : textures )
-        {
-            TextureImageCreateInfo create_info{ .path_to_img = path };
-            switch ( type )
-            {
-                case TextureType::DIFFUSE:
-                    create_info.image_format = VK_FORMAT_R8G8B8A8_SRGB;
-                    break;
-            }
-            textures_.emplace_back( TextureImage{
-                device, cmd_pool,
-                TextureImageCreateInfo{
-                    .path_to_img = path,
-                    .image_format = VK_FORMAT_R8G8B8A8_SRGB
-                }
-            } );
-        }
-        create_materials_buffer( device, cmd_pool, materials );
+        create_texture_images( device, cmd_pool, textures );
+        create_materials_buffer( device, cmd_pool, surface_maps );
     }
 
 
@@ -61,9 +45,9 @@ namespace cobalt
     }
 
 
-    Buffer const& Model::materials_buffer( ) const
+    Buffer const& Model::surface_buffer( ) const
     {
-        return *materials_buffer_ptr_;
+        return *surface_buffer_ptr_;
     }
 
 
@@ -73,7 +57,28 @@ namespace cobalt
     }
 
 
-    void Model::create_materials_buffer( DeviceSet const& device, CommandPool& cmd_pool, std::span<Material const> materials )
+    void Model::create_texture_images( DeviceSet const& device, CommandPool& cmd_pool, std::span<TextureGroup const> textures )
+    {
+        for ( auto const& [type, path] : textures )
+        {
+            TextureImageCreateInfo create_info{ .path_to_img = path };
+            switch ( type )
+            {
+                case TextureType::DIFFUSE:
+                    create_info.image_format = VK_FORMAT_R8G8B8A8_SRGB;
+                break;
+                case TextureType::NORMAL:
+                    create_info.image_format = VK_FORMAT_R8G8B8A8_UNORM;
+                break;
+                default:
+                    throw std::runtime_error( "unsupported texture type" );
+            }
+            textures_.emplace_back( device, cmd_pool, create_info );
+        }
+    }
+
+
+    void Model::create_materials_buffer( DeviceSet const& device, CommandPool& cmd_pool, std::span<SurfaceMap const> materials )
     {
         auto const buffer_size = materials.size_bytes( );
 
@@ -83,11 +88,11 @@ namespace cobalt
         staging_buffer.write( materials.data(), buffer_size );
         staging_buffer.unmap_memory( );
 
-        materials_buffer_ptr_ = std::make_unique<Buffer>( device, buffer_size,
+        surface_buffer_ptr_ = std::make_unique<Buffer>( device, buffer_size,
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
 
-        staging_buffer.copy_to( *materials_buffer_ptr_, cmd_pool );
+        staging_buffer.copy_to( *surface_buffer_ptr_, cmd_pool );
     }
 
 }

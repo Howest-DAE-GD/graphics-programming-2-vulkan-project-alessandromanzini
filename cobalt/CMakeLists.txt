@@ -90,7 +90,7 @@ add_library(${PROJECT_NAME}
 		src/__synchronization/RenderSync.cpp
 		include/public/__synchronization/RenderSync.h
 		include/public/__model/Mesh.h
-		include/public/__model/Material.h
+		include/public/__model/SurfaceMap.h
 		include/public/__model/TextureGroup.h
 		src/__image/ImageSampler.cpp
 		include/public/__image/ImageSampler.h

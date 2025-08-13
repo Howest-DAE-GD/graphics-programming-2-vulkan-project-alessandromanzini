@@ -156,6 +156,10 @@ namespace cobalt
         VkPhysicalDeviceFeatures2 device_features{};
         device_features.sType                      = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         device_features.features.samplerAnisotropy = VK_TRUE;
+        if ( any( feature_flags_ & DeviceFeatureFlags::INDEPENDENT_BLEND ) )
+        {
+            device_features.features.independentBlend = VK_TRUE;
+        }
 
         // Set additional Vulkan 1+ features that we want to use.
         VkPhysicalDeviceVulkan13Features device_features13{};

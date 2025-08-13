@@ -36,10 +36,11 @@ namespace cobalt::builder
             VkPipelineColorBlendAttachmentState const& attachment_state, VkFormat color_image_format );
 
         GraphicsPipelineBuilder& set_depth_image_description( VkFormat depth_image_format );
-        GraphicsPipelineBuilder& set_depth_stencil_mode( VkBool32 depth_testing, VkBool32 depth_writing, VkCompareOp compare_op );
+        GraphicsPipelineBuilder& set_depth_stencil_mode( VkBool32 depth_testing, VkBool32 depth_writing,
+                                                         VkCompareOp compare_op = VK_COMPARE_OP_MAX_ENUM );
 
         GraphicsPipelineBuilder& add_shader_module( shader::ShaderModule&& shader, VkSpecializationInfo const* = nullptr,
-                                                    char const* entry_point = "main" );
+                                                    char const* entry_point                                    = "main" );
 
         GraphicsPipelineBuilder& set_dynamic_state( std::span<VkDynamicState const> dynamic_states );
 

@@ -16,7 +16,7 @@ namespace cobalt::loader
     // | HELPERS FORWARD DECL      |
     // +---------------------------+
     void extract_meshes( aiScene const*, std::vector<Vertex>&, std::vector<uint32_t>&, std::vector<Mesh>& );
-    void extract_materials( aiScene const*, std::vector<Material>&, std::vector<TextureGroup>&, std::filesystem::path const& );
+    void extract_materials( aiScene const*, std::vector<SurfaceMap>&, std::vector<TextureGroup>&, std::filesystem::path const& );
     int fetch_texture( aiMaterial const*, aiTextureType, std::vector<TextureGroup>&, std::filesystem::path const& );
 
     [[nodiscard]] glm::vec3 to_vec3( aiVector3D const& vec ) { return { vec.x, vec.y, vec.z }; }
@@ -33,7 +33,7 @@ namespace cobalt::loader
 
 
     void AssimpModelLoader::load( std::vector<Vertex>& vertices, std::vector<uint32_t>& indices, std::vector<Mesh>& meshes,
-                                  std::vector<Material>& materials, std::vector<TextureGroup>& textures ) const
+                                  std::vector<SurfaceMap>& surface_maps, std::vector<TextureGroup>& textures ) const
     {
         Assimp::Importer importer{};
         aiScene const* const scene = importer.ReadFile(
@@ -47,7 +47,7 @@ namespace cobalt::loader
             validation::throw_runtime_error( "Assimp error while loading model: " + std::string( importer.GetErrorString( ) ) );
         }
         extract_meshes( scene, vertices, indices, meshes );
-        extract_materials( scene, materials, textures, base_path_ );
+        extract_materials( scene, surface_maps, textures, base_path_ );
     }
 
 
@@ -91,14 +91,16 @@ namespace cobalt::loader
     }
 
 
-    void extract_materials( aiScene const* scene, std::vector<Material>& materials, std::vector<TextureGroup>& textures,
+    void extract_materials( aiScene const* scene, std::vector<SurfaceMap>& surface_maps, std::vector<TextureGroup>& textures,
         std::filesystem::path const& base_path )
     {
-        materials.reserve( scene->mNumMaterials );
+        surface_maps.reserve( scene->mNumMaterials );
         for ( size_t mat_idx{}; mat_idx < scene->mNumMaterials; ++mat_idx )
         {
             aiMaterial const* mat = scene->mMaterials[mat_idx];
-            materials.emplace_back( fetch_texture( mat, aiTextureType_BASE_COLOR, textures, base_path ) );
+            int diffuse = fetch_texture( mat, aiTextureType_BASE_COLOR, textures, base_path );
+            int normal = fetch_texture( mat, aiTextureType_NORMALS, textures, base_path );
+            surface_maps.emplace_back( diffuse, normal );
         }
     }
 
@@ -131,6 +133,10 @@ namespace cobalt::loader
             case aiTextureType_DIFFUSE:
             case aiTextureType_BASE_COLOR:
                 return TextureType::DIFFUSE;
+
+            case aiTextureType_NORMALS:
+            case aiTextureType_NORMAL_CAMERA:
+                return TextureType::NORMAL;
 
             // Add other texture types as needed
             default:

@@ -29,6 +29,7 @@ namespace cobalt::validation
     [[nodiscard]] bool is_swapchain_adequate( ValidationCallbackData& data );
     [[nodiscard]] bool is_swapchain_maintenance_1_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_anisotropy_sampler_supported( ValidationCallbackData& data );
+    [[nodiscard]] bool is_independent_blend_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_dynamic_rendering_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_synchronization_2_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_vertex_input_dynamic_state_supported( ValidationCallbackData& data );

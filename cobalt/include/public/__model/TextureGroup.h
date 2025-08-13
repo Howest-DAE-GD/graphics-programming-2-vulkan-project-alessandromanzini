@@ -9,6 +9,7 @@ namespace cobalt
     enum class TextureType
     {
         DIFFUSE,
+        NORMAL,
     };
 
 

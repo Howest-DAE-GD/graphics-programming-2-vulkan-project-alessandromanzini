@@ -3,7 +3,7 @@
 
 
 // STRUCTS
-struct Material
+struct SurfaceMap
 {
     int diffuse_id;
     int specular_id;
@@ -18,22 +18,22 @@ layout ( location = 0 ) in vec2 frag_uv;
 
 // BINDINGS
 layout ( push_constant ) uniform PushConstants {
-    uint material_id;
+    uint surface_id;
 } pc;
 layout ( constant_id = 0 ) const uint TEXTURE_COUNT = 1u;
 layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
 layout ( set = 0, binding = 2 ) uniform texture2D textures[TEXTURE_COUNT];
-layout ( set = 0, binding = 3 ) readonly buffer MaterialData
+layout ( set = 0, binding = 3 ) readonly buffer SurfaceData
 {
-    Material materials[];
-} material_buffer;
+    SurfaceMap maps[];
+} surface_buffer;
 
 
 void main( )
 {
-    Material material = material_buffer.materials[pc.material_id];
+    SurfaceMap map = surface_buffer.maps[pc.surface_id];
 
-    const int diffuse_id = nonuniformEXT( material.diffuse_id );
+    const int diffuse_id = nonuniformEXT( map.diffuse_id );
     float base_color_alpha = texture( sampler2D( textures[diffuse_id], shared_sampler ), frag_uv ).a;
     if ( base_color_alpha < 0.95f )
     {

@@ -36,7 +36,7 @@ private:
 
     // In general, we don't want more than 2 frames in flight at a time. That might cause the CPU to get ahead of the GPU.
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT_{ 2u };
-    static constexpr uint32_t TEXTURES_COUNT_{ 24u };
+    static constexpr uint32_t TEXTURES_COUNT_{ 48u };
 
     static constexpr std::string_view TEXTURE_PATH_{ "resources/viking_room.png" };
     // static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
@@ -64,6 +64,7 @@ private:
 
     cobalt::ImageSamplerHandle texture_sampler_{};
     cobalt::ImageHandle albedo_image_{};
+    cobalt::ImageHandle normal_image_{};
     cobalt::ModelHandle model_{};
 
     std::vector<cobalt::BufferHandle> uniform_buffers_{};

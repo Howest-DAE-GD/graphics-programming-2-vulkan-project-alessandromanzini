@@ -14,6 +14,7 @@ namespace cobalt::validation
     std::map<DeviceFeatureFlags, validation_fn_t> validation_fn_map{
         { DeviceFeatureFlags::FAMILIES_INDICES_SUITABLE, &is_family_indices_suitable },
         { DeviceFeatureFlags::ANISOTROPIC_SAMPLING, &is_anisotropy_sampler_supported },
+        { DeviceFeatureFlags::INDEPENDENT_BLEND, &is_independent_blend_supported },
         { DeviceFeatureFlags::SWAPCHAIN_EXT, &is_swapchain_adequate },
         { DeviceFeatureFlags::SWAPCHAIN_MAINTENANCE_1_EXT, &is_swapchain_maintenance_1_supported },
         { DeviceFeatureFlags::DYNAMIC_RENDERING_EXT, &is_dynamic_rendering_supported },
