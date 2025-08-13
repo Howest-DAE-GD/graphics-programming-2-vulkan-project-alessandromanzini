@@ -13,7 +13,7 @@
 #include <__image/ImageSampler.h>
 #include <__model/AssimpModelLoader.h>
 #include <__model/Model.h>
-#include <__pipeline/GraphicsPipeline.h>
+#include <__pipeline/Pipeline.h>
 #include <__render/DescriptorAllocator.h>
 #include <__render/Renderer.h>
 #include <__render/Swapchain.h>
@@ -24,12 +24,10 @@
 
 #include <filesystem>
 #include <iostream>
+#include <__pipeline/GraphicsPipelineBuilder.h>
 
 
 using namespace cobalt;
-
-
-GraphicsPipelineCreateInfo make_graphics_pipeline_create_info( std::span<VkPipelineShaderStageCreateInfo const> shaders );
 
 
 // +---------------------------+
@@ -77,18 +75,26 @@ MyApplication::MyApplication( )
     command_pool_ = CVK.create_resource<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
     swapchain_->depth_image( ).transition_layout( { VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }, *command_pool_ );
 
-    // 5. Render pipeline
+    // 5. Descriptors
     descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
         context_->device( ), MAX_FRAMES_IN_FLIGHT_,
         std::array{
+            // Camera uniform buffer
             LayoutBindingDescription{ VK_SHADER_STAGE_VERTEX_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+
+            // Sampler
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
+
+            // Textures
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 24 },
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER }
+
+            // Texture Indices Buffer
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
+
+            // Albedo Image Buffer
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE }
         }
     );
-    create_depth_prepass_pipeline( );
-    create_main_render_pipeline( );
 
     // 7. Renderer
     renderer_ = CVK.create_resource<Renderer>( RendererCreateInfo{
@@ -104,7 +110,7 @@ MyApplication::MyApplication( )
     renderer_->set_update_uniform_buffer_fn(
         std::bind( &MyApplication::update_uniform_buffer, this, std::placeholders::_1 ) );
 
-    // 8. Texture image
+    // 8. Sampler and GBuffers
     texture_sampler_ = CVK.create_resource<ImageSampler>(
         context_->device( ),
         ImageSamplerCreateInfo{
@@ -117,17 +123,31 @@ MyApplication::MyApplication( )
             .compare_op = VK_COMPARE_OP_ALWAYS
         } );
 
-    // 9. Model
+    albedo_image_ = CVK.create_resource<Image>(
+        context_->device( ), ImageCreateInfo{
+            .extent = swapchain_->extent( ),
+            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+        }
+    );
+
+    // 9. Graphic pipelines
+    create_pipelines( );
+
+    // 10. Model
     model_ = CVK.create_resource<Model>( context_->device( ), *command_pool_, loader::AssimpModelLoader{ MODEL_PATH_ } );
 
-    // 10. Uniform buffers
+    // 11. Uniform buffers
     for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         uniform_buffers_.emplace_back(
             CVK.create_resource<Buffer>( buffer::make_uniform_buffer( context_->device( ), sizeof( UniformBufferObject ) ) ) );
     }
 
-    // 11. Update descriptor sets
+    // 12. Update descriptor sets
     std::array write_ops{
         WriteDescription{
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -176,7 +196,17 @@ MyApplication::MyApplication( )
                         .range = model_->materials_buffer( ).memory_size( )
                     };
                 }
-        }
+        },
+        WriteDescription{
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            [this]( uint32_t ) -> VkDescriptorImageInfo
+                {
+                    return {
+                        .imageView = albedo_image_->view( ).handle( ),
+                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    };
+                }
+        },
     };
     descriptor_allocator_->update_sets( write_ops );
 }
@@ -222,124 +252,107 @@ void MyApplication::run( )
 // +---------------------------+
 // | PRIVATE                   |
 // +---------------------------+
-void MyApplication::create_depth_prepass_pipeline( )
+void MyApplication::create_pipelines( )
 {
-    // Create shader modules for depth prepass
-    shader::ShaderModule const vert_shader{ context_->device( ), "shaders/geometry.vert.spv" };
-    shader::ShaderModule const frag_shader{ context_->device( ), "shaders/depth.frag.spv" };
-
-    constexpr VkSpecializationMapEntry specialization_entry{
-        .constantID = 0,
-        .offset = 0,
-        .size = sizeof( uint32_t ),
-    };
-
-    constexpr uint32_t texture_count{ 24u };
-
-    VkSpecializationInfo specialization_info{
-        .mapEntryCount = 1,
-        .pMapEntries   = &specialization_entry,
-        .dataSize      = sizeof( uint32_t ),
-        .pData         = &texture_count
-    };
-
-    GraphicsPipelineCreateInfo info = make_graphics_pipeline_create_info(
-        std::array<VkPipelineShaderStageCreateInfo, 2>{
-            {
-                {
-                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                    .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                    .module = vert_shader.handle( ),
-                    .pName = "main"
-                },
-                {
-                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                    .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                    .module = frag_shader.handle( ),
-                    .pName = "main",
-                    .pSpecializationInfo = &specialization_info
-                }
+    textures_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
+        context_->device( ), std::array{ descriptor_allocator_->layout( ).handle( ) },
+        std::array{
+            VkPushConstantRange{
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .offset = 0,
+                .size = sizeof( uint32_t )
             }
         } );
+    quad_pipeline_layout_ = CVK.create_resource<PipelineLayout>( context_->device( ),
+                                                                 std::array{ descriptor_allocator_->layout( ).handle( ) } );
 
-    // Disable color writes completely for depth prepass
-    info.color_blend_attachment = std::nullopt;
+    // Depth pre-pass pipeline
+    {
+        constexpr VkSpecializationMapEntry specialization_entry{
+            .constantID = 0,
+            .offset = 0,
+            .size = sizeof( TEXTURES_COUNT_ ),
+        };
 
-    // Set depth test and write enable
-    info.depth_stencil.depthTestEnable  = VK_TRUE;
-    info.depth_stencil.depthWriteEnable = VK_TRUE;
-    info.depth_stencil.depthCompareOp   = VK_COMPARE_OP_LESS,
+        VkSpecializationInfo const specialization_info{
+            .mapEntryCount = 1,
+            .pMapEntries = &specialization_entry,
+            .dataSize = sizeof( TEXTURES_COUNT_ ),
+            .pData = &TEXTURES_COUNT_
+        };
 
-            // No color attachment in depth prepass
-            info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
-    info.swapchain_image_format         = VK_FORMAT_UNDEFINED;
-    info.depth_image_format             = swapchain_->depth_image( ).format( );
+        depth_prepass_pipeline_ = CVK.create_resource<Pipeline>(
+            builder::GraphicsPipelineBuilder{}
+            .add_shader_module( { context_->device( ), "shaders/transform.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
+            .add_shader_module( { context_->device( ), "shaders/depth.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
+                                &specialization_info )
+            .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
+            .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
+            .set_depth_stencil_mode( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS )
+            .set_depth_image_description( swapchain_->depth_image( ).format( ) )
+            .build( context_->device( ), *textures_pipeline_layout_ ) );
+    }
 
-    depth_prepass_pipeline_ = CVK.create_resource<GraphicsPipeline>( context_->device( ), info );
+    // G-Buffer generation pipeline
+    {
+        constexpr VkSpecializationMapEntry specialization_entry{
+            .constantID = 0,
+            .offset = 0,
+            .size = sizeof( TEXTURES_COUNT_ ),
+        };
+
+        VkSpecializationInfo const specialization_info{
+            .mapEntryCount = 1,
+            .pMapEntries = &specialization_entry,
+            .dataSize = sizeof( TEXTURES_COUNT_ ),
+            .pData = &TEXTURES_COUNT_
+        };
+
+        gbuffer_gen_pipeline_ = CVK.create_resource<Pipeline>(
+            builder::GraphicsPipelineBuilder{}
+            .add_shader_module( { context_->device( ), "shaders/transform.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
+            .add_shader_module( { context_->device( ), "shaders/gbuffer_gen.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
+                                &specialization_info )
+            .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
+            .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
+            .set_depth_stencil_mode( VK_TRUE, VK_FALSE, VK_COMPARE_OP_EQUAL )
+            .set_depth_image_description( swapchain_->depth_image( ).format( ) )
+            .add_color_attachment_description(
+                VkPipelineColorBlendAttachmentState{
+                    .blendEnable = VK_FALSE,
+                    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                                      VK_COLOR_COMPONENT_A_BIT,
+                }, albedo_image_->format( ) )
+            .build( context_->device( ), *textures_pipeline_layout_ ) );
+    }
+
+    // Color pass pipeline
+    {
+        color_pass_pipeline_ = CVK.create_resource<Pipeline>(
+            builder::GraphicsPipelineBuilder{}
+            .add_shader_module( { context_->device( ), "shaders/quad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
+            .add_shader_module( { context_->device( ), "shaders/geometry.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } )
+            .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
+            .set_depth_stencil_mode( VK_TRUE, VK_FALSE, VK_COMPARE_OP_EQUAL )
+            .set_depth_image_description( swapchain_->depth_image( ).format( ) )
+            .set_cull_mode( VK_CULL_MODE_NONE )
+            .add_color_attachment_description(
+                VkPipelineColorBlendAttachmentState{
+                    .blendEnable = VK_FALSE,
+                    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                                      VK_COLOR_COMPONENT_A_BIT,
+                }, swapchain_->image_format( ) )
+            .build( context_->device( ), *textures_pipeline_layout_ ) );
+    }
 }
 
 
-void MyApplication::create_main_render_pipeline( )
-{
-    // The compilation and linking of the SPIR-V bytecode to machine code for execution by the GPU doesn't happen until the
-    // graphics pipeline is created. That means that we're allowed to destroy the shader modules again as soon as pipeline
-    // creation is finished. Therefore, we create them as local temporary variables.
-    shader::ShaderModule const vert_shader{ context_->device( ), "shaders/geometry.vert.spv" };
-    shader::ShaderModule const frag_shader{ context_->device( ), "shaders/geometry.frag.spv" };
-
-    constexpr VkSpecializationMapEntry specialization_entry{
-        .constantID = 0,
-        .offset = 0,
-        .size = sizeof( uint32_t ),
-    };
-
-    constexpr uint32_t texture_count{ 24u };
-
-    VkSpecializationInfo specialization_info{
-        .mapEntryCount = 1,
-        .pMapEntries   = &specialization_entry,
-        .dataSize      = sizeof( uint32_t ),
-        .pData         = &texture_count
-    };
-
-    GraphicsPipelineCreateInfo info = make_graphics_pipeline_create_info(
-        std::array<VkPipelineShaderStageCreateInfo, 2>{
-            {
-                {
-                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                    .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                    .module = vert_shader.handle( ),
-                    .pName = "main",
-                },
-                {
-                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                    .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                    .module = frag_shader.handle( ),
-                    .pName = "main",
-                    .pSpecializationInfo = &specialization_info,
-                }
-            }
-        } );
-
-    // Set only depth test enable
-    info.depth_stencil.depthTestEnable  = VK_TRUE;
-    info.depth_stencil.depthWriteEnable = VK_FALSE;
-    info.depth_stencil.depthCompareOp   = VK_COMPARE_OP_EQUAL,
-
-            info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
-    info.swapchain_image_format         = swapchain_->image_format( );
-    info.depth_image_format             = swapchain_->depth_image( ).format( );
-
-    main_render_pipeline_ = CVK.create_resource<GraphicsPipeline>( context_->device( ), info );
-}
-
-
-void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& image, VkDescriptorSet const desc_set ) const
+void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& image, VkDescriptorSet const desc_set )
 {
     buffer.reset( );
     auto const command_op = buffer.command_operator( 0 );
 
-    // 1. We set the memory barriers for the swapchain image.
+    // 1. Depth Pre-Pass: render geometry to depth only, no color attachment
     {
         // Pre depth pass barrier
         swapchain_->depth_image( ).transition_layout(
@@ -349,33 +362,6 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .from_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT )
             .to_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT ), command_op );
 
-        // Post depth pass barrier
-        swapchain_->depth_image( ).transition_layout(
-            ImageLayoutTransition{ VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }
-            .from_stage( VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT )
-            .to_stage( VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT )
-            .from_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT )
-            .to_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT ), command_op );
-
-        // Pre color pass barrier
-        image.transition_layout(
-            ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
-            .from_stage( VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT )
-            .to_stage( VK_PIPELINE_STAGE_2_TRANSFER_BIT )
-            .from_access( VK_ACCESS_2_NONE )
-            .to_access( VK_ACCESS_2_TRANSFER_WRITE_BIT ), command_op );
-
-        // Post color pass barrier
-        image.transition_layout(
-            ImageLayoutTransition{ VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
-            .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
-            .to_stage( VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT )
-            .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
-            .to_access( VK_ACCESS_2_NONE ), command_op );
-    }
-
-    // 2. Depth Pre-Pass: render geometry to depth only, no color attachment
-    {
         VkRenderingAttachmentInfo const depth_prepass_attachment_info{
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = swapchain_->depth_image( ).view( ).handle( ),
@@ -419,16 +405,113 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
 
         for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
         {
-            command_op.push_constants( main_render_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
+            command_op.push_constants( depth_prepass_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
                                        0, sizeof( uint32_t ), &material_index );
             command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
         }
 
         command_op.end_rendering( );
+
+        // Post depth pass barrier
+        swapchain_->depth_image( ).transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT )
+            .from_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT )
+            .to_access( VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT ), command_op );
     }
 
-    // 3. Main render pass: color + depth read-only
+    // 2. G-Buffer generation pass: color on g-buffer images
     {
+        // Pre gbuffer generation barrier
+        albedo_image_->transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+            .from_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT )
+            .to_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ),
+            command_op );
+
+        VkRenderingAttachmentInfo const albedo_attachment_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = albedo_image_->view( ).handle( ),
+            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = {
+                .color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } }
+            }
+        };
+
+        VkRenderingAttachmentInfo const depth_attachment_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = swapchain_->depth_image( ).view( ).handle( ),
+            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .clearValue = {
+                .depthStencil = {
+                    .depth = 1.0f
+                }
+            }
+        };
+
+        command_op.begin_rendering( VkRenderingInfo{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea = {
+                .offset = { 0, 0 },
+                .extent = albedo_image_->extent( ),
+            },
+            .layerCount = 1,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &albedo_attachment_info,
+            .pDepthAttachment = &depth_attachment_info
+        } );
+
+        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *gbuffer_gen_pipeline_ );
+
+        command_op.set_viewport( VkViewport{
+            .x = 0.f, .y = 0.f,
+            .width = static_cast<float>( albedo_image_->extent( ).width ),
+            .height = static_cast<float>( albedo_image_->extent( ).height ),
+            .minDepth = 0.f, .maxDepth = 1.f
+        } );
+        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = albedo_image_->extent( ) } );
+
+        command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
+        command_op.bind_index_buffer( model_->index_buffer( ), 0 );
+
+        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *gbuffer_gen_pipeline_, desc_set );
+
+        for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
+        {
+            command_op.push_constants( gbuffer_gen_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
+                                       0, sizeof( uint32_t ), &material_index );
+            command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
+        }
+
+        command_op.end_rendering( );
+
+        // Post gbuffer generation barrier
+        albedo_image_->transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
+            .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
+            .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ),
+            command_op );
+    }
+
+    // 3. Color pass: color + depth read-only
+    {
+        // Pre color pass barrier
+        image.transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
+            .from_stage( VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_TRANSFER_BIT )
+            .from_access( VK_ACCESS_2_NONE )
+            .to_access( VK_ACCESS_2_TRANSFER_WRITE_BIT ), command_op );
+
         VkRenderingAttachmentInfo const color_attachment_info{
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = image.view( ).handle( ),
@@ -453,7 +536,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             }
         };
 
-        VkRenderingInfo const render_info{
+        command_op.begin_rendering( VkRenderingInfo{
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = {
                 .offset = { 0, 0 },
@@ -463,11 +546,9 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .colorAttachmentCount = 1,
             .pColorAttachments = &color_attachment_info,
             .pDepthAttachment = &depth_attachment_info
-        };
+        } );
 
-        command_op.begin_rendering( render_info );
-
-        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *main_render_pipeline_ );
+        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *color_pass_pipeline_ );
 
         command_op.set_viewport( VkViewport{
             .x = 0.f, .y = 0.f,
@@ -477,19 +558,19 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
         } );
         command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = image.extent( ) } );
 
-        command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
-        command_op.bind_index_buffer( model_->index_buffer( ), 0 );
+        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *color_pass_pipeline_, desc_set );
 
-        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *main_render_pipeline_, desc_set );
-
-        for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
-        {
-            command_op.push_constants( main_render_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
-                                       0, sizeof( uint32_t ), &material_index );
-            command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
-        }
+        command_op.draw( 4, 1 );
 
         command_op.end_rendering( );
+
+        // Post color pass barrier
+        image.transition_layout(
+            ImageLayoutTransition{ VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
+            .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+            .to_stage( VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT )
+            .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
+            .to_access( VK_ACCESS_2_NONE ), command_op );
     }
 }
 
@@ -509,72 +590,4 @@ void MyApplication::configure_relative_path( )
 {
     xos::info::log_info( std::clog );
     xos::filesystem::configure_relative_path( );
-}
-
-
-GraphicsPipelineCreateInfo make_graphics_pipeline_create_info( std::span<VkPipelineShaderStageCreateInfo const> shaders )
-{
-    // The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn from
-    // the vertices and if primitive restart should be enabled.
-    constexpr VkPipelineInputAssemblyStateCreateInfo input_assembly{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE
-    };
-
-    // The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns it into
-    // fragments to be colored by the fragment shader. It also performs depth testing, face culling and the scissor
-    // test.
-    constexpr VkPipelineRasterizationStateCreateInfo rasterization{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-        .lineWidth = 1.0f,
-    };
-
-    // The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform
-    // antialiasing.
-    constexpr VkPipelineMultisampleStateCreateInfo multisampling{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .sampleShadingEnable = VK_FALSE,
-    };
-
-    // After a fragment shader has returned a color, it needs to be combined with the color that is already in the
-    // framebuffer. This transformation is known as color blending and there are two ways to do it:
-    // 1. Mix the old and new value to produce a final color.
-    // 2. Combine the old and new value using a bitwise operation.
-    constexpr VkPipelineColorBlendAttachmentState color_blend_attachment{
-        .blendEnable = VK_FALSE,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-                          VK_COLOR_COMPONENT_A_BIT,
-    };
-
-    // Depth stencil creation
-    constexpr VkPipelineDepthStencilStateCreateInfo depth_stencil{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthBoundsTestEnable = VK_FALSE,
-        .stencilTestEnable = VK_FALSE,
-    };
-
-    return GraphicsPipelineCreateInfo{
-        .shader_stages = { shaders.begin( ), shaders.end( ) },
-        .push_constant_ranges = {
-            VkPushConstantRange{
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .offset = 0,
-                .size = sizeof( uint32_t )
-            }
-        },
-        .binding_description = { Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) },
-        .input_assembly = input_assembly,
-        .rasterization = rasterization,
-        .multisampling = multisampling,
-        .color_blend_attachment = color_blend_attachment,
-        .depth_stencil = depth_stencil
-    };
 }

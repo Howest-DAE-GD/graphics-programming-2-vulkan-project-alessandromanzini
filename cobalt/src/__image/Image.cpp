@@ -109,6 +109,11 @@ namespace cobalt
 
     void Image::transition_layout( ImageLayoutTransition transition, CommandOperator const& cmd_operator )
     {
+        if ( transition.to_layout == layout_ )
+        {
+            return;
+        }
+
         transition.transition_from( layout_ );
 
         VkImageMemoryBarrier2 const barrier{

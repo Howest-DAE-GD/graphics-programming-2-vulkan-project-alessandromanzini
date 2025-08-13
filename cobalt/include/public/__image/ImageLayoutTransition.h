@@ -15,11 +15,11 @@ namespace cobalt
 
         ImageLayoutTransition( VkImageLayout to ) noexcept;
 
-        ImageLayoutTransition& from_access( VkAccessFlags ) noexcept;
-        ImageLayoutTransition& to_access( VkAccessFlags ) noexcept;
+        ImageLayoutTransition& from_access( VkAccessFlags2 ) noexcept;
+        ImageLayoutTransition& to_access( VkAccessFlags2 ) noexcept;
 
-        ImageLayoutTransition& from_stage( VkAccessFlags ) noexcept;
-        ImageLayoutTransition& to_stage( VkAccessFlags ) noexcept;
+        ImageLayoutTransition& from_stage( VkPipelineStageFlags2 ) noexcept;
+        ImageLayoutTransition& to_stage( VkPipelineStageFlags2 ) noexcept;
 
         void transition_from( VkImageLayout const from ) noexcept;
 

@@ -6,6 +6,7 @@
 
 #include <cassert>
 #include <fstream>
+#include <__meta/expect_size.h>
 
 
 namespace cobalt::shader
@@ -36,8 +37,9 @@ namespace cobalt::shader
     // +---------------------------+
     // | SHADER MODULE             |
     // +---------------------------+
-    ShaderModule::ShaderModule( DeviceSet const& device, std::filesystem::path const& path )
+    ShaderModule::ShaderModule( DeviceSet const& device, std::filesystem::path const& path, VkShaderStageFlagBits const stage )
         : device_ref_{ device }
+        , stage_{ stage }
     {
         auto const code = read_file( path );
 
@@ -60,9 +62,24 @@ namespace cobalt::shader
     }
 
 
+    ShaderModule::ShaderModule( ShaderModule&& other ) noexcept
+        : device_ref_{ other.device_ref_ }
+        , stage_{ other.stage_ }
+        , shader_module_{ std::exchange( other.shader_module_, VK_NULL_HANDLE ) }
+    {
+        meta::expect_size<ShaderModule, 24u>( );
+    }
+
+
     VkShaderModule ShaderModule::handle( ) const noexcept
     {
         return shader_module_;
+    }
+
+
+    VkShaderStageFlagBits ShaderModule::stage( ) const noexcept
+    {
+        return stage_;
     }
 
 }

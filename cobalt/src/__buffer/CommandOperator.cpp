@@ -109,15 +109,22 @@ namespace cobalt
     void CommandOperator::bind_descriptor_set( VkPipelineBindPoint const bind_point, Pipeline const& pipeline,
                                                VkDescriptorSet const desc_set ) const
     {
-        vkCmdBindDescriptorSets( command_buffer_, bind_point, pipeline.layout( ), 0, 1,
+        vkCmdBindDescriptorSets( command_buffer_, bind_point, pipeline.layout( ).handle( ), 0, 1,
                                  &desc_set, 0, nullptr );
     }
 
 
-    void CommandOperator::push_constants( VkPipelineLayout const layout, VkShaderStageFlags const stage_flags,
+    void CommandOperator::push_constants( PipelineLayout const& layout, VkShaderStageFlags const stage_flags,
                                           uint32_t const offset, uint32_t const size, void const* data ) const
     {
-        vkCmdPushConstants( command_buffer_, layout, stage_flags, offset, size, data );
+        vkCmdPushConstants( command_buffer_, layout.handle( ), stage_flags, offset, size, data );
+    }
+
+
+    void CommandOperator::draw( int32_t const vertex_count, uint32_t const instance_count, uint32_t const vertex_offset,
+                                uint32_t const instance_offset ) const
+    {
+        vkCmdDraw( command_buffer_, vertex_count, instance_count, vertex_offset, instance_offset );
     }
 
 

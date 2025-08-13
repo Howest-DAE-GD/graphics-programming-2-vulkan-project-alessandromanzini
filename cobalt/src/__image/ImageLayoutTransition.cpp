@@ -40,28 +40,28 @@ namespace cobalt
         : to_layout{ to } { }
 
 
-    ImageLayoutTransition& ImageLayoutTransition::from_access( VkAccessFlags const flags ) noexcept
+    ImageLayoutTransition& ImageLayoutTransition::from_access( VkAccessFlags2 const flags ) noexcept
     {
         src_access_mask = flags;
         return *this;
     }
 
 
-    ImageLayoutTransition& ImageLayoutTransition::to_access( VkAccessFlags const flags ) noexcept
+    ImageLayoutTransition& ImageLayoutTransition::to_access( VkAccessFlags2 const flags ) noexcept
     {
         dst_access_mask = flags;
         return *this;
     }
 
 
-    ImageLayoutTransition& ImageLayoutTransition::from_stage( VkAccessFlags const flags ) noexcept
+    ImageLayoutTransition& ImageLayoutTransition::from_stage( VkPipelineStageFlags2 const flags ) noexcept
     {
         src_stage_mask = flags;
         return *this;
     }
 
 
-    ImageLayoutTransition& ImageLayoutTransition::to_stage( VkAccessFlags const flags ) noexcept
+    ImageLayoutTransition& ImageLayoutTransition::to_stage( VkPipelineStageFlags2 const flags ) noexcept
     {
         dst_stage_mask = flags;
         return *this;

@@ -3,6 +3,8 @@
 
 #include <__memory/Resource.h>
 
+#include <__pipeline/PipelineLayout.h>
+
 #include <vulkan/vulkan_core.h>
 
 
@@ -13,29 +15,23 @@ namespace cobalt
 
 namespace cobalt
 {
-    class Pipeline : public memory::Resource
+    class Pipeline final : public memory::Resource
     {
     public:
+        explicit Pipeline( DeviceSet const&, PipelineLayout const&, VkGraphicsPipelineCreateInfo const& );
         ~Pipeline( ) noexcept override;
 
+        Pipeline( Pipeline&& ) noexcept;
         Pipeline( const Pipeline& )                = delete;
-        Pipeline( Pipeline&& ) noexcept            = delete;
         Pipeline& operator=( const Pipeline& )     = delete;
         Pipeline& operator=( Pipeline&& ) noexcept = delete;
 
         [[nodiscard]] VkPipeline handle( ) const;
-        [[nodiscard]] VkPipelineLayout layout( ) const;
-
-    protected:
-        DeviceSet const& device_ref_;
-
-        explicit Pipeline( DeviceSet const& );
-
-        void create_layout( VkPipelineLayoutCreateInfo const& );
-        void create_handle( VkGraphicsPipelineCreateInfo const& );
+        [[nodiscard]] PipelineLayout const& layout( ) const;
 
     private:
-        VkPipelineLayout layout_{ VK_NULL_HANDLE };
+        DeviceSet const& device_ref_;
+        PipelineLayout const& layout_ref_;
         VkPipeline pipeline_{ VK_NULL_HANDLE };
 
     };

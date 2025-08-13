@@ -19,7 +19,9 @@ namespace cobalt
     using SwapchainHandle = DefaultHandle<class Swapchain>;
     using CommandPoolHandle = DefaultHandle<class CommandPool>;
     using DescriptorAllocatorHandle = DefaultHandle<class DescriptorAllocator>;
-    using GraphicsPipelineHandle = DefaultHandle<class GraphicsPipeline>;
+    using PipelineLayoutHandle = DefaultHandle<class PipelineLayout>;
+    using PipelineHandle = DefaultHandle<class Pipeline>;
+    using ImageHandle = DefaultHandle<class Image>;
     using ImageSamplerHandle = DefaultHandle<class ImageSampler>;
     using RendererHandle = DefaultHandle<class Renderer>;
     using ModelHandle = DefaultHandle<class Model>;

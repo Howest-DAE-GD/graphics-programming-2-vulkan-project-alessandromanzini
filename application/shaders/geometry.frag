@@ -1,24 +1,7 @@
 #version 450
-#extension GL_EXT_nonuniform_qualifier: enable
-
-// STRUCTS
-struct Material
-{
-    int diffuse_id;
-    int specular_id;
-    int normal_id;
-    int metalness_id;
-};
-
 
 // INPUT
 layout ( location = 0 ) in vec2 frag_uv;
-
-
-// PUSH CONSTANTS
-layout ( push_constant ) uniform PushConstants {
-    uint material_id;
-} pc;
 
 
 // OUTPUT
@@ -26,22 +9,14 @@ layout ( location = 0 ) out vec4 out_color;
 
 
 // BINDINGS
-layout ( constant_id = 0 ) const uint TEXTURE_COUNT = 1u;
 layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
-layout ( set = 0, binding = 2 ) uniform texture2D textures[TEXTURE_COUNT];
-layout ( set = 0, binding = 3 ) readonly buffer MaterialData
-{
-    Material materials[];
-} material_buffer;
+layout ( set = 0, binding = 4 ) uniform texture2D albedo_texture;
 
 
 // SHADER ENTRY POINT
 void main( )
 {
-    Material material = material_buffer.materials[pc.material_id];
+    vec4 albedo = texture( sampler2D( albedo_texture, shared_sampler ), frag_uv ).rgba;
 
-    const int diffuse_id = nonuniformEXT( material.diffuse_id );
-    vec4 diffuse_color = texture( sampler2D( textures[diffuse_id], shared_sampler ), frag_uv ).rgba;
-
-    out_color = diffuse_color;
+    out_color = albedo;
 }

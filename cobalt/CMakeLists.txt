@@ -58,7 +58,6 @@ add_library(${PROJECT_NAME}
 		"src/__model/Model.cpp"
 		"src/__model/AssimpModelLoader.cpp"
 
-		"src/__pipeline/GraphicsPipeline.cpp"
 		"src/__pipeline/Pipeline.cpp"
 
 		"src/__query/device_features_support.cpp"
@@ -96,6 +95,10 @@ add_library(${PROJECT_NAME}
 		src/__image/ImageSampler.cpp
 		include/public/__image/ImageSampler.h
 		include/public/__render/LayoutBindingDescription.h
+		src/__pipeline/GraphicsPipelineBuilder.cpp
+		include/public/__pipeline/GraphicsPipelineBuilder.h
+		src/__pipeline/PipelineLayout.cpp
+		include/public/__pipeline/PipelineLayout.h
 )
 
 # set warning level to W4 and warnings as errors
