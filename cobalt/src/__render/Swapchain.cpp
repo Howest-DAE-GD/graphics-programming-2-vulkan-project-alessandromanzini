@@ -155,13 +155,20 @@ namespace cobalt
     void Swapchain::destroy_swapchain( )
     {
         // 1. Destroy the depth image.
-        depth_image_ptr_.reset( );
+        if (depth_image_ptr_)
+        {
+            depth_image_ptr_.reset();
+        }
 
         // 2. Destroy the swapchain images.
         images_.clear( );
 
         // 3. Destroy the swapchain.
-        vkDestroySwapchainKHR( context_ref_.device( ).logical( ), swapchain_, nullptr );
+        if ( swapchain_ != VK_NULL_HANDLE )
+        {
+            vkDestroySwapchainKHR( context_ref_.device( ).logical( ), swapchain_, nullptr );
+            swapchain_ = VK_NULL_HANDLE;
+        }
     }
 
 
