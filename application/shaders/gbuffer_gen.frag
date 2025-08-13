@@ -18,7 +18,7 @@ layout ( location = 1 ) in mat3 frag_tbn;
 
 // OUTPUT
 layout ( location = 0 ) out vec4 out_albedo;
-layout ( location = 1 ) out vec4 out_normal;
+layout ( location = 1 ) out vec2 out_normal;
 // layout ( location = 2 ) out vec4 out_material;
 
 
@@ -46,16 +46,16 @@ vec2 octa_wrap( vec2 v )
 vec2 float_to_vec2( float v, float min, float max )
 {
     float zero_to_one = ( v - min ) / ( max - min );
-    float zero_to_16bit = zero_to_one * 256.0 * 255.0;
-    return vec2( mod( zero_to_16bit, 256.0 ), zero_to_16bit / 256.0 );
+    float zero_to_16bit = zero_to_one * 256.f * 255.f;
+    return vec2( mod( zero_to_16bit, 256.f ), zero_to_16bit / 256.f );
 }
 
-vec4 encode( vec3 n )
+vec2 encode( vec3 n )
 {
     n /= ( abs( n.x ) + abs( n.y ) + abs( n.z ) );
-    n.xy = n.z >= 0.0 ? n.xy : octa_wrap( n.xy );
-    n.xy = n.xy * 0.5 + vec2( 0.5, 0.5 );
-    return vec4( float_to_vec2( n.x, 0.0, 1.0 ), float_to_vec2( n.y, 0.0, 1.0 ) );
+    n.xy = ( n.z >= 0.f ) ? n.xy : octa_wrap( n.xy );
+    n.xy = n.xy * .5f + vec2( .5f, .5f );
+    return n.xy;
 }
 
 

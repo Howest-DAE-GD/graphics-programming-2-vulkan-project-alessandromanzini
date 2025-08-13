@@ -54,8 +54,8 @@ private:
     cobalt::CommandPoolHandle command_pool_{};
     cobalt::DescriptorAllocatorHandle descriptor_allocator_{};
 
-    cobalt::PipelineLayoutHandle textures_pipeline_layout_{};
-    cobalt::PipelineLayoutHandle quad_pipeline_layout_{};
+    cobalt::PipelineLayoutHandle sampling_pipeline_layout_{};
+    cobalt::PipelineLayoutHandle lighting_pipeline_layout_{};
     cobalt::PipelineHandle depth_prepass_pipeline_{};
     cobalt::PipelineHandle gbuffer_gen_pipeline_{};
     cobalt::PipelineHandle color_pass_pipeline_{};

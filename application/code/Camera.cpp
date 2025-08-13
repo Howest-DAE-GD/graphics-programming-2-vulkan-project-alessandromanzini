@@ -51,6 +51,12 @@ glm::mat4x4 Camera::projection( ) const
 }
 
 
+glm::vec3 const& Camera::view_direction( ) const noexcept
+{
+    return forward_;
+}
+
+
 void Camera::set_viewport( VkExtent2D const extent ) noexcept
 {
     aspect_ratio_ = static_cast<float>( extent.width ) / extent.height;

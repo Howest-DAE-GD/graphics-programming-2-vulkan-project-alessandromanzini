@@ -140,7 +140,7 @@ MyApplication::MyApplication( )
     normal_image_ = CVK.create_resource<Image>(
         context_->device( ), ImageCreateInfo{
             .extent = swapchain_->extent( ),
-            .format = VK_FORMAT_R32G32_SFLOAT,
+            .format = VK_FORMAT_R16G16_SFLOAT,
             .tiling = VK_IMAGE_TILING_OPTIMAL,
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -278,7 +278,7 @@ void MyApplication::run( )
 // +---------------------------+
 void MyApplication::create_pipelines( )
 {
-    textures_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
+    sampling_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
         context_->device( ), std::array{ descriptor_allocator_->layout( ).handle( ) },
         std::array{
             VkPushConstantRange{
@@ -287,8 +287,15 @@ void MyApplication::create_pipelines( )
                 .size = sizeof( uint32_t )
             }
         } );
-    quad_pipeline_layout_ = CVK.create_resource<PipelineLayout>( context_->device( ),
-                                                                 std::array{ descriptor_allocator_->layout( ).handle( ) } );
+    lighting_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
+        context_->device( ), std::array{ descriptor_allocator_->layout( ).handle( ) },
+        std::array{
+            VkPushConstantRange{
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .offset = 0,
+                .size = sizeof( glm::vec3 )
+            }
+        } );
 
     // Depth pre-pass pipeline
     {
@@ -314,7 +321,7 @@ void MyApplication::create_pipelines( )
             .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
             .set_depth_stencil_mode( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS )
             .set_depth_image_description( swapchain_->depth_image( ).format( ) )
-            .build( context_->device( ), *textures_pipeline_layout_ ) );
+            .build( context_->device( ), *sampling_pipeline_layout_ ) );
     }
 
     // G-Buffer generation pipeline
@@ -350,9 +357,10 @@ void MyApplication::create_pipelines( )
             .add_color_attachment_description(
                 VkPipelineColorBlendAttachmentState{
                     .blendEnable = VK_FALSE,
-                    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT,
+                    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+                                      VK_COLOR_COMPONENT_A_BIT,
                 }, normal_image_->format( ) )
-            .build( context_->device( ), *textures_pipeline_layout_ ) );
+            .build( context_->device( ), *sampling_pipeline_layout_ ) );
     }
 
     // Color pass pipeline
@@ -371,7 +379,7 @@ void MyApplication::create_pipelines( )
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
                 }, swapchain_->image_format( ) )
-            .build( context_->device( ), *textures_pipeline_layout_ ) );
+            .build( context_->device( ), *lighting_pipeline_layout_ ) );
     }
 }
 
@@ -602,6 +610,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
 
         command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *color_pass_pipeline_, desc_set );
 
+        command_op.push_constants( color_pass_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
+                                   0, sizeof( glm::vec3 ), &camera_ptr_->view_direction( ) );
         command_op.draw( 4, 1 );
 
         command_op.end_rendering( );
