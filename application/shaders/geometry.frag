@@ -1,5 +1,5 @@
 #version 450
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_nonuniform_qualifier: enable
 
 // STRUCTS
 struct Material
@@ -26,17 +26,16 @@ layout ( location = 0 ) out vec4 out_color;
 
 
 // BINDINGS
+layout ( constant_id = 0 ) const uint TEXTURE_COUNT = 1u;
 layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
-layout ( set = 0, binding = 2 ) uniform texture2D textures[24];
+layout ( set = 0, binding = 2 ) uniform texture2D textures[TEXTURE_COUNT];
 layout ( set = 0, binding = 3 ) readonly buffer MaterialData
 {
     Material materials[];
 } material_buffer;
 
 
-// The triangle that is formed by the positions from the vertex shader fills an area on the screen with fragments.
-// The fragment shader is invoked on these fragments to produce a color and depth for the frame buffer.
-// The main function is called for every fragment and will provide automatic fragment interpolation.
+// SHADER ENTRY POINT
 void main( )
 {
     Material material = material_buffer.materials[pc.material_id];

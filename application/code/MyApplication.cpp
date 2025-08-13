@@ -75,7 +75,7 @@ MyApplication::MyApplication( )
             }
         } );
     command_pool_ = CVK.create_resource<CommandPool>( *context_, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT );
-    swapchain_->depth_image(  ).transition_layout( { VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }, *command_pool_ );
+    swapchain_->depth_image( ).transition_layout( { VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }, *command_pool_ );
 
     // 5. Render pipeline
     descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
@@ -228,6 +228,21 @@ void MyApplication::create_depth_prepass_pipeline( )
     shader::ShaderModule const vert_shader{ context_->device( ), "shaders/geometry.vert.spv" };
     shader::ShaderModule const frag_shader{ context_->device( ), "shaders/depth.frag.spv" };
 
+    constexpr VkSpecializationMapEntry specialization_entry{
+        .constantID = 0,
+        .offset = 0,
+        .size = sizeof( uint32_t ),
+    };
+
+    constexpr uint32_t texture_count{ 24u };
+
+    VkSpecializationInfo specialization_info{
+        .mapEntryCount = 1,
+        .pMapEntries   = &specialization_entry,
+        .dataSize      = sizeof( uint32_t ),
+        .pData         = &texture_count
+    };
+
     GraphicsPipelineCreateInfo info = make_graphics_pipeline_create_info(
         std::array<VkPipelineShaderStageCreateInfo, 2>{
             {
@@ -241,7 +256,8 @@ void MyApplication::create_depth_prepass_pipeline( )
                     .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                     .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
                     .module = frag_shader.handle( ),
-                    .pName = "main"
+                    .pName = "main",
+                    .pSpecializationInfo = &specialization_info
                 }
             }
         } );
@@ -252,12 +268,12 @@ void MyApplication::create_depth_prepass_pipeline( )
     // Set depth test and write enable
     info.depth_stencil.depthTestEnable  = VK_TRUE;
     info.depth_stencil.depthWriteEnable = VK_TRUE;
-    info.depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS,
+    info.depth_stencil.depthCompareOp   = VK_COMPARE_OP_LESS,
 
-    // No color attachment in depth prepass
-    info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
-    info.swapchain_image_format = VK_FORMAT_UNDEFINED;
-    info.depth_image_format     = swapchain_->depth_image( ).format( );
+            // No color attachment in depth prepass
+            info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
+    info.swapchain_image_format         = VK_FORMAT_UNDEFINED;
+    info.depth_image_format             = swapchain_->depth_image( ).format( );
 
     depth_prepass_pipeline_ = CVK.create_resource<GraphicsPipeline>( context_->device( ), info );
 }
@@ -271,6 +287,21 @@ void MyApplication::create_main_render_pipeline( )
     shader::ShaderModule const vert_shader{ context_->device( ), "shaders/geometry.vert.spv" };
     shader::ShaderModule const frag_shader{ context_->device( ), "shaders/geometry.frag.spv" };
 
+    constexpr VkSpecializationMapEntry specialization_entry{
+        .constantID = 0,
+        .offset = 0,
+        .size = sizeof( uint32_t ),
+    };
+
+    constexpr uint32_t texture_count{ 24u };
+
+    VkSpecializationInfo specialization_info{
+        .mapEntryCount = 1,
+        .pMapEntries   = &specialization_entry,
+        .dataSize      = sizeof( uint32_t ),
+        .pData         = &texture_count
+    };
+
     GraphicsPipelineCreateInfo info = make_graphics_pipeline_create_info(
         std::array<VkPipelineShaderStageCreateInfo, 2>{
             {
@@ -278,13 +309,14 @@ void MyApplication::create_main_render_pipeline( )
                     .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                     .stage = VK_SHADER_STAGE_VERTEX_BIT,
                     .module = vert_shader.handle( ),
-                    .pName = "main"
+                    .pName = "main",
                 },
                 {
                     .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                     .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
                     .module = frag_shader.handle( ),
-                    .pName = "main"
+                    .pName = "main",
+                    .pSpecializationInfo = &specialization_info,
                 }
             }
         } );
@@ -292,11 +324,11 @@ void MyApplication::create_main_render_pipeline( )
     // Set only depth test enable
     info.depth_stencil.depthTestEnable  = VK_TRUE;
     info.depth_stencil.depthWriteEnable = VK_FALSE;
-    info.depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS,
+    info.depth_stencil.depthCompareOp   = VK_COMPARE_OP_EQUAL,
 
-    info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
-    info.swapchain_image_format = swapchain_->image_format( );
-    info.depth_image_format     = swapchain_->depth_image( ).format( );
+            info.descriptor_set_layouts = { descriptor_allocator_->layout( ).handle( ) };
+    info.swapchain_image_format         = swapchain_->image_format( );
+    info.depth_image_format             = swapchain_->depth_image( ).format( );
 
     main_render_pipeline_ = CVK.create_resource<GraphicsPipeline>( context_->device( ), info );
 }
@@ -349,7 +381,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .imageView = swapchain_->depth_image( ).view( ).handle( ),
             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .clearValue = {
                 .depthStencil = {
                     .depth = 1.0f
@@ -361,7 +393,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = {
                 .offset = { 0, 0 },
-                .extent = image.extent(),
+                .extent = image.extent( ),
             },
             .layerCount = 1,
             .colorAttachmentCount = 0,
@@ -404,7 +436,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .clearValue = {
-                .color = VkClearColorValue{{0.0f, 0.0f, 0.0f, 1.0f}}
+                .color = VkClearColorValue{ { 0.0f, 0.0f, 0.0f, 1.0f } }
             }
         };
 
@@ -425,7 +457,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = {
                 .offset = { 0, 0 },
-                .extent = image.extent(),
+                .extent = image.extent( ),
             },
             .layerCount = 1,
             .colorAttachmentCount = 1,
