@@ -25,7 +25,9 @@ MyApplication::MyApplication( )
     // 1. Create Window and Camera
     window_ = CVK.create_resource<Window>( WIDTH_, HEIGHT_, "Vulkan App" );
 
-    camera_ptr_ = std::make_unique<Camera>( window_->handle( ), window_->extent( ), glm::radians( 45.f ), 0.1f, 20.f );
+    camera_ptr_ = std::make_unique<Camera>( window_->handle( ), window_->extent( ),  glm::radians( 45.f ),
+        0.1f, 25.f, glm::vec3{ 0.f, 2.f, 0.f } );
+    camera_ptr_->set_yaw( glm::radians( 90.f ) );
     window_->on_framebuffer_resize.bind( camera_ptr_.get( ), &Camera::set_viewport );
 
     // 2. Register VK Instance

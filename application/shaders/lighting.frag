@@ -90,5 +90,9 @@ void main( )
     color /= ( color + vec3( 1.f ) );
     color = pow( color, vec3( 1.f / 2.2f ) );
 
-    out_color = vec4( color, 1.f );
+    // out_color = vec4( color, 1.f );
+
+    vec3 dir = normalize( world_pos - pc.camera_location );
+    out_color = vec4( max( dot( N, dir ), 0.f ) * vec3( 1.f, 1.f, 1.f ), 1.f );
+
 }

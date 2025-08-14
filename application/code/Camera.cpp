@@ -69,6 +69,22 @@ void Camera::set_viewport( VkExtent2D const extent ) noexcept
 }
 
 
+void Camera::set_pitch( double const pitch ) noexcept
+{
+    constexpr auto vertical_thresh = static_cast<double>( glm::radians( 85.f ) );
+
+    pitch_ = std::clamp( pitch, -vertical_thresh, vertical_thresh );
+    apply_rotations( );
+}
+
+
+void Camera::set_yaw( double const yaw ) noexcept
+{
+    yaw_ = yaw;
+    apply_rotations( );
+}
+
+
 void Camera::apply_rotations( )
 {
     forward_ = normalize( glm::vec3{
@@ -116,12 +132,8 @@ void Camera::process_mouse_input( double const yaw, double const pitch, float co
 {
     float const speed{ dt * CAMERA_ROTATION_SPEED_ * INVERT_CAMERA_AXIS_ };
 
-    yaw_ += yaw * speed;
-
-    auto const vertical_thresh = static_cast<double>(glm::radians( 90.f ) );
-    pitch_ = std::clamp( pitch_ + pitch * speed, -vertical_thresh, vertical_thresh );
-
-    apply_rotations( );
+    set_pitch( pitch_ + pitch * speed );
+    set_yaw( yaw_ + yaw * speed );
 }
 
 

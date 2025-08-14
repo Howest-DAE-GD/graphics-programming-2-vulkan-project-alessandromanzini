@@ -25,7 +25,8 @@ public:
     [[nodiscard]] glm::vec3 const& location( ) const noexcept;
 
     void set_viewport( VkExtent2D ) noexcept;
-
+    void set_pitch( double ) noexcept;
+    void set_yaw( double ) noexcept;
 
 private:
     static constexpr float MOVEMENT_SPEED_{ 2.f };
