@@ -60,8 +60,8 @@ private:
     cobalt::RendererHandle renderer_{};
 
     cobalt::ImageSamplerHandle texture_sampler_{};
-    std::array<cobalt::ImageHandle, MAX_FRAMES_IN_FLIGHT_> albedo_image_{};
-    std::array<cobalt::ImageHandle, MAX_FRAMES_IN_FLIGHT_> material_image_{};
+    cobalt::ImageCollectionHandle albedo_images_{};
+    cobalt::ImageCollectionHandle material_images_{};
     cobalt::ModelHandle model_{};
 
     std::vector<cobalt::BufferHandle> uniform_buffers_{};

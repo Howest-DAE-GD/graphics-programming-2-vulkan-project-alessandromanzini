@@ -33,6 +33,7 @@ add_library(${PROJECT_NAME}
 		"include/public/__event/multicast_delegate/MulticastDelegate.h"
 		"include/public/__event/multicast_delegate/Dispatcher.h"
 
+		"include/public/__image/ImageCollection.h"
 		"src/__image/Image.cpp"
 		"src/__image/ImageView.cpp"
 		"src/__image/ImageLayoutTransition.cpp"
@@ -96,6 +97,7 @@ add_library(${PROJECT_NAME}
 		"src/log.cpp"
 		"include/public/cobalt_vk/core.h"
 		"include/public/cobalt_vk/handle.h"
+		src/__image/ImageCollection.cpp
 )
 
 # set warning level to W4 and warnings as errors

@@ -22,6 +22,7 @@ namespace cobalt
     using PipelineHandle = DefaultHandle<class Pipeline>;
     using ImageHandle = DefaultHandle<class Image>;
     using ImageSamplerHandle = DefaultHandle<class ImageSampler>;
+    using ImageCollectionHandle = DefaultHandle<class ImageCollection>;
     using RendererHandle = DefaultHandle<class Renderer>;
     using ModelHandle = DefaultHandle<class Model>;
 

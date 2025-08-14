@@ -68,7 +68,9 @@ MyApplication::MyApplication( )
         context_->device( ), MAX_FRAMES_IN_FLIGHT_,
         std::array{
             // Camera uniform buffer
-            LayoutBindingDescription{ VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+            LayoutBindingDescription{
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+            },
 
             // Sampler
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
@@ -116,7 +118,7 @@ MyApplication::MyApplication( )
             .compare_op = VK_COMPARE_OP_ALWAYS
         } );
 
-    albedo_image_ = CVK.create_resource<Image>(
+    albedo_images_ = CVK.create_resource<ImageCollection>(
         context_->device( ), ImageCreateInfo{
             .extent = swapchain_->extent( ),
             .format = VK_FORMAT_R8G8B8A8_SRGB,
@@ -124,9 +126,8 @@ MyApplication::MyApplication( )
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-        }
-    );
-    material_image_ = CVK.create_resource<Image>(
+        }, MAX_FRAMES_IN_FLIGHT_ );
+    material_images_ = CVK.create_resource<ImageCollection>(
         context_->device( ), ImageCreateInfo{
             .extent = swapchain_->extent( ),
             .format = VK_FORMAT_R16G16B16A16_UNORM,
@@ -134,8 +135,7 @@ MyApplication::MyApplication( )
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-        }
-    );
+        }, MAX_FRAMES_IN_FLIGHT_ );
 
     // 9. Graphic pipelines
     create_pipelines( );
@@ -154,10 +154,10 @@ MyApplication::MyApplication( )
     std::array write_ops{
         WriteDescription{
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            [this]( uint32_t const frame ) -> VkDescriptorBufferInfo
+            [this]( uint32_t const frame_index ) -> VkDescriptorBufferInfo
                 {
                     return {
-                        .buffer = uniform_buffers_[frame]->handle( ),
+                        .buffer = uniform_buffers_[frame_index]->handle( ),
                         .offset = 0,
                         .range = sizeof( UniformBufferObject ),
                     };
@@ -165,7 +165,7 @@ MyApplication::MyApplication( )
         },
         WriteDescription{
             VK_DESCRIPTOR_TYPE_SAMPLER,
-            [this]( uint32_t const ) -> VkDescriptorImageInfo
+            [this]( uint32_t ) -> VkDescriptorImageInfo
                 {
                     return {
                         .sampler = texture_sampler_->handle( )
@@ -202,20 +202,20 @@ MyApplication::MyApplication( )
         },
         WriteDescription{
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            [this]( uint32_t ) -> VkDescriptorImageInfo
+            [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
                 {
                     return {
-                        .imageView = albedo_image_->view( ).handle( ),
+                        .imageView = albedo_images_->image_at( frame_index ).view( ).handle( ),
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     };
                 }
         },
         WriteDescription{
             VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            [this]( uint32_t ) -> VkDescriptorImageInfo
+            [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
                 {
                     return {
-                        .imageView = material_image_->view( ).handle( ),
+                        .imageView = material_images_->image_at( frame_index ).view( ).handle( ),
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     };
                 }
@@ -352,13 +352,13 @@ void MyApplication::create_pipelines( )
                     .blendEnable = VK_FALSE,
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
-                }, albedo_image_->format( ) )
+                }, albedo_images_->image_format( ) )
             .add_color_attachment_description(
                 VkPipelineColorBlendAttachmentState{
                     .blendEnable = VK_FALSE,
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
-                }, material_image_->format( ) )
+                }, material_images_->image_format( ) )
             .build( context_->device( ), *sampling_pipeline_layout_ ) );
     }
 
@@ -384,12 +384,15 @@ void MyApplication::create_pipelines( )
 
 
 void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchain& swapchain,
-    uint32_t const image_index, uint32_t const frame_index )
+                                           uint32_t const image_index, uint32_t const frame_index )
 {
     buffer.reset( );
     CommandOperator const command_op = buffer.command_operator( 0 );
 
-    Image& swap_image = swapchain.image_at( image_index );
+    Image& swap_image     = swapchain.image_at( image_index );
+    Image& albedo_image   = albedo_images_->image_at( frame_index );
+    Image& material_image = material_images_->image_at( frame_index );
+
     VkDescriptorSet const desc_set = descriptor_allocator_->set_at( frame_index );
 
     // 1. Depth Pre-Pass: render geometry to depth only, no color attachment
@@ -464,14 +467,14 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
     // 2. G-Buffer generation pass: color on g-buffer images
     {
         // Pre gbuffer generation barrier
-        albedo_image_->transition_layout(
+        albedo_image.transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
             .from_stage( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
             .from_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT )
             .to_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ),
             command_op );
-        material_image_->transition_layout(
+        material_image.transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
             .from_stage( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
@@ -482,7 +485,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
         std::array const color_attachments_info{
             VkRenderingAttachmentInfo{
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = albedo_image_->view( ).handle( ),
+                .imageView = albedo_image.view( ).handle( ),
                 .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -492,7 +495,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
             },
             VkRenderingAttachmentInfo{
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = material_image_->view( ).handle( ),
+                .imageView = material_image.view( ).handle( ),
                 .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -519,7 +522,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = {
                 .offset = { 0, 0 },
-                .extent = albedo_image_->extent( ),
+                .extent = albedo_image.extent( ),
             },
             .layerCount = 1,
             .colorAttachmentCount = color_attachments_info.size( ),
@@ -531,11 +534,11 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
 
         command_op.set_viewport( VkViewport{
             .x = 0.f, .y = 0.f,
-            .width = static_cast<float>( albedo_image_->extent( ).width ),
-            .height = static_cast<float>( albedo_image_->extent( ).height ),
+            .width = static_cast<float>( albedo_image.extent( ).width ),
+            .height = static_cast<float>( albedo_image.extent( ).height ),
             .minDepth = 0.f, .maxDepth = 1.f
         } );
-        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = albedo_image_->extent( ) } );
+        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = albedo_image.extent( ) } );
 
         command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
         command_op.bind_index_buffer( model_->index_buffer( ), 0 );
@@ -552,14 +555,14 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
         command_op.end_rendering( );
 
         // Post gbuffer generation barrier
-        albedo_image_->transition_layout(
+        albedo_image.transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
             .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
             .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
             .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ),
             command_op );
-        material_image_->transition_layout(
+        material_image.transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
             .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )

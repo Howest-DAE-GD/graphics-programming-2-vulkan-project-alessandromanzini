@@ -3,20 +3,22 @@
 
 #include <__memory/Resource.h>
 
-#include <__context/DeviceSet.h>
 #include <__image/Image.h>
 
-#include <array>
-#include <cassert>
+#include <vector>
 
 
 namespace cobalt
 {
-    template <size_t N>
+    class DeviceSet;
+}
+
+namespace cobalt
+{
     class ImageCollection final : public memory::Resource
     {
     public:
-        ImageCollection( DeviceSet const&, ImageCreateInfo const& );
+        ImageCollection( DeviceSet const&, ImageCreateInfo const&, size_t n );
         ~ImageCollection( ) noexcept override = default;
 
         ImageCollection( const ImageCollection& )                = delete;
@@ -24,30 +26,16 @@ namespace cobalt
         ImageCollection& operator=( const ImageCollection& )     = delete;
         ImageCollection& operator=( ImageCollection&& ) noexcept = delete;
 
-        [[nodiscard]] Image& image_at( size_t index )
-        {
-            assert( index < N && "Image::image_at: index out of range!" );
-            if ( index >= N )
-            {
-                throw std::out_of_range( "Index out of range in ImageCollection" );
-            }
-            return *images_[index];
-        }
+        [[nodiscard]] uint32_t image_count( ) const;
+        [[nodiscard]] VkFormat image_format( ) const;
+
+        [[nodiscard]] Image& image_at( size_t index );
 
     private:
-        std::array<std::unique_ptr<Image>, N> images_{};
+        VkFormat const image_format_;
+        std::vector<Image> images_{};
 
     };
-
-
-    template <size_t N>
-    ImageCollection<N>::ImageCollection( DeviceSet const& device, ImageCreateInfo const& create_info )
-    {
-        for ( auto& image : images_ )
-        {
-            image = std::make_unique<Image>( device, create_info );
-        }
-    }
 
 }
 
