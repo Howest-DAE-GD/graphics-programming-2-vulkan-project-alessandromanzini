@@ -9,7 +9,7 @@ add_library(${PROJECT_NAME}
 
 		"src/__cleanup/DeletionQueue.cpp"
 
-		"src/CobaltVK.cpp"
+		"src/__singleton/CobaltVK.cpp"
 		"src/__context/Window.cpp"
 
 		"src/__buffer/CommandBuffer.cpp"
@@ -37,12 +37,12 @@ add_library(${PROJECT_NAME}
 		"src/__image/ImageView.cpp"
 		"src/__image/ImageLayoutTransition.cpp"
 		"src/__image/TextureImage.cpp"
+		"src/__image/ImageSampler.cpp"
 		"src/__image/StbImageLoader.cpp"
 
 		"include/public/__init/InitWizard.h"
 
 		"include/public/__memory/handle/ResourceHandle.h"
-		"include/public/__memory/handle/handle_aliases.h"
 		"include/public/__memory/memory_aliases.h"
 		"include/public/__memory/Resource.h"
 		"src/__memory/handle/HandleTable.cpp"
@@ -57,8 +57,13 @@ add_library(${PROJECT_NAME}
 
 		"src/__model/Model.cpp"
 		"src/__model/AssimpModelLoader.cpp"
+		"include/public/__model/Mesh.h"
+		"include/public/__model/SurfaceMap.h"
+		"include/public/__model/TextureGroup.h"
 
 		"src/__pipeline/Pipeline.cpp"
+		"src/__pipeline/GraphicsPipelineBuilder.cpp"
+		"src/__pipeline/PipelineLayout.cpp"
 
 		"src/__query/device_features_support.cpp"
 		"src/__query/device_queries.cpp"
@@ -67,6 +72,7 @@ add_library(${PROJECT_NAME}
 		"src/__query/swapchain_support.cpp"
 
 		"include/public/__render/BindingDescription.h"
+		"include/public/__render/LayoutBindingDescription.h"
 		"src/__render/DescriptorSetLayout.cpp"
 		"src/__render/Renderer.cpp"
 		"src/__render/DescriptorAllocator.cpp"
@@ -79,6 +85,7 @@ add_library(${PROJECT_NAME}
 		"src/__synchronization/SubmitInfo.cpp"
 		"src/__synchronization/PresentInfo.cpp"
 		"src/__synchronization/Fence.cpp"
+		"src/__synchronization/RenderSync.cpp"
 
 		"src/__validation/selector/PhysicalDeviceSelector.cpp"
 		"src/__validation/result.cpp"
@@ -87,18 +94,8 @@ add_library(${PROJECT_NAME}
 		"src/__validation/compare.cpp"
 
 		"src/log.cpp"
-		src/__synchronization/RenderSync.cpp
-		include/public/__synchronization/RenderSync.h
-		include/public/__model/Mesh.h
-		include/public/__model/SurfaceMap.h
-		include/public/__model/TextureGroup.h
-		src/__image/ImageSampler.cpp
-		include/public/__image/ImageSampler.h
-		include/public/__render/LayoutBindingDescription.h
-		src/__pipeline/GraphicsPipelineBuilder.cpp
-		include/public/__pipeline/GraphicsPipelineBuilder.h
-		src/__pipeline/PipelineLayout.cpp
-		include/public/__pipeline/PipelineLayout.h
+		"include/public/cobalt_vk/core.h"
+		"include/public/cobalt_vk/handle.h"
 )
 
 # set warning level to W4 and warnings as errors
