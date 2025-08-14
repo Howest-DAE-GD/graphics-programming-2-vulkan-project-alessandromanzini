@@ -137,10 +137,10 @@ MyApplication::MyApplication( )
             .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
         }
     );
-    normal_image_ = CVK.create_resource<Image>(
+    material_image_ = CVK.create_resource<Image>(
         context_->device( ), ImageCreateInfo{
             .extent = swapchain_->extent( ),
-            .format = VK_FORMAT_R16G16_SFLOAT,
+            .format = VK_FORMAT_R16G16B16A16_UNORM,
             .tiling = VK_IMAGE_TILING_OPTIMAL,
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -226,7 +226,7 @@ MyApplication::MyApplication( )
             [this]( uint32_t ) -> VkDescriptorImageInfo
                 {
                     return {
-                        .imageView = normal_image_->view( ).handle( ),
+                        .imageView = material_image_->view( ).handle( ),
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                     };
                 }
@@ -359,7 +359,7 @@ void MyApplication::create_pipelines( )
                     .blendEnable = VK_FALSE,
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
-                }, normal_image_->format( ) )
+                }, material_image_->format( ) )
             .build( context_->device( ), *sampling_pipeline_layout_ ) );
     }
 
@@ -468,7 +468,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .from_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT )
             .to_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT ),
             command_op );
-        normal_image_->transition_layout(
+        material_image_->transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
             .from_stage( VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
@@ -489,7 +489,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             },
             VkRenderingAttachmentInfo{
                 .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                .imageView = normal_image_->view( ).handle( ),
+                .imageView = material_image_->view( ).handle( ),
                 .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                 .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -556,7 +556,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
             .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ),
             command_op );
-        normal_image_->transition_layout(
+        material_image_->transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
             .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )

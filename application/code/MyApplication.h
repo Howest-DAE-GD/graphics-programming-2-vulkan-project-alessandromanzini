@@ -64,7 +64,7 @@ private:
 
     cobalt::ImageSamplerHandle texture_sampler_{};
     cobalt::ImageHandle albedo_image_{};
-    cobalt::ImageHandle normal_image_{};
+    cobalt::ImageHandle material_image_{};
     cobalt::ModelHandle model_{};
 
     std::vector<cobalt::BufferHandle> uniform_buffers_{};
