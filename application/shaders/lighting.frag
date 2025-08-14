@@ -46,7 +46,7 @@ void main( )
     vec4 albedo = texture( sampler2D( albedo_texture, shared_sampler ), frag_uv ).rgba;
     vec3 normal = decode( texture( sampler2D( normal_texture, shared_sampler ), frag_uv ).xy );
 
-    vec3 light_dir = normalize( vec3( 0.f, 0.f, -1.f ) );
+    vec3 light_dir = normalize( vec3( 0.f, -1.f, 0.f ) );
     float cos_law = max( dot( normal, -light_dir ), 0.f );
 
     vec3 shaded = albedo.rgb * cos_law;

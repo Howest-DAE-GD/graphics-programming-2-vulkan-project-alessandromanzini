@@ -2,6 +2,8 @@
 
 #include <__builder/ModelLoader.h>
 
+#include <set>
+
 
 namespace cobalt
 {
@@ -59,8 +61,14 @@ namespace cobalt
 
     void Model::create_texture_images( DeviceSet const& device, CommandPool& cmd_pool, std::span<TextureGroup const> textures )
     {
+        std::set<std::string> texture_paths{};
         for ( auto const& [type, path] : textures )
         {
+            if ( texture_paths.contains( path.string( ) ) )
+            {
+                printf("DUBLO!\n");
+            }
+            texture_paths.insert( path.string( ) );
             TextureImageCreateInfo create_info{ .path_to_img = path };
             switch ( type )
             {
