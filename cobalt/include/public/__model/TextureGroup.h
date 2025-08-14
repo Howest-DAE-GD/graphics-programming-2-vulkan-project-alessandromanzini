@@ -10,6 +10,9 @@ namespace cobalt
     {
         DIFFUSE,
         NORMAL,
+        METALNESS,
+        ROUGHNESS,
+        AO,
     };
 
 

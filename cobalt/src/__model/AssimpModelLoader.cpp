@@ -6,6 +6,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
+#include <span>
 #include <unordered_map>
 #include <utility>
 
@@ -17,7 +18,7 @@ namespace cobalt::loader
     // +---------------------------+
     void extract_meshes( aiScene const*, std::vector<Vertex>&, std::vector<uint32_t>&, std::vector<Mesh>& );
     void extract_materials( aiScene const*, std::vector<SurfaceMap>&, std::vector<TextureGroup>&, std::filesystem::path const& );
-    int fetch_texture( aiMaterial const*, aiTextureType, std::vector<TextureGroup>&, std::filesystem::path const& );
+    int fetch_texture_data( aiMaterial const*, aiTextureType, std::vector<TextureGroup>&, std::filesystem::path const& );
 
     [[nodiscard]] glm::vec3 to_vec3( aiVector3D const& vec ) { return { vec.x, vec.y, vec.z }; }
     [[nodiscard]] glm::vec3 to_vec3( aiColor3D const& color ) { return { color.r, color.g, color.b }; }
@@ -60,10 +61,8 @@ namespace cobalt::loader
         int32_t vertex_offset{};
         uint32_t index_offset{};
 
-        for ( size_t mesh_idx{}; mesh_idx < scene->mNumMeshes; ++mesh_idx )
+        for ( aiMesh const* const mesh : std::span{ scene->mMeshes, std::next( scene->mMeshes, scene->mNumMeshes ) } )
         {
-            aiMesh const* const mesh = scene->mMeshes[mesh_idx];
-
             uint32_t const num_vertices = mesh->mNumVertices;
             vertices.reserve( vertices.size( ) + num_vertices );
             for ( size_t vertex_idx{}; vertex_idx < num_vertices; ++vertex_idx )
@@ -78,9 +77,8 @@ namespace cobalt::loader
 
             uint32_t const num_indices = mesh->mNumFaces * 3;
             indices.reserve( indices.size( ) + num_indices );
-            for ( size_t face_idx{}; face_idx < mesh->mNumFaces; ++face_idx )
+            for ( aiFace const& face : std::span{ mesh->mFaces, std::next( mesh->mFaces, mesh->mNumFaces ) } )
             {
-                aiFace const& face = mesh->mFaces[face_idx];
                 std::copy( face.mIndices, std::next( face.mIndices, face.mNumIndices ), std::back_inserter( indices ) );
             }
 
@@ -92,21 +90,22 @@ namespace cobalt::loader
 
 
     void extract_materials( aiScene const* scene, std::vector<SurfaceMap>& surface_maps, std::vector<TextureGroup>& textures,
-        std::filesystem::path const& base_path )
+                            std::filesystem::path const& base_path )
     {
         surface_maps.reserve( scene->mNumMaterials );
-        for ( size_t mat_idx{}; mat_idx < scene->mNumMaterials; ++mat_idx )
+        for ( aiMaterial const* const mat : std::span{ scene->mMaterials, std::next( scene->mMaterials, scene->mNumMaterials ) } )
         {
-            aiMaterial const* mat = scene->mMaterials[mat_idx];
-            int diffuse = fetch_texture( mat, aiTextureType_BASE_COLOR, textures, base_path );
-            int normal = fetch_texture( mat, aiTextureType_NORMALS, textures, base_path );
-            surface_maps.emplace_back( diffuse, normal );
+            int diffuse   = fetch_texture_data( mat, aiTextureType_BASE_COLOR, textures, base_path );
+            int normal    = fetch_texture_data( mat, aiTextureType_NORMALS, textures, base_path );
+            int metalness = fetch_texture_data( mat, aiTextureType_METALNESS, textures, base_path );
+            int roughness = fetch_texture_data( mat, aiTextureType_DIFFUSE_ROUGHNESS, textures, base_path );
+            surface_maps.emplace_back( diffuse, normal, metalness, roughness );
         }
     }
 
 
-    int fetch_texture( aiMaterial const* mat, aiTextureType const type, std::vector<TextureGroup>& textures,
-                       std::filesystem::path const& base_path )
+    int fetch_texture_data( aiMaterial const* mat, aiTextureType const type, std::vector<TextureGroup>& textures,
+                            std::filesystem::path const& base_path )
     {
         if ( mat->GetTextureCount( type ) <= 0 )
         {
@@ -119,6 +118,13 @@ namespace cobalt::loader
         if ( not exists( texture_path ) )
         {
             return -1;
+        }
+
+        auto const it =
+            std::ranges::find_if( textures, [&texture_path]( TextureGroup const& tex ) { return tex.path == texture_path; } );
+        if ( it != textures.end( ) )
+        {
+            return std::distance( textures.begin( ), it );
         }
 
         textures.emplace_back( to_tex_type( type ), std::move( texture_path ) );
@@ -137,6 +143,12 @@ namespace cobalt::loader
             case aiTextureType_NORMALS:
             case aiTextureType_NORMAL_CAMERA:
                 return TextureType::NORMAL;
+
+            case aiTextureType_METALNESS:
+                return TextureType::METALNESS;
+
+            case aiTextureType_DIFFUSE_ROUGHNESS:
+                return TextureType::ROUGHNESS;
 
             // Add other texture types as needed
             default:

@@ -1,3 +1,4 @@
+#include <log.h>
 #include <__model/Model.h>
 
 #include <__builder/ModelLoader.h>
@@ -64,20 +65,21 @@ namespace cobalt
         std::set<std::string> texture_paths{};
         for ( auto const& [type, path] : textures )
         {
-            if ( texture_paths.contains( path.string( ) ) )
-            {
-                printf("DUBLO!\n");
-            }
+            log::loginfo<Model>( "create_texture_images", std::format( "texture being loaded twice: {}", path.string( ) ),
+                                 texture_paths.contains( path.string( ) ) );
             texture_paths.insert( path.string( ) );
+
             TextureImageCreateInfo create_info{ .path_to_img = path };
             switch ( type )
             {
                 case TextureType::DIFFUSE:
+                case TextureType::METALNESS:
+                case TextureType::ROUGHNESS:
                     create_info.image_format = VK_FORMAT_R8G8B8A8_SRGB;
-                break;
+                    break;
                 case TextureType::NORMAL:
                     create_info.image_format = VK_FORMAT_R8G8B8A8_UNORM;
-                break;
+                    break;
                 default:
                     throw std::runtime_error( "unsupported texture type" );
             }
@@ -93,12 +95,12 @@ namespace cobalt
         Buffer staging_buffer = buffer::make_staging_buffer( device, buffer_size );
 
         staging_buffer.map_memory( );
-        staging_buffer.write( materials.data(), buffer_size );
+        staging_buffer.write( materials.data( ), buffer_size );
         staging_buffer.unmap_memory( );
 
         surface_buffer_ptr_ = std::make_unique<Buffer>( device, buffer_size,
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
+                                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
 
         staging_buffer.copy_to( *surface_buffer_ptr_, cmd_pool );
     }
