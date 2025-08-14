@@ -2,8 +2,7 @@
 #define HANDLE_ALIASES_H
 
 #include <__memory/Resource.h>
-
-#include "ResourceHandle.h"
+#include <__memory/handle/ResourceHandle.h>
 
 
 namespace cobalt

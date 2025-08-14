@@ -34,8 +34,8 @@ namespace cobalt
     class Image final : public memory::Resource
     {
     public:
-        explicit Image( DeviceSet const& device, ImageCreateInfo const& );
-        explicit Image( DeviceSet const& device, VkExtent2D, ImageViewCreateInfo const& );
+        explicit Image( DeviceSet const&, ImageCreateInfo const& );
+        explicit Image( DeviceSet const&, VkExtent2D extent, ImageViewCreateInfo const& );
         ~Image( ) override;
 
         Image( Image&& ) noexcept;

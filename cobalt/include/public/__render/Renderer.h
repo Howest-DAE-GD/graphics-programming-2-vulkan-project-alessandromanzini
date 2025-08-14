@@ -25,9 +25,8 @@ namespace cobalt
     struct RendererCreateInfo
     {
         DeviceSet const* device{ nullptr };
-        Swapchain* swapchain{ nullptr };
         CommandPool* cmd_pool{ nullptr };
-        DescriptorAllocator const* desc_allocator{ nullptr };
+        Swapchain* swapchain{ nullptr };
         uint32_t max_frames_in_flight{ UINT32_MAX };
     };
 
@@ -35,8 +34,8 @@ namespace cobalt
     class Renderer final : public memory::Resource
     {
     public:
-        using record_command_buffer_sig_t = void( CommandBuffer const&, Image&, VkDescriptorSet desc_set );
-        using update_uniform_buffer_sig_t = void( uint32_t );
+        using record_command_buffer_sig_t = void( CommandBuffer const&, Swapchain&, uint32_t image_index, uint32_t frame_index );
+        using update_uniform_buffer_sig_t = void( uint32_t frame_index );
 
         explicit Renderer( RendererCreateInfo const& );
         VkResult render( ) const;
@@ -47,7 +46,6 @@ namespace cobalt
     private:
         DeviceSet const& device_ref_;
         Swapchain& swapchain_ref_;
-        DescriptorAllocator const& desc_allocator_ref_;
 
         sync::RenderSync const render_sync_;
 

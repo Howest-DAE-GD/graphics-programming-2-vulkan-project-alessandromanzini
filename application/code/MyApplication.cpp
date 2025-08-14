@@ -5,26 +5,13 @@
 #include "Timer.h"
 #include "UniformBufferObject.h"
 
-#include <CobaltVK.h>
-#include <__buffer/Buffer.h>
-#include <__buffer/CommandPool.h>
-#include <__context/VkContext.h>
-#include <__enum/ValidationFlags.h>
-#include <__image/ImageSampler.h>
-#include <__model/AssimpModelLoader.h>
-#include <__model/Model.h>
-#include <__pipeline/Pipeline.h>
-#include <__render/DescriptorAllocator.h>
-#include <__render/Renderer.h>
-#include <__render/Swapchain.h>
-#include <__shader/ShaderModule.h>
+#include <cobalt_vk/core.h>
 
 #include <xos/filesystem.h>
 #include <xos/info.h>
 
 #include <filesystem>
 #include <iostream>
-#include <__pipeline/GraphicsPipelineBuilder.h>
 
 
 using namespace cobalt;
@@ -55,7 +42,7 @@ MyApplication::MyApplication( )
         .with<DeviceFeatureFlags>(
             DeviceFeatureFlags::SWAPCHAIN_EXT | DeviceFeatureFlags::ANISOTROPIC_SAMPLING |
             DeviceFeatureFlags::DYNAMIC_RENDERING_EXT | DeviceFeatureFlags::SYNCHRONIZATION_2_EXT |
-            DeviceFeatureFlags::INDEPENDENT_BLEND )
+            DeviceFeatureFlags::SHADER_IMAGE_ARRAY_NON_UNIFORM_INDEXING )
         .with<ValidationLayers>( ValidationFlags::KHRONOS_VALIDATION, ::debug::debug_callback )
     );
 
@@ -81,7 +68,7 @@ MyApplication::MyApplication( )
         context_->device( ), MAX_FRAMES_IN_FLIGHT_,
         std::array{
             // Camera uniform buffer
-            LayoutBindingDescription{ VK_SHADER_STAGE_VERTEX_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+            LayoutBindingDescription{ VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
 
             // Sampler
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
@@ -89,13 +76,16 @@ MyApplication::MyApplication( )
             // Textures
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, TEXTURES_COUNT_ },
 
-            // Texture Indices Buffer
+            // Surface Maps Buffer
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
 
             // Albedo Image Buffer
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
 
             // Normal Image Buffer
+            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+
+            // Swapchain Depth Image
             LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE }
         }
     );
@@ -105,12 +95,11 @@ MyApplication::MyApplication( )
         .device = &context_->device( ),
         .swapchain = swapchain_.get( ),
         .cmd_pool = command_pool_.get( ),
-        .desc_allocator = descriptor_allocator_.get( ),
         .max_frames_in_flight = MAX_FRAMES_IN_FLIGHT_
     } );
     renderer_->set_record_command_buffer_fn(
         std::bind( &MyApplication::record_command_buffer, this,
-                   std::placeholders::_1, std::placeholders::_2, std::placeholders::_3 ) );
+                   std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4 ) );
     renderer_->set_update_uniform_buffer_fn(
         std::bind( &MyApplication::update_uniform_buffer, this, std::placeholders::_1 ) );
 
@@ -228,6 +217,16 @@ MyApplication::MyApplication( )
                     return {
                         .imageView = material_image_->view( ).handle( ),
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    };
+                }
+        },
+        WriteDescription{
+            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            [this]( uint32_t ) -> VkDescriptorImageInfo
+                {
+                    return {
+                        .imageView = swapchain_->depth_image( ).view( ).handle( ),
+                        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
                     };
                 }
         },
@@ -384,10 +383,14 @@ void MyApplication::create_pipelines( )
 }
 
 
-void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& image, VkDescriptorSet const desc_set )
+void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchain& swapchain,
+    uint32_t const image_index, uint32_t const frame_index )
 {
     buffer.reset( );
-    auto const command_op = buffer.command_operator( 0 );
+    CommandOperator const command_op = buffer.command_operator( 0 );
+
+    Image& swap_image = swapchain.image_at( image_index );
+    VkDescriptorSet const desc_set = descriptor_allocator_->set_at( frame_index );
 
     // 1. Depth Pre-Pass: render geometry to depth only, no color attachment
     {
@@ -416,7 +419,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = {
                 .offset = { 0, 0 },
-                .extent = image.extent( ),
+                .extent = swap_image.extent( ),
             },
             .layerCount = 1,
             .colorAttachmentCount = 0,
@@ -429,11 +432,11 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
 
         command_op.set_viewport( VkViewport{
             .x = 0.f, .y = 0.f,
-            .width = static_cast<float>( image.extent( ).width ),
-            .height = static_cast<float>( image.extent( ).height ),
+            .width = static_cast<float>( swap_image.extent( ).width ),
+            .height = static_cast<float>( swap_image.extent( ).height ),
             .minDepth = 0.f, .maxDepth = 1.f
         } );
-        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = image.extent( ) } );
+        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = swap_image.extent( ) } );
 
         command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
         command_op.bind_index_buffer( model_->index_buffer( ), 0 );
@@ -568,7 +571,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
     // 3. Color pass: color + depth read-only
     {
         // Pre color pass barrier
-        image.transition_layout(
+        swap_image.transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
             .from_stage( VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_TRANSFER_BIT )
@@ -577,7 +580,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
 
         VkRenderingAttachmentInfo const color_attachment_info{
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = image.view( ).handle( ),
+            .imageView = swap_image.view( ).handle( ),
             .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -590,7 +593,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
             .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
             .renderArea = {
                 .offset = { 0, 0 },
-                .extent = image.extent( ),
+                .extent = swap_image.extent( ),
             },
             .layerCount = 1,
             .colorAttachmentCount = 1,
@@ -602,22 +605,22 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Image& i
 
         command_op.set_viewport( VkViewport{
             .x = 0.f, .y = 0.f,
-            .width = static_cast<float>( image.extent( ).width ),
-            .height = static_cast<float>( image.extent( ).height ),
+            .width = static_cast<float>( swap_image.extent( ).width ),
+            .height = static_cast<float>( swap_image.extent( ).height ),
             .minDepth = 0.f, .maxDepth = 1.f
         } );
-        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = image.extent( ) } );
+        command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = swap_image.extent( ) } );
 
         command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *color_pass_pipeline_, desc_set );
 
         command_op.push_constants( color_pass_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
-                                   0, sizeof( glm::vec3 ), &camera_ptr_->view_direction( ) );
+                                   0, sizeof( glm::vec3 ), &camera_ptr_->location( ) );
         command_op.draw( 4, 1 );
 
         command_op.end_rendering( );
 
         // Post color pass barrier
-        image.transition_layout(
+        swap_image.transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_PRESENT_SRC_KHR }
             .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
             .to_stage( VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT )

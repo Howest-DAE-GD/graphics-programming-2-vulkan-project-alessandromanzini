@@ -6,14 +6,22 @@ set(SHADERS_SRC_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/shaders/")
 set(SHADERS_DST_FOLDER "${CMAKE_CURRENT_BINARY_DIR}/shaders/")
 
 # collect all shader files
-file(GLOB MY_SHADERS "${SHADERS_SRC_FOLDER}/*.*")
+file(GLOB ALL_SHADERS "${SHADERS_SRC_FOLDER}/*.*")
+
+# filter out files matching */common.*.*
+set(MY_SHADERS "")
+foreach (F ${ALL_SHADER_FILES})
+    if (NOT F MATCHES ".*/common\\..*\\..*")
+        list(APPEND MY_SHADERS ${F})
+    endif ()
+endforeach ()
 
 if (MY_SHADERS)
     get_filename_component(GLSLC "$ENV{VULKAN_SDK}/bin/glslc" ABSOLUTE)
 
     set(SHADER_OUTPUTS "")
 
-    foreach(SRC IN LISTS MY_SHADERS)
+    foreach (SRC IN LISTS MY_SHADERS)
         get_filename_component(FILENAME ${SRC} NAME)
         set(SPV "${SHADERS_DST_FOLDER}/${FILENAME}.spv")
         list(APPEND SHADER_OUTPUTS ${SPV})
@@ -23,8 +31,8 @@ if (MY_SHADERS)
                 COMMAND ${GLSLC} ${SRC} -o ${SPV}
                 DEPENDS ${SRC}
                 COMMENT "Compiling shader: ${FILENAME}"
-                VERBATIM )
-    endforeach()
+                VERBATIM)
+    endforeach ()
 
     add_custom_target(${COMPILE_SHADERS_COMMAND} ALL
             DEPENDS ${SHADER_OUTPUTS})

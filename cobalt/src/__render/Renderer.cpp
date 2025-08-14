@@ -11,7 +11,6 @@ namespace cobalt
     Renderer::Renderer( RendererCreateInfo const& create_info )
         : device_ref_{ *create_info.device }
         , swapchain_ref_{ *create_info.swapchain }
-        , desc_allocator_ref_{ *create_info.desc_allocator }
         , render_sync_{
             *create_info.device, *create_info.cmd_pool, create_info.max_frames_in_flight, create_info.swapchain->image_count( )
         }
@@ -54,8 +53,7 @@ namespace cobalt
         // 3. Record a command buffer which draws the scene onto that image.
         if ( record_command_buffer_fn_ )
         {
-            record_command_buffer_fn_( cmd_buffer, swapchain_ref_.image_at( image_index ),
-                                       desc_allocator_ref_.set_at( static_cast<uint32_t>( current_frame_ ) ) );
+            record_command_buffer_fn_( cmd_buffer, swapchain_ref_, image_index, static_cast<uint32_t>( current_frame_ ) );
         }
         if ( update_uniform_buffer_fn_ )
         {

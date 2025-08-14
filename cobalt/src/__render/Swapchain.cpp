@@ -115,7 +115,7 @@ namespace cobalt
         auto details = builder.populate_create_info( create_info );
         validation::throw_on_bad_result(
             vkCreateSwapchainKHR( context_ref_.device( ).logical( ), &create_info, nullptr, &swapchain_ ),
-            "Failed to create swap chain!" );
+            "failed to create swap chain!" );
 
         // 3. Store the swap chain image format and extent for later use
         image_format_ = details.format_khr.format;
@@ -139,15 +139,16 @@ namespace cobalt
         if ( create_info_.create_depth_image )
         {
             VkFormat const depth_format = query::find_depth_format( context_ref_.device( ).physical( ) );
-            depth_image_ptr_            = std::make_unique<Image>( context_ref_.device( ),
-                                                        ImageCreateInfo{
-                                                            .extent = extent_,
-                                                            .format = depth_format,
-                                                            .tiling = VK_IMAGE_TILING_OPTIMAL,
-                                                            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                                            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                            .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
-                                                        } );
+            depth_image_ptr_            = std::make_unique<Image>(
+                context_ref_.device( ),
+                ImageCreateInfo{
+                    .extent = extent_,
+                    .format = depth_format,
+                    .tiling = VK_IMAGE_TILING_OPTIMAL,
+                    .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                    .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT
+                } );
         }
     }
 
@@ -155,9 +156,9 @@ namespace cobalt
     void Swapchain::destroy_swapchain( )
     {
         // 1. Destroy the depth image.
-        if (depth_image_ptr_)
+        if ( depth_image_ptr_ )
         {
-            depth_image_ptr_.reset();
+            depth_image_ptr_.reset( );
         }
 
         // 2. Destroy the swapchain images.

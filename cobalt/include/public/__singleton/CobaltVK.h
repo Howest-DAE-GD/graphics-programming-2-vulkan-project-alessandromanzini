@@ -5,7 +5,7 @@
 #include <__cleanup/DeletionQueue.h>
 #include <__context/VkContext.h>
 #include <__memory/handle/HandleTable.h>
-#include <__memory/handle/handle_aliases.h>
+#include <cobalt_vk/handle.h>
 #include <__memory/handle/ResourceHandle.h>
 #include <__render/Swapchain.h>
 

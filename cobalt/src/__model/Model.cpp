@@ -72,9 +72,10 @@ namespace cobalt
             TextureImageCreateInfo create_info{ .path_to_img = path };
             switch ( type )
             {
-                case TextureType::DIFFUSE:
+                case TextureType::BASE_COLOR:
                 case TextureType::METALNESS:
                 case TextureType::ROUGHNESS:
+                case TextureType::AO:
                     create_info.image_format = VK_FORMAT_R8G8B8A8_SRGB;
                     break;
                 case TextureType::NORMAL:
@@ -88,7 +89,8 @@ namespace cobalt
     }
 
 
-    void Model::create_materials_buffer( DeviceSet const& device, CommandPool& cmd_pool, std::span<SurfaceMap const> materials )
+    void Model::create_materials_buffer( DeviceSet const& device, CommandPool& cmd_pool,
+                                         std::span<SurfaceMap const> const materials )
     {
         auto const buffer_size = materials.size_bytes( );
 

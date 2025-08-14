@@ -61,6 +61,12 @@ namespace cobalt::validation
     }
 
 
+    bool is_image_array_non_uniform_indexing_supported( ValidationCallbackData& data )
+    {
+        return data.features.features.shaderSampledImageArrayDynamicIndexing;
+    }
+
+
     bool is_anisotropy_sampler_supported( ValidationCallbackData& data )
     {
         return data.features.features.samplerAnisotropy;

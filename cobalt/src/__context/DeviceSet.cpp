@@ -162,9 +162,17 @@ namespace cobalt
         }
 
         // Set additional Vulkan 1+ features that we want to use.
+        VkPhysicalDeviceVulkan12Features device_features12{};
+        device_features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        device_features.pNext   = &device_features12;
+        if ( any( feature_flags_ & DeviceFeatureFlags::SHADER_IMAGE_ARRAY_NON_UNIFORM_INDEXING ) )
+        {
+            device_features12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+        }
+
         VkPhysicalDeviceVulkan13Features device_features13{};
         device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-        device_features.pNext   = &device_features13;
+        device_features12.pNext = &device_features13;
 
         // todo: refactor flag checking and extension checking into the validation class that gets passed to the physical selector.
         if ( any( feature_flags_ & DeviceFeatureFlags::DYNAMIC_RENDERING_EXT ) )

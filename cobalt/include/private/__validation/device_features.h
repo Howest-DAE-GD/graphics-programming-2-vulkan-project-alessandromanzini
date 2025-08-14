@@ -33,6 +33,7 @@ namespace cobalt::validation
     [[nodiscard]] bool is_dynamic_rendering_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_synchronization_2_supported( ValidationCallbackData& data );
     [[nodiscard]] bool is_vertex_input_dynamic_state_supported( ValidationCallbackData& data );
+    [[nodiscard]] bool is_image_array_non_uniform_indexing_supported( ValidationCallbackData& data );
 
 }
 

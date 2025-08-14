@@ -22,6 +22,7 @@ public:
     [[nodiscard]] glm::mat4x4 camera_to_world( ) const;
     [[nodiscard]] glm::mat4x4 projection( ) const;
     [[nodiscard]] glm::vec3 const& view_direction( ) const noexcept;
+    [[nodiscard]] glm::vec3 const& location( ) const noexcept;
 
     void set_viewport( VkExtent2D ) noexcept;
 

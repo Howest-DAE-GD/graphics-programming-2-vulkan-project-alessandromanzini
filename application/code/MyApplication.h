@@ -1,9 +1,7 @@
 #ifndef MYAPPLICATION_H
 #define MYAPPLICATION_H
 
-#include <__memory/handle/handle_aliases.h>
-
-#include <vulkan/vulkan_core.h>
+#include <cobalt_vk/handle.h>
 
 #include <filesystem>
 #include <vector>
@@ -12,6 +10,7 @@
 namespace cobalt
 {
     class CommandBuffer;
+    class Swapchain;
     class Image;
 }
 class Camera;
@@ -36,10 +35,8 @@ private:
 
     // In general, we don't want more than 2 frames in flight at a time. That might cause the CPU to get ahead of the GPU.
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT_{ 2u };
-    static constexpr uint32_t TEXTURES_COUNT_{ 68u };
+    static constexpr uint32_t TEXTURES_COUNT_{ 69u };
 
-    static constexpr std::string_view TEXTURE_PATH_{ "resources/viking_room.png" };
-    // static constexpr std::string_view MODEL_PATH_{ "resources/viking_room.obj" };
     static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
 
     bool running_{ false };
@@ -63,8 +60,8 @@ private:
     cobalt::RendererHandle renderer_{};
 
     cobalt::ImageSamplerHandle texture_sampler_{};
-    cobalt::ImageHandle albedo_image_{};
-    cobalt::ImageHandle material_image_{};
+    std::array<cobalt::ImageHandle, MAX_FRAMES_IN_FLIGHT_> albedo_image_{};
+    std::array<cobalt::ImageHandle, MAX_FRAMES_IN_FLIGHT_> material_image_{};
     cobalt::ModelHandle model_{};
 
     std::vector<cobalt::BufferHandle> uniform_buffers_{};
@@ -73,7 +70,7 @@ private:
     void create_pipelines( );
 
     // .RENDERING
-    void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Image&, VkDescriptorSet desc_set );
+    void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index, uint32_t frame_index );
     void update_uniform_buffer( uint32_t current_image ) const;
 
     static void configure_relative_path( );

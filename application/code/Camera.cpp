@@ -57,6 +57,12 @@ glm::vec3 const& Camera::view_direction( ) const noexcept
 }
 
 
+glm::vec3 const& Camera::location( ) const noexcept
+{
+    return eye_;
+}
+
+
 void Camera::set_viewport( VkExtent2D const extent ) noexcept
 {
     aspect_ratio_ = static_cast<float>( extent.width ) / extent.height;

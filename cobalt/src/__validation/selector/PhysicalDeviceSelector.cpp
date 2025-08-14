@@ -20,6 +20,7 @@ namespace cobalt::validation
         { DeviceFeatureFlags::DYNAMIC_RENDERING_EXT, &is_dynamic_rendering_supported },
         { DeviceFeatureFlags::SYNCHRONIZATION_2_EXT, &is_synchronization_2_supported },
         { DeviceFeatureFlags::VERTEX_INPUT_DYNAMIC_STATE_EXT, &is_vertex_input_dynamic_state_supported },
+        { DeviceFeatureFlags::SHADER_IMAGE_ARRAY_NON_UNIFORM_INDEXING, &is_image_array_non_uniform_indexing_supported },
     };
 
 

@@ -8,7 +8,7 @@ namespace cobalt
 {
     enum class TextureType
     {
-        DIFFUSE,
+        BASE_COLOR,
         NORMAL,
         METALNESS,
         ROUGHNESS,

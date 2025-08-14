@@ -1,41 +1,21 @@
 #version 450
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_nonuniform_qualifier: enable
 
-
-// STRUCTS
-struct SurfaceMap
-{
-    int diffuse_id;
-    int specular_id;
-    int normal_id;
-    int metalness_id;
-};
+#include "common.surface.glsl"
+#include "common.texture.glsl"
 
 
 // INPUT
 layout ( location = 0 ) in vec2 frag_uv;
 
 
-// BINDINGS
-layout ( push_constant ) uniform PushConstants {
-    uint surface_id;
-} pc;
-layout ( constant_id = 0 ) const uint TEXTURE_COUNT = 1u;
-layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
-layout ( set = 0, binding = 2 ) uniform texture2D textures[TEXTURE_COUNT];
-layout ( set = 0, binding = 3 ) readonly buffer SurfaceData
-{
-    SurfaceMap maps[];
-} surface_buffer;
-
-
+// SHADER ENTRY POINT
 void main( )
 {
-    SurfaceMap map = surface_buffer.maps[pc.surface_id];
+    SurfaceMap map = surface_buffer.maps[SD.surface_id];
 
-    const int diffuse_id = nonuniformEXT( map.diffuse_id );
-    float base_color_alpha = texture( sampler2D( textures[diffuse_id], shared_sampler ), frag_uv ).a;
-    if ( base_color_alpha < 0.95f )
+    float alpha = texture( sampler2D( textures[nonuniformEXT( map.base_color_id )], shared_sampler ), frag_uv ).a;
+    if ( alpha < 0.95f )
     {
         discard;
     }
