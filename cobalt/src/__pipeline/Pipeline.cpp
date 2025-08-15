@@ -7,13 +7,15 @@
 
 namespace cobalt
 {
-    Pipeline::Pipeline( DeviceSet const& device, PipelineLayout const& layout, VkGraphicsPipelineCreateInfo const& create_info )
+    Pipeline::Pipeline(  DeviceSet const& device, PipelineLayout const& layout, PipelineCreateInfo const& create_info )
         : device_ref_{ device }
         , layout_ref_{ layout }
+        , bind_point_{ create_info.bind_point }
+        , descriptor_sets_{ create_info.descriptor_sets.begin( ), create_info.descriptor_sets.end( ) }
     {
         validation::throw_on_bad_result(
             vkCreateGraphicsPipelines( device_ref_.logical( ), VK_NULL_HANDLE, 1,
-                                       &create_info, nullptr, &pipeline_ ),
+                                       &create_info.create_info, nullptr, &pipeline_ ),
             "failed to create graphics pipeline!" );
     }
 
@@ -29,10 +31,12 @@ namespace cobalt
 
     Pipeline::Pipeline( Pipeline&& other ) noexcept
         : device_ref_{ other.device_ref_ }
+        , bind_point_{ other.bind_point_ }
+        , descriptor_sets_{ std::move( other.descriptor_sets_ ) }
         , layout_ref_{ other.layout_ref_ }
         , pipeline_{ std::exchange( other.pipeline_, VK_NULL_HANDLE ) }
     {
-        meta::expect_size<Pipeline, 32u>( );
+        meta::expect_size<Pipeline, 64u>( );
     }
 
 
@@ -45,6 +49,18 @@ namespace cobalt
     PipelineLayout const& Pipeline::layout( ) const
     {
         return layout_ref_;
+    }
+
+
+    VkPipelineBindPoint Pipeline::bind_point( ) const
+    {
+        return bind_point_;
+    }
+
+
+    std::span<DescriptorSet const* const> Pipeline::descriptor_sets( ) const
+    {
+        return descriptor_sets_;
     }
 
 }

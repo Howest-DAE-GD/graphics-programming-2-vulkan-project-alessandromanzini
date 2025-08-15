@@ -26,15 +26,17 @@ layout ( location = 0 ) out vec4 out_color;
 
 // BINDINGS
 layout ( push_constant ) uniform CameraPushConstants { vec3 camera_location; } pc;
+
 layout ( set = 0, binding = 0 ) uniform ModelViewProj {
     mat4 model;
     mat4 view;
     mat4 proj;
 } mvp;
-layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
-layout ( set = 0, binding = 4 ) uniform texture2D albedo_texture;
-layout ( set = 0, binding = 5 ) uniform texture2D material_texture;
-layout ( set = 0, binding = 6 ) uniform texture2D depth_texture;
+
+layout ( set = 1, binding = 0 ) uniform sampler shared_sampler;
+layout ( set = 1, binding = 2 ) uniform texture2D depth_texture;
+layout ( set = 1, binding = 3 ) uniform texture2D albedo_texture;
+layout ( set = 1, binding = 4 ) uniform texture2D material_texture;
 
 
 // FUNCTIONS

@@ -36,17 +36,18 @@ namespace cobalt::builder
             VkPipelineColorBlendAttachmentState const& attachment_state, VkFormat color_image_format );
 
         GraphicsPipelineBuilder& set_depth_image_description( VkFormat depth_image_format );
-        GraphicsPipelineBuilder& set_depth_stencil_mode( VkBool32 depth_testing, VkBool32 depth_writing,
-                                                         VkCompareOp compare_op = VK_COMPARE_OP_MAX_ENUM );
+        GraphicsPipelineBuilder& set_depth_stencil_mode(
+            VkBool32 depth_testing, VkBool32 depth_writing, VkCompareOp compare_op = VK_COMPARE_OP_MAX_ENUM );
 
-        GraphicsPipelineBuilder& add_shader_module( shader::ShaderModule&& shader, VkSpecializationInfo const* = nullptr,
-                                                    char const* entry_point                                    = "main" );
+        GraphicsPipelineBuilder& add_shader_module(
+            shader::ShaderModule&& shader, VkSpecializationInfo const* = nullptr, char const* entry_point = "main" );
 
         GraphicsPipelineBuilder& set_dynamic_state( std::span<VkDynamicState const> dynamic_states );
 
         GraphicsPipelineBuilder& set_cull_mode( VkCullModeFlags );
 
-        Pipeline build( DeviceSet const&, PipelineLayout const& ) const;
+        Pipeline build(
+            DeviceSet const&, PipelineLayout const&, VkPipelineBindPoint, std::span<DescriptorSet const* const> ) const;
 
     private:
         VkPipelineInputAssemblyStateCreateInfo input_assembly_{};

@@ -16,9 +16,13 @@ layout ( location = 1 ) out vec4 out_material;
 
 
 // BINDINGS
+layout ( push_constant ) uniform SurfaceDescription { uint surface_id; } SD;
+
+layout ( set = 0, binding = 1 ) readonly buffer SurfaceBufferData { SurfaceMap maps[]; } surface_buffer;
+
 layout ( constant_id = 0 ) const uint TEXTURE_COUNT = 1u;
-layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
-layout ( set = 0, binding = 2 ) uniform texture2D textures[TEXTURE_COUNT];
+layout ( set = 1, binding = 0 ) uniform sampler shared_sampler;
+layout ( set = 1, binding = 1 ) uniform texture2D textures[TEXTURE_COUNT];
 
 
 // SHADER ENTRY POINT

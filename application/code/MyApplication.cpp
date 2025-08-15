@@ -67,36 +67,7 @@ MyApplication::MyApplication( )
     swapchain_->depth_image( ).transition_layout( { VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL }, *command_pool_ );
 
     // 5. Descriptors
-    descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
-        context_->device( ), MAX_FRAMES_IN_FLIGHT_,
-        std::array{
-            // Camera uniform buffer
-            LayoutBindingDescription{
-                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-            },
-
-            // Sampler
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
-
-            // Textures
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, TEXTURES_COUNT_ },
-
-            // Surface Maps Buffer
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
-
-            // Albedo Image Buffer
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
-
-            // Normal Image Buffer
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
-
-            // Swapchain Depth Image
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
-
-            // HDR Image
-            LayoutBindingDescription{ VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
-        }
-    );
+    create_descriptor_allocator( );
 
     // 7. Renderer
     renderer_ = CVK.create_resource<Renderer>( RendererCreateInfo{
@@ -111,7 +82,7 @@ MyApplication::MyApplication( )
     renderer_->set_update_uniform_buffer_fn(
         std::bind( &MyApplication::update_uniform_buffer, this, std::placeholders::_1 ) );
 
-    // 8. Sampler and GBuffers
+    // 8. Sampler and Images
     texture_sampler_ = CVK.create_resource<ImageSampler>(
         context_->device( ),
         ImageSamplerCreateInfo{
@@ -123,34 +94,8 @@ MyApplication::MyApplication( )
             .compare_enable = false,
             .compare_op = VK_COMPARE_OP_ALWAYS
         } );
-
-    albedo_images_ = CVK.create_resource<ImageCollection>(
-        context_->device( ), ImageCreateInfo{
-            .extent = swapchain_->extent( ),
-            .format = VK_FORMAT_R8G8B8A8_SRGB,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-        }, MAX_FRAMES_IN_FLIGHT_ );
-    material_images_ = CVK.create_resource<ImageCollection>(
-        context_->device( ), ImageCreateInfo{
-            .extent = swapchain_->extent( ),
-            .format = VK_FORMAT_R16G16B16A16_UNORM,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-        }, MAX_FRAMES_IN_FLIGHT_ );
-    hdr_images_ = CVK.create_resource<ImageCollection>(
-        context_->device( ), ImageCreateInfo{
-            .extent = swapchain_->extent( ),
-            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-            .tiling = VK_IMAGE_TILING_OPTIMAL,
-            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
-        }, MAX_FRAMES_IN_FLIGHT_ );
+    create_gbuffer_images( );
+    create_post_processing_images( );
 
     // 9. Graphic pipelines
     create_pipelines( );
@@ -166,97 +111,7 @@ MyApplication::MyApplication( )
     }
 
     // 12. Update descriptor sets
-    std::array write_ops{
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            [this]( uint32_t const frame_index ) -> VkDescriptorBufferInfo
-                {
-                    return {
-                        .buffer = uniform_buffers_[frame_index]->handle( ),
-                        .offset = 0,
-                        .range = sizeof( UniformBufferObject ),
-                    };
-                }
-        },
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_SAMPLER,
-            [this]( uint32_t ) -> VkDescriptorImageInfo
-                {
-                    return {
-                        .sampler = texture_sampler_->handle( )
-                    };
-                },
-        },
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            [this]( uint32_t ) -> std::vector<VkDescriptorImageInfo>
-                {
-                    auto const texture_images = model_->textures( );
-                    std::vector<VkDescriptorImageInfo> infos;
-                    infos.reserve( texture_images.size( ) );
-                    for ( auto const& tex : texture_images )
-                    {
-                        infos.push_back( {
-                            .imageView = tex.image( ).view( ).handle( ),
-                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                        } );
-                    }
-                    return infos;
-                }
-        },
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            [this]( uint32_t ) -> VkDescriptorBufferInfo
-                {
-                    return {
-                        .buffer = model_->surface_buffer( ).handle( ),
-                        .offset = 0,
-                        .range = model_->surface_buffer( ).memory_size( )
-                    };
-                }
-        },
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
-                {
-                    return {
-                        .imageView = albedo_images_->image_at( frame_index ).view( ).handle( ),
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    };
-                }
-        },
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
-                {
-                    return {
-                        .imageView = material_images_->image_at( frame_index ).view( ).handle( ),
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    };
-                }
-        },
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            [this]( uint32_t ) -> VkDescriptorImageInfo
-                {
-                    return {
-                        .imageView = swapchain_->depth_image( ).view( ).handle( ),
-                        .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-                    };
-                }
-        },
-        WriteDescription{
-            VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
-                {
-                    return {
-                        .imageView = hdr_images_->image_at( frame_index ).view( ).handle( ),
-                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    };
-                }
-        },
-    };
-    descriptor_allocator_->update_sets( write_ops );
+    write_descriptor_sets( );
 }
 
 
@@ -300,28 +155,119 @@ void MyApplication::run( )
 // +---------------------------+
 // | PRIVATE                   |
 // +---------------------------+
+void MyApplication::create_descriptor_allocator( )
+{
+    descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
+        descriptor::LayoutSpecs{ context_->device( ) }
+        .define(
+            "buffer_layout",
+            {
+                // Camera uniform buffer
+                { VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+
+                // Surface Maps Buffer
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
+            } )
+        .define(
+            "texture_layout",
+            {
+                // Sampler
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
+
+                // Textures
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, TEXTURES_COUNT_ },
+
+                // Swapchain Depth Image
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+
+                // Albedo Image Buffer
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+
+                // Material Image Buffer
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+
+                // HDR Image
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+            } )
+        .alloc( "buffer", "buffer_layout", MAX_FRAMES_IN_FLIGHT_ )
+        .alloc( "texture", "texture_layout", MAX_FRAMES_IN_FLIGHT_ ) );
+}
+
+
+void MyApplication::create_gbuffer_images( )
+{
+    albedo_images_ = CVK.create_resource<ImageCollection>(
+        context_->device( ), ImageCreateInfo{
+            .extent = swapchain_->extent( ),
+            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+        }, MAX_FRAMES_IN_FLIGHT_ );
+
+    material_images_ = CVK.create_resource<ImageCollection>(
+        context_->device( ), ImageCreateInfo{
+            .extent = swapchain_->extent( ),
+            .format = VK_FORMAT_R16G16B16A16_UNORM,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+        }, MAX_FRAMES_IN_FLIGHT_ );
+}
+
+
+void MyApplication::create_post_processing_images( )
+{
+    hdr_images_ = CVK.create_resource<ImageCollection>(
+        context_->device( ), ImageCreateInfo{
+            .extent = swapchain_->extent( ),
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+        }, MAX_FRAMES_IN_FLIGHT_ );
+}
+
+
 void MyApplication::create_pipelines( )
 {
-    sampling_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
-        context_->device( ), std::array{ descriptor_allocator_->layout( ).handle( ) },
-        std::array{
-            // Surface ID
-            VkPushConstantRange{
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .offset = 0,
-                .size = sizeof( uint32_t )
-            }
-        } );
-    quad_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
-        context_->device( ), std::array{ descriptor_allocator_->layout( ).handle( ) },
-        std::array{
-            // Camera position
-            VkPushConstantRange{
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .offset = 0,
-                .size = sizeof( glm::vec3 )
-            }
-        } );
+    // Layouts
+    {
+        std::array const desc_layouts{
+            &descriptor_allocator_->layout_at( "buffer_layout" ),
+            &descriptor_allocator_->layout_at( "texture_layout" )
+        };
+
+        sampling_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
+            context_->device( ), desc_layouts,
+            std::array{
+                // Surface ID
+                VkPushConstantRange{
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    .offset = 0,
+                    .size = sizeof( uint32_t )
+                }
+            } );
+
+        quad_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
+            context_->device( ), desc_layouts,
+            std::array{
+                // Camera position
+                VkPushConstantRange{
+                    .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                    .offset = 0,
+                    .size = sizeof( glm::vec3 )
+                }
+            } );
+    }
+
+    std::array const desc_sets{
+        &descriptor_allocator_->set_at( "buffer" ),
+        &descriptor_allocator_->set_at( "texture" )
+    };
 
     // Depth pre-pass pipeline
     {
@@ -347,7 +293,7 @@ void MyApplication::create_pipelines( )
             .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
             .set_depth_stencil_mode( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS )
             .set_depth_image_description( swapchain_->depth_image( ).format( ) )
-            .build( context_->device( ), *sampling_pipeline_layout_ ) );
+            .build( context_->device( ), *sampling_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS, desc_sets ) );
     }
 
     // G-Buffer generation pipeline
@@ -386,7 +332,7 @@ void MyApplication::create_pipelines( )
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
                 }, material_images_->image_format( ) )
-            .build( context_->device( ), *sampling_pipeline_layout_ ) );
+            .build( context_->device( ), *sampling_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS, desc_sets ) );
     }
 
     // Lighting pass pipeline
@@ -404,7 +350,7 @@ void MyApplication::create_pipelines( )
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
                 }, hdr_images_->image_format( ) )
-            .build( context_->device( ), *quad_pipeline_layout_ ) );
+            .build( context_->device( ), *quad_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS, desc_sets ) );
     }
 
     // Post-processing pass pipeline
@@ -422,7 +368,113 @@ void MyApplication::create_pipelines( )
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
                 }, swapchain_->image_format( ) )
-            .build( context_->device( ), *quad_pipeline_layout_ ) );
+            .build( context_->device( ), *quad_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS, desc_sets ) );
+    }
+}
+
+
+void MyApplication::write_descriptor_sets( )
+{
+    // Buffer descriptors
+    {
+        std::array write_ops{
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                [this]( uint32_t const frame_index ) -> VkDescriptorBufferInfo
+                    {
+                        return {
+                            .buffer = uniform_buffers_[frame_index]->handle( ),
+                            .offset = 0,
+                            .range = sizeof( UniformBufferObject ),
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                [this]( uint32_t ) -> VkDescriptorBufferInfo
+                    {
+                        return {
+                            .buffer = model_->surface_buffer( ).handle( ),
+                            .offset = 0,
+                            .range = model_->surface_buffer( ).memory_size( )
+                        };
+                    }
+            },
+        };
+        descriptor_allocator_->set_at( "buffer" ).update( write_ops );
+    }
+
+    // Texture descriptors
+    {
+        std::array write_ops{
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLER,
+                [this]( uint32_t ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .sampler = texture_sampler_->handle( )
+                        };
+                    },
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this]( uint32_t ) -> std::vector<VkDescriptorImageInfo>
+                    {
+                        auto const texture_images = model_->textures( );
+                        std::vector<VkDescriptorImageInfo> infos;
+                        infos.reserve( texture_images.size( ) );
+                        for ( auto const& tex : texture_images )
+                        {
+                            infos.push_back( {
+                                .imageView = tex.image( ).view( ).handle( ),
+                                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                            } );
+                        }
+                        return infos;
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this]( uint32_t ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .imageView = swapchain_->depth_image( ).view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .imageView = albedo_images_->image_at( frame_index ).view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .imageView = material_images_->image_at( frame_index ).view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .imageView = hdr_images_->image_at( frame_index ).view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        };
+                    }
+            },
+        };
+        descriptor_allocator_->set_at( "texture" ).update( write_ops );
     }
 }
 
@@ -447,8 +499,6 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
     Image& hdr_image      = hdr_images_->image_at( frame_index );
     Image& swap_image     = swapchain.image_at( image_index );
 
-    VkDescriptorSet const desc_set = descriptor_allocator_->set_at( frame_index );
-
     // 1. Depth Pre-Pass: render geometry to depth only, no color attachment
     {
         // DEPTH STENCIL READONLY OPTIMAL -> DEPTH STENCIL ATTACHMENT OPTIMAL
@@ -464,15 +514,13 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
                                                                           VK_ATTACHMENT_STORE_OP_STORE );
 
         command_op.begin_rendering( {}, &depth_attachment );
-        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *depth_prepass_pipeline_ );
 
         command_op.set_viewport( );
         command_op.set_scissor( );
 
+        command_op.bind_pipeline( *depth_prepass_pipeline_, frame_index );
         command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
         command_op.bind_index_buffer( model_->index_buffer( ), 0 );
-
-        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *depth_prepass_pipeline_, desc_set );
 
         for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
         {
@@ -523,10 +571,9 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
         command_op.set_viewport( );
         command_op.set_scissor( );
 
+        command_op.bind_pipeline( *gbuffer_pass_pipeline_, frame_index );
         command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
         command_op.bind_index_buffer( model_->index_buffer( ), 0 );
-
-        command_op.bind_pipeline_and_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *gbuffer_pass_pipeline_, desc_set );
 
         for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
         {
@@ -572,7 +619,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
         command_op.set_viewport( );
         command_op.set_scissor( );
 
-        command_op.bind_pipeline_and_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *lighting_pass_pipeline_, desc_set );
+        command_op.bind_pipeline( *lighting_pass_pipeline_, frame_index );
 
         command_op.push_constants( lighting_pass_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
                                    0, sizeof( glm::vec3 ), &camera_ptr_->location( ) );
@@ -607,7 +654,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
         command_op.set_viewport( );
         command_op.set_scissor( );
 
-        command_op.bind_pipeline_and_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *post_processing_pass_pipeline_, desc_set );
+        command_op.bind_pipeline( *post_processing_pass_pipeline_, frame_index );
 
         command_op.draw( 4, 1 );
 

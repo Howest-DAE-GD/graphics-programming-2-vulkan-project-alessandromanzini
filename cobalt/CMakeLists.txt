@@ -30,6 +30,14 @@ add_library(${PROJECT_NAME}
 		"src/__context/ValidationLayers.cpp"
 		"src/__context/Queue.cpp"
 
+		"include/public/__descriptor/DescriptorStructs.h"
+		"include/public/__descriptor/LayoutSpecs.h"
+		"include/public/__descriptor/DescriptorSet.h"
+		"src/__descriptor/LayoutSpecs.cpp"
+		"src/__descriptor/DescriptorAllocator.cpp"
+		"src/__descriptor/WriteDescription.cpp"
+		"src/__descriptor/DescriptorSetLayout.cpp"
+
 		"include/public/__event/multicast_delegate/MulticastDelegate.h"
 		"include/public/__event/multicast_delegate/Dispatcher.h"
 
@@ -40,6 +48,7 @@ add_library(${PROJECT_NAME}
 		"src/__image/TextureImage.cpp"
 		"src/__image/ImageSampler.cpp"
 		"src/__image/StbImageLoader.cpp"
+		"src/__image/ImageCollection.cpp"
 
 		"include/public/__init/InitWizard.h"
 
@@ -72,12 +81,7 @@ add_library(${PROJECT_NAME}
 		"src/__query/queue_family.cpp"
 		"src/__query/swapchain_support.cpp"
 
-		"include/public/__render/BindingDescription.h"
-		"include/public/__render/LayoutBindingDescription.h"
-		"src/__render/DescriptorSetLayout.cpp"
 		"src/__render/Renderer.cpp"
-		"src/__render/DescriptorAllocator.cpp"
-		"src/__render/WriteDescription.cpp"
 		"src/__render/Swapchain.cpp"
 
 		"src/__shader/ShaderModule.cpp"
@@ -97,7 +101,6 @@ add_library(${PROJECT_NAME}
 		"src/log.cpp"
 		"include/public/cobalt_vk/core.h"
 		"include/public/cobalt_vk/handle.h"
-		src/__image/ImageCollection.cpp
 )
 
 # set warning level to W4 and warnings as errors

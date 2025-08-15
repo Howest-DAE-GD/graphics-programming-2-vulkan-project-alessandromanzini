@@ -11,6 +11,7 @@
 namespace cobalt
 {
     class DeviceSet;
+    class DescriptorSetLayout;
 }
 
 namespace cobalt
@@ -18,7 +19,7 @@ namespace cobalt
     class PipelineLayout final : public memory::Resource
     {
     public:
-        PipelineLayout( DeviceSet const&, std::span<VkDescriptorSetLayout const> desc_layouts,
+        PipelineLayout( DeviceSet const&, std::span<DescriptorSetLayout const* const> desc_layouts,
                         std::span<VkPushConstantRange const> push_constant_ranges = {} );
         ~PipelineLayout( ) noexcept override;
 
@@ -28,9 +29,13 @@ namespace cobalt
         PipelineLayout& operator=( PipelineLayout&& ) noexcept = delete;
 
         [[nodiscard]] VkPipelineLayout handle( ) const noexcept;
+        [[nodiscard]] std::span<DescriptorSetLayout const* const> descriptor_layouts( ) const noexcept;
 
     private:
         DeviceSet const& device_ref_;
+
+        std::vector<DescriptorSetLayout const*> descriptor_layouts_{};
+
         VkPipelineLayout layout_{ VK_NULL_HANDLE };
 
     };

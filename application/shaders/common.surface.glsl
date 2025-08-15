@@ -11,11 +11,6 @@ struct SurfaceMap
 };
 
 
-// BINDINNGS
-layout ( push_constant ) uniform SurfaceDescription { uint surface_id; } SD;
-layout ( set = 0, binding = 3 ) readonly buffer SurfaceBufferData { SurfaceMap maps[]; } surface_buffer;
-
-
 // FUNCTIONS
 bool is_surface_map_valid( SurfaceMap map )
 {

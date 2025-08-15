@@ -3,7 +3,7 @@
 
 #include <__memory/Resource.h>
 
-#include <__render/DescriptorAllocator.h>
+#include <__descriptor/DescriptorAllocator.h>
 #include <__synchronization/RenderSync.h>
 
 #include <cstdint>

@@ -1,5 +1,5 @@
-#include <__render/DescriptorSetLayout.h>
-#include <__render/LayoutBindingDescription.h>
+#include <__descriptor/DescriptorSetLayout.h>
+
 #include <__validation/result.h>
 
 #include <algorithm>
@@ -7,8 +7,10 @@
 
 namespace cobalt
 {
-    DescriptorSetLayout::DescriptorSetLayout( DeviceSet const& device, std::span<LayoutBindingDescription const> bindings )
+    DescriptorSetLayout::DescriptorSetLayout(
+        DeviceSet const& device, std::span<descriptor::BindingDesc const> bindings, uint32_t const total_binding_count )
         : device_ref_{ device }
+        , total_binding_count_{ total_binding_count }
         , desc_bindings_{ bindings.begin( ), bindings.end( ) }
     {
         // The first two fields specify the binding used in the shader and the type of descriptor, which is a uniform buffer object.
@@ -52,9 +54,15 @@ namespace cobalt
     }
 
 
-    std::span<LayoutBindingDescription const> DescriptorSetLayout::descriptor_bindings( ) const noexcept
+    std::span<descriptor::BindingDesc const> DescriptorSetLayout::bindings( ) const noexcept
     {
         return desc_bindings_;
+    }
+
+
+    uint32_t DescriptorSetLayout::total_bindings( ) const noexcept
+    {
+        return total_binding_count_;
     }
 
 }

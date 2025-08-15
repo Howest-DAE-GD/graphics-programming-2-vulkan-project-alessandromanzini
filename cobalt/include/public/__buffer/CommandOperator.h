@@ -43,9 +43,7 @@ namespace cobalt
         void set_viewport( std::optional<VkViewport> const& viewport_override = std::nullopt ) const;
         void set_scissor( std::optional<VkRect2D> const& scissor_override = std::nullopt ) const;
 
-        void bind_pipeline( VkPipelineBindPoint, Pipeline const& ) const;
-        void bind_descriptor_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
-        void bind_pipeline_and_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
+        void bind_pipeline( Pipeline const&, uint32_t frame_index ) const;
 
         void bind_vertex_buffers( Buffer const&, VkDeviceSize offset ) const;
         void bind_index_buffer( Buffer const&, VkDeviceSize offset ) const;

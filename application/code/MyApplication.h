@@ -69,7 +69,12 @@ private:
     std::vector<cobalt::BufferHandle> uniform_buffers_{};
 
     // .CREATION
+    void create_descriptor_allocator( );
+    void create_gbuffer_images( );
+    void create_post_processing_images( );
     void create_pipelines( );
+
+    void write_descriptor_sets( );
 
     // .RENDERING
     void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index, uint32_t frame_index );

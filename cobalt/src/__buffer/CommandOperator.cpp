@@ -2,6 +2,7 @@
 
 #include <log.h>
 #include <__buffer/Buffer.h>
+#include <__descriptor/DescriptorSetLayout.h>
 #include <__image/Image.h>
 #include <__meta/expect_size.h>
 #include <__pipeline/Pipeline.h>
@@ -99,25 +100,17 @@ namespace cobalt
     }
 
 
-    void CommandOperator::bind_pipeline( VkPipelineBindPoint const bind_point, Pipeline const& pipeline ) const
+    void CommandOperator::bind_pipeline( Pipeline const& pipeline, uint32_t const frame_index ) const
     {
-        vkCmdBindPipeline( command_buffer_, bind_point, pipeline.handle( ) );
-    }
+        vkCmdBindPipeline( command_buffer_, pipeline.bind_point( ), pipeline.handle( ) );
 
-
-    void CommandOperator::bind_descriptor_set(
-        VkPipelineBindPoint const bind_point, Pipeline const& pipeline, VkDescriptorSet const desc_set ) const
-    {
-        vkCmdBindDescriptorSets( command_buffer_, bind_point, pipeline.layout( ).handle( ), 0, 1,
-                                 &desc_set, 0, nullptr );
-    }
-
-
-    void CommandOperator::bind_pipeline_and_set(
-        VkPipelineBindPoint const bind_point, Pipeline const& pipeline, VkDescriptorSet const desc_set ) const
-    {
-        bind_pipeline( bind_point, pipeline );
-        bind_descriptor_set( bind_point, pipeline, desc_set );
+        uint32_t offset{ 0u };
+        for ( DescriptorSet const* const set : pipeline.descriptor_sets( ) )
+        {
+            VkDescriptorSet const vk_set = set->handle_at( frame_index );
+            vkCmdBindDescriptorSets( command_buffer_, pipeline.bind_point( ), pipeline.layout( ).handle( ),
+                offset++, 1, &vk_set, 0, nullptr );
+        }
     }
 
 

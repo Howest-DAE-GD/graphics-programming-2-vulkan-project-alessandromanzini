@@ -5,8 +5,8 @@
 
 
 // BINDINGS
-layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
-layout ( set = 0, binding = 7 ) uniform texture2D hdr_color_texture;
+layout ( set = 1, binding = 0 ) uniform sampler shared_sampler;
+layout ( set = 1, binding = 5 ) uniform texture2D hdr_color_texture;
 
 
 // INPUT

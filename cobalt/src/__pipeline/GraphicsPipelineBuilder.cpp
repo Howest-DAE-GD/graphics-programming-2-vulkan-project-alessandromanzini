@@ -101,7 +101,8 @@ namespace cobalt::builder
 
 
     GraphicsPipelineBuilder& GraphicsPipelineBuilder::add_shader_module( shader::ShaderModule&& shader,
-        VkSpecializationInfo const* specialization_info, char const* entry_point )
+                                                                         VkSpecializationInfo const* specialization_info,
+                                                                         char const* entry_point )
     {
         shader_stages_.emplace_back(
             VkPipelineShaderStageCreateInfo{
@@ -136,7 +137,9 @@ namespace cobalt::builder
     }
 
 
-    Pipeline GraphicsPipelineBuilder::build( DeviceSet const& device, PipelineLayout const& layout ) const
+    Pipeline GraphicsPipelineBuilder::build(
+        DeviceSet const& device, PipelineLayout const& layout, VkPipelineBindPoint const bind_point,
+        std::span<DescriptorSet const* const> const sets ) const
     {
         VkPipelineRenderingCreateInfo const pipeline_rendering_info{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
@@ -145,27 +148,31 @@ namespace cobalt::builder
             .depthAttachmentFormat = depth_image_format_,
         };
 
-        VkGraphicsPipelineCreateInfo const create_info{
-            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-            .pNext = &pipeline_rendering_info,
+        return Pipeline{
+            device, layout,
+            PipelineCreateInfo{
+                .descriptor_sets = sets,
+                .bind_point = bind_point,
+                .create_info = VkGraphicsPipelineCreateInfo{
+                    .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+                    .pNext = &pipeline_rendering_info,
 
-            .stageCount = static_cast<uint32_t>( shader_stages_.size( ) ),
-            .pStages = shader_stages_.data( ),
+                    .stageCount = static_cast<uint32_t>( shader_stages_.size( ) ),
+                    .pStages = shader_stages_.data( ),
 
-            .pVertexInputState = &vertex_input_info_,
-            .pInputAssemblyState = &input_assembly_,
-            .pViewportState = &viewport_state_,
-            .pRasterizationState = &rasterization_,
-            .pMultisampleState = &multisampling_,
-            .pColorBlendState = &color_blend_state_,
-            .pDynamicState = &dynamic_state_,
-            .pDepthStencilState = &depth_stencil_,
+                    .pVertexInputState = &vertex_input_info_,
+                    .pInputAssemblyState = &input_assembly_,
+                    .pViewportState = &viewport_state_,
+                    .pRasterizationState = &rasterization_,
+                    .pMultisampleState = &multisampling_,
+                    .pColorBlendState = &color_blend_state_,
+                    .pDynamicState = &dynamic_state_,
+                    .pDepthStencilState = &depth_stencil_,
 
-            .layout = layout.handle( ),
-
+                    .layout = layout.handle( ),
+                }
+            }
         };
-
-        return Pipeline{ device, layout, create_info };
     }
 
 }
