@@ -52,16 +52,18 @@ private:
     cobalt::DescriptorAllocatorHandle descriptor_allocator_{};
 
     cobalt::PipelineLayoutHandle sampling_pipeline_layout_{};
-    cobalt::PipelineLayoutHandle lighting_pipeline_layout_{};
+    cobalt::PipelineLayoutHandle quad_pipeline_layout_{};
     cobalt::PipelineHandle depth_prepass_pipeline_{};
-    cobalt::PipelineHandle gbuffer_gen_pipeline_{};
+    cobalt::PipelineHandle gbuffer_pass_pipeline_{};
     cobalt::PipelineHandle lighting_pass_pipeline_{};
+    cobalt::PipelineHandle post_processing_pass_pipeline_{};
 
     cobalt::RendererHandle renderer_{};
 
     cobalt::ImageSamplerHandle texture_sampler_{};
     cobalt::ImageCollectionHandle albedo_images_{};
     cobalt::ImageCollectionHandle material_images_{};
+    cobalt::ImageCollectionHandle hdr_images_{};
     cobalt::ModelHandle model_{};
 
     std::vector<cobalt::BufferHandle> uniform_buffers_{};

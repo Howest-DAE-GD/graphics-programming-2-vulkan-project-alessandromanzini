@@ -28,22 +28,27 @@ namespace cobalt
         CommandOperator& operator=( const CommandOperator& )     = delete;
         CommandOperator& operator=( CommandOperator&& ) noexcept = delete;
 
+        void store_render_area( VkRect2D const& );
+        void store_viewport( VkViewport const& );
+
         void end_recording( );
 
-        void begin_rendering( VkRenderingInfo const& ) const;
+        void begin_rendering(
+            std::span<VkRenderingAttachmentInfo const> color_attachments, VkRenderingAttachmentInfo const* depth_attachment,
+            std::optional<VkRect2D> const& render_area_override = std::nullopt ) const;
         void end_rendering( ) const;
 
         void insert_barrier( VkDependencyInfo const& ) const;
 
-        void set_viewport( VkViewport const& ) const;
-        void set_viewport( std::span<VkViewport> ) const;
-        void set_scissor( VkRect2D const& ) const;
-        void set_scissor( std::span<VkRect2D> ) const;
+        void set_viewport( std::optional<VkViewport> const& viewport_override = std::nullopt ) const;
+        void set_scissor( std::optional<VkRect2D> const& scissor_override = std::nullopt ) const;
 
         void bind_pipeline( VkPipelineBindPoint, Pipeline const& ) const;
+        void bind_descriptor_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
+        void bind_pipeline_and_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
+
         void bind_vertex_buffers( Buffer const&, VkDeviceSize offset ) const;
         void bind_index_buffer( Buffer const&, VkDeviceSize offset ) const;
-        void bind_descriptor_set( VkPipelineBindPoint, Pipeline const&, VkDescriptorSet ) const;
 
         void push_constants( PipelineLayout const&, VkShaderStageFlags, uint32_t offset, uint32_t size, void const* data ) const;
 
@@ -58,6 +63,9 @@ namespace cobalt
     private:
         VkCommandBuffer const command_buffer_{ VK_NULL_HANDLE };
         bool recording_{ false };
+
+        VkRect2D render_area_{ .offset = { 0u, 0u }, .extent = { 0u, 0u } };
+        VkViewport viewport_{ .x = 0.f, .y = 0.f, .width = 0.f, .height = 0.f, .minDepth = 0.f, .maxDepth = 0.f };
 
     };
 

@@ -27,10 +27,23 @@ namespace cobalt
 
     CommandOperator::CommandOperator( CommandOperator&& other ) noexcept
         : command_buffer_{ other.command_buffer_ }
-        , recording_{ other.recording_ }
+        , recording_{ std::exchange( other.recording_, false ) }
+        , render_area_{ other.render_area_ }
+        , viewport_{ other.viewport_ }
     {
-        meta::expect_size<CommandOperator, 16u>( );
-        other.recording_ = false;
+        meta::expect_size<CommandOperator, 56u>( );
+    }
+
+
+    void CommandOperator::store_render_area( VkRect2D const& area )
+    {
+        render_area_ = area;
+    }
+
+
+    void CommandOperator::store_viewport( VkViewport const& viewport )
+    {
+        viewport_ = viewport;
     }
 
 
@@ -44,8 +57,18 @@ namespace cobalt
     }
 
 
-    void CommandOperator::begin_rendering( VkRenderingInfo const& render_info ) const
+    void CommandOperator::begin_rendering( std::span<VkRenderingAttachmentInfo const> color_attachments,
+                                           VkRenderingAttachmentInfo const* depth_attachment,
+                                           std::optional<VkRect2D> const& render_area_override ) const
     {
+        VkRenderingInfo const render_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .renderArea = render_area_override.has_value( ) ? render_area_override.value( ) : render_area_,
+            .layerCount = 1,
+            .colorAttachmentCount = static_cast<uint32_t>( color_attachments.size( ) ),
+            .pColorAttachments = color_attachments.data( ),
+            .pDepthAttachment = depth_attachment
+        };
         vkCmdBeginRendering( command_buffer_, &render_info );
     }
 
@@ -62,33 +85,39 @@ namespace cobalt
     }
 
 
-    void CommandOperator::set_viewport( VkViewport const& viewport ) const
+    void CommandOperator::set_viewport( std::optional<VkViewport> const& viewport_override ) const
     {
-        vkCmdSetViewport( command_buffer_, 0, 1, &viewport );
+        VkViewport const* viewport_ptr = viewport_override.has_value( ) ? &viewport_override.value( ) : &viewport_;
+        vkCmdSetViewport( command_buffer_, 0, 1, viewport_ptr );
     }
 
 
-    void CommandOperator::set_viewport( std::span<VkViewport> const viewports ) const
+    void CommandOperator::set_scissor( std::optional<VkRect2D> const& scissor_override ) const
     {
-        vkCmdSetViewport( command_buffer_, 0, static_cast<uint32_t>( viewports.size( ) ), &viewports[0] );
-    }
-
-
-    void CommandOperator::set_scissor( VkRect2D const& scissor ) const
-    {
-        vkCmdSetScissor( command_buffer_, 0, 1, &scissor );
-    }
-
-
-    void CommandOperator::set_scissor( std::span<VkRect2D> const scissors ) const
-    {
-        vkCmdSetScissor( command_buffer_, 0, static_cast<uint32_t>( scissors.size( ) ), &scissors[0] );
+        VkRect2D const* rect_ptr = scissor_override.has_value( ) ? &scissor_override.value( ) : &render_area_;
+        vkCmdSetScissor( command_buffer_, 0, 1, rect_ptr );
     }
 
 
     void CommandOperator::bind_pipeline( VkPipelineBindPoint const bind_point, Pipeline const& pipeline ) const
     {
         vkCmdBindPipeline( command_buffer_, bind_point, pipeline.handle( ) );
+    }
+
+
+    void CommandOperator::bind_descriptor_set(
+        VkPipelineBindPoint const bind_point, Pipeline const& pipeline, VkDescriptorSet const desc_set ) const
+    {
+        vkCmdBindDescriptorSets( command_buffer_, bind_point, pipeline.layout( ).handle( ), 0, 1,
+                                 &desc_set, 0, nullptr );
+    }
+
+
+    void CommandOperator::bind_pipeline_and_set(
+        VkPipelineBindPoint const bind_point, Pipeline const& pipeline, VkDescriptorSet const desc_set ) const
+    {
+        bind_pipeline( bind_point, pipeline );
+        bind_descriptor_set( bind_point, pipeline, desc_set );
     }
 
 
@@ -103,14 +132,6 @@ namespace cobalt
     {
         VkIndexType const index_type = to_index_type( buffer.content_type( ) );
         vkCmdBindIndexBuffer( command_buffer_, buffer.handle( ), offset, index_type );
-    }
-
-
-    void CommandOperator::bind_descriptor_set( VkPipelineBindPoint const bind_point, Pipeline const& pipeline,
-                                               VkDescriptorSet const desc_set ) const
-    {
-        vkCmdBindDescriptorSets( command_buffer_, bind_point, pipeline.layout( ).handle( ), 0, 1,
-                                 &desc_set, 0, nullptr );
     }
 
 

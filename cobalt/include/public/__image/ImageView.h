@@ -33,8 +33,12 @@ namespace cobalt
         ImageView& operator=( ImageView&& ) noexcept = delete;
 
         [[nodiscard]] VkImageView& handle( );
-
         [[nodiscard]] VkImageAspectFlags aspect_flags( ) const;
+
+        [[nodiscard]] VkRenderingAttachmentInfo make_color_attachment(
+            VkAttachmentLoadOp load_op, VkAttachmentStoreOp store_op, VkClearColorValue clear = { { 0.f, 0.f, 0.f, 1.f } } ) const;
+        [[nodiscard]] VkRenderingAttachmentInfo make_depth_attachment(
+            VkAttachmentLoadOp load_op, VkAttachmentStoreOp store_op, VkClearDepthStencilValue clear = { .depth = 1.f } ) const;
 
     private:
         DeviceSet const& device_ref_;

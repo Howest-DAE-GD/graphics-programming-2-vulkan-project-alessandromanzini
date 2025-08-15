@@ -55,4 +55,32 @@ namespace cobalt
         return aspect_flags_;
     }
 
+
+    VkRenderingAttachmentInfo ImageView::make_color_attachment(
+        VkAttachmentLoadOp const load_op, VkAttachmentStoreOp const store_op, VkClearColorValue const clear ) const
+    {
+        return {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = image_view_,
+            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = load_op,
+            .storeOp = store_op,
+            .clearValue = VkClearValue{ .color = clear }
+        };
+    }
+
+
+    VkRenderingAttachmentInfo ImageView::make_depth_attachment(
+        VkAttachmentLoadOp const load_op, VkAttachmentStoreOp const store_op, VkClearDepthStencilValue const clear ) const
+    {
+        return {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = image_view_,
+            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            .loadOp = load_op,
+            .storeOp = store_op,
+            .clearValue = VkClearValue{ .depthStencil = clear }
+        };
+    }
+
 }

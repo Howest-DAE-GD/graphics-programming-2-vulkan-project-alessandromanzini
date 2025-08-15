@@ -2,7 +2,6 @@
 #extension GL_EXT_nonuniform_qualifier: enable
 
 #include "common.surface.glsl"
-#include "common.texture.glsl"
 #include "common.transcode.glsl"
 
 
@@ -14,6 +13,12 @@ layout ( location = 1 ) in mat3 in_TBN;
 // OUTPUT
 layout ( location = 0 ) out vec4 out_albedo;
 layout ( location = 1 ) out vec4 out_material;
+
+
+// BINDINGS
+layout ( constant_id = 0 ) const uint TEXTURE_COUNT = 1u;
+layout ( set = 0, binding = 1 ) uniform sampler shared_sampler;
+layout ( set = 0, binding = 2 ) uniform texture2D textures[TEXTURE_COUNT];
 
 
 // SHADER ENTRY POINT
