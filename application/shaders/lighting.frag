@@ -7,9 +7,9 @@
 // CONSTANTS
 const int light_count = 3;
 const Light lights[light_count] = Light[](
-Light( vec3( -5.f, 0.5f, 0.3f ), vec3( 200.f, 0.f, 0.f ), 1.f ),
-Light( vec3( 0.f, 0.5f, 0.3f ), vec3( 0.f, 200.f, 0.f ), .4f ),
-Light( vec3( 5.f, 0.5f, 0.3f ), vec3( 0.f, 0.f, 200.f ), .8f ) );
+    Light( vec3( -5.f, 0.5f, 0.f ), vec3( 200.f, 0.f, 0.f ), .5f ),
+    Light( vec3( 0.f, 0.5f, 0.f ), vec3( 0.f, 200.f, 0.f ), .2f ),
+    Light( vec3( 5.f, 0.5f, 0.f ), vec3( 0.f, 0.f, 200.f ), .5f ) );
 
 
 // INPUT
@@ -36,18 +36,20 @@ layout ( set = 0, binding = 6 ) uniform texture2D depth_texture;
 // SHADER ENTRY POINT
 void main( )
 {
+    const ivec2 iuv = ivec2( gl_FragCoord.xy );
+
     // calculate depth and world position
-    const float depth = texelFetch( sampler2D( depth_texture, shared_sampler ), ivec2( gl_FragCoord.xy ), 0 ).r;
+    const float depth = texelFetch( sampler2D( depth_texture, shared_sampler ), iuv, 0 ).r;
     const vec3 world_pos = get_world_pos_from_depth( depth, in_uv, mvp.proj, mvp.view );
 
     // extract material values
-    const vec3 albedo = texture( sampler2D( albedo_texture, shared_sampler ), in_uv ).rgb;
-    const float ao = texture( sampler2D( albedo_texture, shared_sampler ), in_uv ).r;
-    const float metallic = texture( sampler2D( material_texture, shared_sampler ), in_uv ).b;
-    const float roughness = texture( sampler2D( material_texture, shared_sampler ), in_uv ).a;
+    const vec3 albedo = texelFetch( sampler2D( albedo_texture, shared_sampler ), iuv, 0 ).rgb;
+    const float ao = texelFetch( sampler2D( albedo_texture, shared_sampler ), iuv, 0 ).r;
+    const float metallic = texelFetch( sampler2D( material_texture, shared_sampler ), iuv, 0 ).b;
+    const float roughness = texelFetch( sampler2D( material_texture, shared_sampler ), iuv, 0 ).a;
 
     // normal and view vector
-    const vec3 N = decode( texture( sampler2D( material_texture, shared_sampler ), in_uv ).rg );
+    const vec3 N = decode16( texelFetch( sampler2D( material_texture, shared_sampler ), iuv, 0 ).rg );
     const vec3 V = normalize( pc.camera_location - world_pos );
 
     vec3 F0 = vec3( 0.04f );
@@ -90,9 +92,5 @@ void main( )
     color /= ( color + vec3( 1.f ) );
     color = pow( color, vec3( 1.f / 2.2f ) );
 
-    // out_color = vec4( color, 1.f );
-
-    vec3 dir = normalize( world_pos - pc.camera_location );
-    out_color = vec4( max( dot( N, dir ), 0.f ) * vec3( 1.f, 1.f, 1.f ), 1.f );
-
+    out_color = vec4( color, 1.f );
 }

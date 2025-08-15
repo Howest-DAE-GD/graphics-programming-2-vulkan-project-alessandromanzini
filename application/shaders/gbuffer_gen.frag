@@ -21,12 +21,14 @@ void main( )
 {
     SurfaceMap map = surface_buffer.maps[SD.surface_id];
 
-    vec3 albedo = texture( sampler2D( textures[nonuniformEXT( map.base_color_id )], shared_sampler ), in_uv ).rgb;
-    vec3 normal = texture( sampler2D( textures[nonuniformEXT( map.normal_id )], shared_sampler ), in_uv ).rgb;
+    const vec3 albedo = texture( sampler2D( textures[nonuniformEXT( map.base_color_id )], shared_sampler ), in_uv ).rgb;
     const float metalness = texture( sampler2D( textures[nonuniformEXT( map.metalness_id )], shared_sampler ), in_uv ).b;
     const float roughness = texture( sampler2D( textures[nonuniformEXT( map.roughness_id )], shared_sampler ), in_uv ).g;
     const float ao = texture( sampler2D( textures[nonuniformEXT( map.ao_id )], shared_sampler ), in_uv ).r;
 
+    vec3 normal = texture( sampler2D( textures[nonuniformEXT( map.normal_id )], shared_sampler ), in_uv ).rgb;
+    normal = normalize( in_TBN * ( normal * 2.f - vec3( 1.f, 1.f, 1.f ) ) );
+
     out_albedo = vec4( albedo, ao );
-    out_material = vec4( encode( normal, in_TBN ), metalness, roughness );
+    out_material = vec4( encode16( normal ).rg, metalness, roughness );
 }

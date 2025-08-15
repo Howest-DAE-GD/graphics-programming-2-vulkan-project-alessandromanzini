@@ -55,7 +55,7 @@ private:
     cobalt::PipelineLayoutHandle lighting_pipeline_layout_{};
     cobalt::PipelineHandle depth_prepass_pipeline_{};
     cobalt::PipelineHandle gbuffer_gen_pipeline_{};
-    cobalt::PipelineHandle color_pass_pipeline_{};
+    cobalt::PipelineHandle lighting_pass_pipeline_{};
 
     cobalt::RendererHandle renderer_{};
 

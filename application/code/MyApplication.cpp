@@ -366,7 +366,7 @@ void MyApplication::create_pipelines( )
 
     // Color pass pipeline
     {
-        color_pass_pipeline_ = CVK.create_resource<Pipeline>(
+        lighting_pass_pipeline_ = CVK.create_resource<Pipeline>(
             builder::GraphicsPipelineBuilder{}
             .add_shader_module( { context_->device( ), "shaders/quad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
             .add_shader_module( { context_->device( ), "shaders/lighting.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } )
@@ -606,7 +606,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
             .pDepthAttachment = nullptr
         } );
 
-        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *color_pass_pipeline_ );
+        command_op.bind_pipeline( VK_PIPELINE_BIND_POINT_GRAPHICS, *lighting_pass_pipeline_ );
 
         command_op.set_viewport( VkViewport{
             .x = 0.f, .y = 0.f,
@@ -616,9 +616,9 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
         } );
         command_op.set_scissor( VkRect2D{ .offset = { 0, 0 }, .extent = swap_image.extent( ) } );
 
-        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *color_pass_pipeline_, desc_set );
+        command_op.bind_descriptor_set( VK_PIPELINE_BIND_POINT_GRAPHICS, *lighting_pass_pipeline_, desc_set );
 
-        command_op.push_constants( color_pass_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
+        command_op.push_constants( lighting_pass_pipeline_->layout( ), VK_SHADER_STAGE_FRAGMENT_BIT,
                                    0, sizeof( glm::vec3 ), &camera_ptr_->location( ) );
         command_op.draw( 4, 1 );
 
