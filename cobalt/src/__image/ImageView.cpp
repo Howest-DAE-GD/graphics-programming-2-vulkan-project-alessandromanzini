@@ -10,10 +10,10 @@ namespace cobalt
     // +---------------------------+
     // | CREATE INFO               |
     // +---------------------------+
-    ImageViewCreateInfo ImageViewCreateInfo::clone( uint32_t const base_layer ) const
+    ImageViewCreateInfo ImageViewCreateInfo::clone( uint32_t const layer ) const
     {
         auto copy       = *this;
-        copy.base_layer = base_layer;
+        copy.base_layer = layer;
         return copy;
     }
 

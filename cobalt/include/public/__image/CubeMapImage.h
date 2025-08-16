@@ -39,6 +39,8 @@ namespace cobalt
 
         [[nodiscard]] std::array<ImageView, 6u> generate_cubic_views( DeviceSet const& ) const;
 
+        [[nodiscard]] Image&& steal_cubemap_image( ) const;
+
     private:
         std::unique_ptr<Image> hdr_image_ptr_{ nullptr };
         std::unique_ptr<Image> cubemap_image_ptr_{ nullptr };

@@ -21,7 +21,7 @@ namespace cobalt
         uint32_t base_layer{ 0 };
         VkImageViewType view_type{ VK_IMAGE_VIEW_TYPE_2D };
 
-        ImageViewCreateInfo clone( uint32_t base_layer ) const;
+        ImageViewCreateInfo clone( uint32_t layer ) const;
 
     };
 

@@ -59,6 +59,12 @@ namespace cobalt
     }
 
 
+    Image&& CubeMapImage::steal_cubemap_image( ) const
+    {
+        return std::move( *cubemap_image_ptr_ );
+    }
+
+
     void CubeMapImage::load_hdr_image( DeviceSet const& device, CommandPool& cmd_pool, CubeMapImageCreateInfo const& create_info )
     {
         StbImageLoader const loader{ create_info.path_to_img, image::to_channel_count( VK_FORMAT_R32G32B32A32_SFLOAT ), true };

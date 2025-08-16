@@ -7,6 +7,10 @@
 #include <vector>
 
 
+namespace cobalt::shader
+{
+    class ShaderModule;
+}
 namespace cobalt
 {
     class CommandBuffer;
@@ -59,7 +63,6 @@ private:
     cobalt::PipelineHandle gbuffer_pass_pipeline_{};
     cobalt::PipelineHandle lighting_pass_pipeline_{};
     cobalt::PipelineHandle post_processing_pass_pipeline_{};
-    cobalt::PipelineHandle cubemap_pass_pipeline_{};
 
     cobalt::RendererHandle renderer_{};
 
@@ -67,7 +70,7 @@ private:
     cobalt::ImageCollectionHandle albedo_images_{};
     cobalt::ImageCollectionHandle material_images_{};
     cobalt::ImageCollectionHandle hdr_images_{};
-    cobalt::CubeMapImageHandle cubemap_image_{};
+    cobalt::ImageHandle cube_skybox_image_{};
     cobalt::ModelHandle model_{};
 
     std::vector<cobalt::BufferHandle> camera_uniform_buffers_{};
@@ -76,14 +79,14 @@ private:
     void create_descriptor_allocator( );
     void create_gbuffer_images( );
     void create_post_processing_images( );
-    void create_cubemap_image( );
     void create_pipelines( );
 
     void write_descriptor_sets( );
 
     // .RENDERING
     void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index, uint32_t frame_index );
-    void render_to_cubemap( );
+    void render_to_cubemap( cobalt::ImageHandle& render_target, std::filesystem::path const& path_to_image,
+                            std::filesystem::path const& path_to_shader_vert, std::filesystem::path const&  path_to_shader_frag );
     void update_camera_data( uint32_t current_image ) const;
 
     static void configure_relative_path( );
