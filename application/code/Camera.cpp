@@ -119,11 +119,11 @@ void Camera::process_keyboard_input( float const dt )
     }
     if ( glfwGetKey( window_ptr_, GLFW_KEY_E ) )
     {
-        eye_ += up_ * speed;
+        eye_ += WORLD_UP_ * speed;
     }
     if ( glfwGetKey( window_ptr_, GLFW_KEY_Q ) )
     {
-        eye_ -= up_ * speed;
+        eye_ -= WORLD_UP_ * speed;
     }
 }
 

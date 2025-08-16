@@ -87,10 +87,10 @@ namespace cobalt
         switch ( result )
         {
             case VK_SUCCESS:
-            case VK_SUBOPTIMAL_KHR:
                 return image_index;
 
             case VK_ERROR_OUT_OF_DATE_KHR:
+            case VK_SUBOPTIMAL_KHR:
                 recreate_swapchain( window_ref_.extent( ) );
                 return UINT32_MAX;
 

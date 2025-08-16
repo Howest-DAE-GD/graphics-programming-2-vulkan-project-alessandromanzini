@@ -42,7 +42,7 @@ namespace cobalt
         // If the image index is UINT32_MAX, it means that the swapchain could not acquire an image.
         if ( image_index == UINT32_MAX )
         {
-            return VK_ERROR_UNKNOWN;
+            return VK_ERROR_OUT_OF_DATE_KHR;
         }
 
         // After waiting, we need to manually reset the fence to the unsignaled state with the vkResetFences call.

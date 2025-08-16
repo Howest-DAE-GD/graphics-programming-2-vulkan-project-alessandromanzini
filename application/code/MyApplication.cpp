@@ -30,6 +30,7 @@ MyApplication::MyApplication( )
     camera_ptr_->set_yaw( glm::radians( 90.f ) );
     camera_ptr_->set_pitch( glm::radians( -10.f ) );
     window_->on_framebuffer_resize.bind( camera_ptr_.get( ), &Camera::set_viewport );
+    window_->on_framebuffer_resize.bind( this, &MyApplication::viewport_changed );
 
     // 2. Register VK Instance
     constexpr VkApplicationInfo app_info{
@@ -88,8 +89,7 @@ MyApplication::MyApplication( )
         ImageSamplerCreateInfo{
             .filter = VK_FILTER_LINEAR,
         } );
-    create_gbuffer_images( );
-    create_post_processing_images( );
+    create_render_images( swapchain_->extent( ) );
 
     // 8. Graphic pipelines
     create_pipelines( );
@@ -125,8 +125,8 @@ void MyApplication::run( )
     timer.start( );
     running_ = true;
 
-    // 2. Render the cubemap image
-    render_to_cubemap( cube_skybox_image_, SKYBOX_PATH_, "shaders/cubemap.vert.spv", "shaders/cubemap.frag.spv" );
+    // 2. Render skybox
+    render_skybox( );
 
     // 3. Start the render loop
     while ( running_ )
@@ -209,11 +209,11 @@ void MyApplication::create_descriptor_allocator( )
 }
 
 
-void MyApplication::create_gbuffer_images( )
+void MyApplication::create_render_images( VkExtent2D const extent )
 {
     albedo_images_ = CVK.create_resource<ImageCollection>(
         context_->device( ), ImageCreateInfo{
-            .extent = swapchain_->extent( ),
+            .extent = extent,
             .format = VK_FORMAT_R8G8B8A8_SRGB,
             .tiling = VK_IMAGE_TILING_OPTIMAL,
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -223,21 +223,17 @@ void MyApplication::create_gbuffer_images( )
 
     material_images_ = CVK.create_resource<ImageCollection>(
         context_->device( ), ImageCreateInfo{
-            .extent = swapchain_->extent( ),
+            .extent = extent,
             .format = VK_FORMAT_R16G16B16A16_UNORM,
             .tiling = VK_IMAGE_TILING_OPTIMAL,
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
         }, MAX_FRAMES_IN_FLIGHT_ );
-}
 
-
-void MyApplication::create_post_processing_images( )
-{
-    hdr_images_ = CVK.create_resource<ImageCollection>(
+    post_processing_images_ = CVK.create_resource<ImageCollection>(
         context_->device( ), ImageCreateInfo{
-            .extent = swapchain_->extent( ),
+            .extent = extent,
             .format = VK_FORMAT_R32G32B32A32_SFLOAT,
             .tiling = VK_IMAGE_TILING_OPTIMAL,
             .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -369,7 +365,7 @@ void MyApplication::create_pipelines( )
                     .blendEnable = VK_FALSE,
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
-                }, hdr_images_->image_format( ) )
+                }, post_processing_images_->image_format( ) )
             .build( context_->device( ), *processing_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS ) );
     }
 
@@ -488,7 +484,7 @@ void MyApplication::write_descriptor_sets( )
                 [this]( uint32_t const frame_index ) -> VkDescriptorImageInfo
                     {
                         return {
-                            .imageView = hdr_images_->image_at( frame_index ).view( ).handle( ),
+                            .imageView = post_processing_images_->image_at( frame_index ).view( ).handle( ),
                             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                         };
                     }
@@ -516,7 +512,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
 
     Image& albedo_image   = albedo_images_->image_at( frame_index );
     Image& material_image = material_images_->image_at( frame_index );
-    Image& hdr_image      = hdr_images_->image_at( frame_index );
+    Image& hdr_image      = post_processing_images_->image_at( frame_index );
     Image& swap_image     = swapchain.image_at( image_index );
 
     // 1. Depth Pre-Pass: render geometry to depth only, no color attachment
@@ -692,8 +688,7 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
 
 
 void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesystem::path const& path_to_image,
-                                       std::filesystem::path const& path_to_shader_vert,
-                                       std::filesystem::path const& path_to_shader_frag )
+                                       shader::ShaderModule shader_vert, shader::ShaderModule shader_frag )
 {
     // Load HDR cubemap image
     CubeMapImage cubemap_image{
@@ -733,8 +728,8 @@ void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesyst
     // Create Cubemap Pipeline
     Pipeline const cubemap_pipeline{
         builder::GraphicsPipelineBuilder{}
-        .add_shader_module( { context_->device( ), path_to_shader_vert, VK_SHADER_STAGE_VERTEX_BIT } )
-        .add_shader_module( { context_->device( ), path_to_shader_frag, VK_SHADER_STAGE_FRAGMENT_BIT } )
+        .add_shader_module( std::move( shader_vert ) )
+        .add_shader_module( std::move( shader_frag ) )
         .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
         .set_depth_stencil_mode( VK_FALSE, VK_FALSE )
         .set_cull_mode( VK_CULL_MODE_NONE )
@@ -749,9 +744,10 @@ void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesyst
 
     // Render pass
     {
-        glm::mat4 const proj = camera_ptr_->projection( );
+        glm::mat4 proj = glm::perspective( glm::radians( 90.f ), 1.f, .01f, 10.f );
+        proj[1][1] *= -1.f;
 
-        glm::vec3 const eye = camera_ptr_->eye( );
+        constexpr glm::vec3 eye{ 0.f };
         glm::mat4 const views[6]{
             lookAt( eye, eye + glm::vec3{ 1.f, 0.f, 0.f }, glm::vec3{ 0.f, -1.f, 0.f } ),  // +X
             lookAt( eye, eye + glm::vec3{ -1.f, 0.f, 0.f }, glm::vec3{ 0.f, -1.f, 0.f } ), // -X
@@ -828,6 +824,15 @@ void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesyst
 }
 
 
+void MyApplication::render_skybox( )
+{
+    render_to_cubemap( cube_skybox_image_, SKYBOX_PATH_,
+        shader::ShaderModule{ context_->device( ), "shaders/cubemap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT },
+        shader::ShaderModule{ context_->device( ), "shaders/cubemap.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } );
+
+}
+
+
 void MyApplication::update_camera_data( uint32_t const current_image ) const
 {
     CameraData const ubo{
@@ -836,6 +841,14 @@ void MyApplication::update_camera_data( uint32_t const current_image ) const
         .proj = camera_ptr_->projection( )
     };
     camera_uniform_buffers_[current_image]->write( &ubo, sizeof( CameraData ) );
+}
+
+
+void MyApplication::viewport_changed( VkExtent2D const extent )
+{
+    create_render_images( extent );
+    context_->device( ).wait_idle( );
+    write_descriptor_sets( );
 }
 
 

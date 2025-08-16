@@ -2,6 +2,7 @@
 #define MYAPPLICATION_H
 
 #include <cobalt_vk/handle.h>
+#include <vulkan/vulkan_core.h>
 
 #include <filesystem>
 #include <vector>
@@ -69,7 +70,7 @@ private:
     cobalt::ImageSamplerHandle texture_sampler_{};
     cobalt::ImageCollectionHandle albedo_images_{};
     cobalt::ImageCollectionHandle material_images_{};
-    cobalt::ImageCollectionHandle hdr_images_{};
+    cobalt::ImageCollectionHandle post_processing_images_{};
     cobalt::ImageHandle cube_skybox_image_{};
     cobalt::ModelHandle model_{};
 
@@ -77,8 +78,7 @@ private:
 
     // .CREATION
     void create_descriptor_allocator( );
-    void create_gbuffer_images( );
-    void create_post_processing_images( );
+    void create_render_images( VkExtent2D extent );
     void create_pipelines( );
 
     void write_descriptor_sets( );
@@ -86,8 +86,12 @@ private:
     // .RENDERING
     void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index, uint32_t frame_index );
     void render_to_cubemap( cobalt::ImageHandle& render_target, std::filesystem::path const& path_to_image,
-                            std::filesystem::path const& path_to_shader_vert, std::filesystem::path const&  path_to_shader_frag );
+                            cobalt::shader::ShaderModule shader_vert, cobalt::shader::ShaderModule shader_frag );
+    void render_skybox( );
     void update_camera_data( uint32_t current_image ) const;
+
+    // .UTILITIES
+    void viewport_changed( VkExtent2D extent );
 
     static void configure_relative_path( );
 
