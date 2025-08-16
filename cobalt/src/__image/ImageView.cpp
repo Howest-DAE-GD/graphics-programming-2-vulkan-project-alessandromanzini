@@ -17,7 +17,7 @@ namespace cobalt
         image_view_info.image = create_info.image;
 
         // The viewType and format fields specify how the image data should be interpreted.
-        image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        image_view_info.viewType = create_info.view_type;
         image_view_info.format   = create_info.format;
 
         // The components field allows you to swizzle the color channels around.
@@ -30,8 +30,8 @@ namespace cobalt
         image_view_info.subresourceRange.aspectMask     = create_info.aspect_flags;
         image_view_info.subresourceRange.baseMipLevel   = 0;
         image_view_info.subresourceRange.levelCount     = 1;
-        image_view_info.subresourceRange.baseArrayLayer = 0;
-        image_view_info.subresourceRange.layerCount     = 1;
+        image_view_info.subresourceRange.baseArrayLayer = create_info.base_layer;
+        image_view_info.subresourceRange.layerCount     = create_info.view_type == VK_IMAGE_VIEW_TYPE_CUBE ? 6u : 1u;
 
         validation::throw_on_bad_result( vkCreateImageView( device_ref_.logical( ), &image_view_info, nullptr, &image_view_ ),
                                          "Failed to create image view!" );

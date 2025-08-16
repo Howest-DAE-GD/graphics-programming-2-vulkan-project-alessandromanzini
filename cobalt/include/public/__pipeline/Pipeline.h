@@ -18,7 +18,6 @@ namespace cobalt
 {
     struct PipelineCreateInfo
     {
-        std::span<DescriptorSet const* const> descriptor_sets;
         VkPipelineBindPoint bind_point;
         VkGraphicsPipelineCreateInfo create_info;
     };
@@ -39,14 +38,12 @@ namespace cobalt
         [[nodiscard]] PipelineLayout const& layout( ) const;
 
         [[nodiscard]] VkPipelineBindPoint bind_point( ) const;
-        [[nodiscard]] std::span<DescriptorSet const* const> descriptor_sets( ) const;
 
     private:
         DeviceSet const& device_ref_;
         PipelineLayout const& layout_ref_;
 
         VkPipelineBindPoint const bind_point_;
-        std::vector<DescriptorSet const*> const descriptor_sets_{};
 
         VkPipeline pipeline_{ VK_NULL_HANDLE };
 

@@ -3,6 +3,8 @@
 
 #include <__memory/Resource.h>
 
+#include <__image/Image.h>
+
 #include <vulkan/vulkan_core.h>
 
 #include <filesystem>
@@ -27,7 +29,7 @@ namespace cobalt
     {
     public:
         explicit TextureImage( DeviceSet const&, CommandPool&, TextureImageCreateInfo const& );
-        ~TextureImage( ) noexcept override;
+        ~TextureImage( ) noexcept override = default;
 
         TextureImage( TextureImage&& ) noexcept;
         TextureImage( const TextureImage& )                = delete;
@@ -38,7 +40,6 @@ namespace cobalt
         [[nodiscard]] VkSampler sampler( ) const;
 
     private:
-        DeviceSet const& device_ref_;
         std::unique_ptr<Image> texture_image_ptr_{ nullptr };
 
     };

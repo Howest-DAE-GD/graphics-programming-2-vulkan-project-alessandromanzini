@@ -101,6 +101,8 @@ add_library(${PROJECT_NAME}
 		"src/log.cpp"
 		"include/public/cobalt_vk/core.h"
 		"include/public/cobalt_vk/handle.h"
+		src/__image/CubeMapImage.cpp
+		include/public/__image/CubeMapImage.h
 )
 
 # set warning level to W4 and warnings as errors

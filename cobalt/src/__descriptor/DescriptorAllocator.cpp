@@ -66,6 +66,8 @@ namespace cobalt
 
             .poolSizeCount = static_cast<uint32_t>( pool_sizes.size( ) ),
             .pPoolSizes = pool_sizes.data( ),
+
+            // .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT to release sets individually
         };
 
         // 4. Create the descriptor pool
@@ -106,11 +108,16 @@ namespace cobalt
 
         // 4. Store the sets in the map.
         auto it = sets.begin( );
+        uint32_t set_offset{ 0u };
         for ( auto const& [layout_name, set_name, set_count] : specs.view_alloc_requests( ) )
         {
             auto const& layout = *layout_map_.at( layout_name );
             set_map_.emplace(
-                set_name, DescriptorSet{ device_ref_, layout, std::vector<VkDescriptorSet>{ it, std::next( it, set_count ) } } );
+                set_name,
+                DescriptorSet{
+                    device_ref_, layout, std::vector<VkDescriptorSet>{ it, std::next( it, set_count ) },
+                    set_offset++
+                } );
             std::advance( it, set_count );
         }
     }

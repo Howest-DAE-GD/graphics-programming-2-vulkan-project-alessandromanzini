@@ -37,6 +37,8 @@ layout ( set = 1, binding = 0 ) uniform sampler shared_sampler;
 layout ( set = 1, binding = 2 ) uniform texture2D depth_texture;
 layout ( set = 1, binding = 3 ) uniform texture2D albedo_texture;
 layout ( set = 1, binding = 4 ) uniform texture2D material_texture;
+layout ( set = 2, binding = 0 ) uniform sampler cube_sampler;
+layout ( set = 2, binding = 2 ) uniform textureCube environment_map;
 
 
 // FUNCTIONS
@@ -78,6 +80,15 @@ void main( )
     // calculate depth and world position
     const float depth = texelFetch( sampler2D( depth_texture, shared_sampler ), ifrag_coord, 0 ).r;
     const vec3 world_pos = get_world_pos_from_depth( depth, in_uv, mvp.proj, mvp.view );
+
+    // if we are outside the view frustum, we sample from the environment map and skip lighting
+    if ( depth >= 1.f )
+    {
+        const vec3 sample_direction = normalize( world_pos.xyz );
+        const vec3 color = texture( samplerCube( environment_map, cube_sampler ), sample_direction ).rgb;
+        out_color = vec4( color, 1.f );
+        return;
+    }
 
     // extract material values
     const vec3 albedo = texelFetch( sampler2D( albedo_texture, shared_sampler ), ifrag_coord, 0 ).rgb;

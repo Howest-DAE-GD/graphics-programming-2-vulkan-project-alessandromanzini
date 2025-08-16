@@ -19,7 +19,8 @@ namespace cobalt
         DYNAMIC_RENDERING_EXT                   = 1 << 5,
         SYNCHRONIZATION_2_EXT                   = 1 << 6,
         VERTEX_INPUT_DYNAMIC_STATE_EXT          = 1 << 7,
-        SHADER_IMAGE_ARRAY_NON_UNIFORM_INDEXING = 1 << 8,
+        CUBIC_FILTER_EXT                        = 1 << 8,
+        SHADER_IMAGE_ARRAY_NON_UNIFORM_INDEXING = 1 << 9,
     };
 
     template <>

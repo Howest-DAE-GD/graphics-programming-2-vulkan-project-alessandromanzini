@@ -104,12 +104,11 @@ namespace cobalt
     {
         vkCmdBindPipeline( command_buffer_, pipeline.bind_point( ), pipeline.handle( ) );
 
-        uint32_t offset{ 0u };
-        for ( DescriptorSet const* const set : pipeline.descriptor_sets( ) )
+        for ( DescriptorSet const* const set : pipeline.layout( ).descriptor_sets( ) )
         {
-            VkDescriptorSet const vk_set = set->handle_at( frame_index );
+            VkDescriptorSet const vk_set = set->handle_at( frame_index % set->parallel_set_count( ) );
             vkCmdBindDescriptorSets( command_buffer_, pipeline.bind_point( ), pipeline.layout( ).handle( ),
-                offset++, 1, &vk_set, 0, nullptr );
+                                     set->offset( ), 1, &vk_set, 0, nullptr );
         }
     }
 
@@ -128,10 +127,10 @@ namespace cobalt
     }
 
 
-    void CommandOperator::push_constants( PipelineLayout const& layout, VkShaderStageFlags const stage_flags,
+    void CommandOperator::push_constants( Pipeline const& pipeline, VkShaderStageFlags const stage_flags,
                                           uint32_t const offset, uint32_t const size, void const* data ) const
     {
-        vkCmdPushConstants( command_buffer_, layout.handle( ), stage_flags, offset, size, data );
+        vkCmdPushConstants( command_buffer_, pipeline.layout( ).handle( ), stage_flags, offset, size, data );
     }
 
 

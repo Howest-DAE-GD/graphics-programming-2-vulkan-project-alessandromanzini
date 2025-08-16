@@ -22,12 +22,15 @@ namespace cobalt
 {
     struct ImageCreateInfo
     {
-        VkExtent2D extent{ 0, 0 };
+        VkExtent2D extent{ 0u, 0u };
         VkFormat format{ VK_FORMAT_UNDEFINED };
-        VkImageTiling tiling{ VK_IMAGE_TILING_MAX_ENUM };
+        VkImageTiling tiling{ VK_IMAGE_TILING_OPTIMAL };
         VkImageUsageFlags usage{ VK_IMAGE_USAGE_FLAG_BITS_MAX_ENUM };
         VkMemoryPropertyFlags properties{ VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT };
+        VkImageCreateFlags create_flags{ 0 };
         VkImageAspectFlags aspect_flags{ VK_IMAGE_ASPECT_NONE };
+        uint32_t layers{ 1 };
+        VkImageViewType view_type{ VK_IMAGE_VIEW_TYPE_2D };
     };
 
 
@@ -45,7 +48,9 @@ namespace cobalt
 
         [[nodiscard]] VkImage handle( ) const;
         [[nodiscard]] ImageView& view( ) const;
+        [[nodiscard]] ImageView& view_at( uint32_t view_index ) const;
 
+        [[nodiscard]] uint32_t view_count( ) const;
         [[nodiscard]] VkFormat format( ) const;
         [[nodiscard]] VkExtent2D extent( ) const;
 
@@ -55,14 +60,16 @@ namespace cobalt
     private:
         DeviceSet const& device_ref_;
 
-        VkFormat const format_{ VK_FORMAT_UNDEFINED };
-        VkExtent2D const extent_{ 0, 0 };
+        VkFormat const format_;
+        VkExtent2D const extent_;
+        uint32_t const layers_;
 
         VkImageLayout layout_{ VK_IMAGE_LAYOUT_UNDEFINED };
 
         VkImage image_{ VK_NULL_HANDLE };
         VkDeviceMemory image_memory_{ VK_NULL_HANDLE };
-        std::unique_ptr<ImageView> view_ptr_{ nullptr };
+
+        std::vector<std::unique_ptr<ImageView>> views_{};
 
         void init_image( ImageCreateInfo const& create_info );
         void init_view( ImageViewCreateInfo const& create_info );

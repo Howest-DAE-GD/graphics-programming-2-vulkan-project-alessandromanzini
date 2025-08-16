@@ -61,6 +61,12 @@ namespace cobalt::validation
     }
 
 
+    bool is_cubic_filter_supported( ValidationCallbackData& data )
+    {
+        return has_extension( data, VK_EXT_FILTER_CUBIC_EXTENSION_NAME );
+    }
+
+
     bool is_image_array_non_uniform_indexing_supported( ValidationCallbackData& data )
     {
         return data.features.features.shaderSampledImageArrayDynamicIndexing;

@@ -46,8 +46,7 @@ namespace cobalt::builder
 
         GraphicsPipelineBuilder& set_cull_mode( VkCullModeFlags );
 
-        Pipeline build(
-            DeviceSet const&, PipelineLayout const&, VkPipelineBindPoint, std::span<DescriptorSet const* const> ) const;
+        Pipeline build( DeviceSet const&, PipelineLayout const&, VkPipelineBindPoint ) const;
 
     private:
         VkPipelineInputAssemblyStateCreateInfo input_assembly_{};

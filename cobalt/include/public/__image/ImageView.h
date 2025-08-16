@@ -18,6 +18,8 @@ namespace cobalt
         VkImage image{ VK_NULL_HANDLE };
         VkFormat format{ VK_FORMAT_UNDEFINED };
         VkImageAspectFlags aspect_flags{ VK_IMAGE_ASPECT_NONE };
+        uint32_t base_layer{ 0 };
+        VkImageViewType view_type{ VK_IMAGE_VIEW_TYPE_2D };
     };
 
 

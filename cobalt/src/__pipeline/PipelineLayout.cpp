@@ -1,21 +1,27 @@
 #include <__pipeline/PipelineLayout.h>
 
 #include <__context/DeviceSet.h>
-#include <__descriptor/DescriptorSetLayout.h>
+#include <__descriptor/DescriptorSet.h>
 #include <__validation/result.h>
 
 
 namespace cobalt
 {
-    PipelineLayout::PipelineLayout( DeviceSet const& device, std::span<DescriptorSetLayout const* const> desc_layouts,
+    PipelineLayout::PipelineLayout( DeviceSet const& device, std::span<DescriptorSet const* const> descriptor_sets,
                                     std::span<VkPushConstantRange const> push_constant_ranges )
         : device_ref_{ device }
-        , descriptor_layouts_{ desc_layouts.begin( ), desc_layouts.end( ) }
+        , descriptor_sets_{ descriptor_sets.begin( ), descriptor_sets.end( ) }
     {
-        std::vector<VkDescriptorSetLayout> raw_layouts( descriptor_layouts_.size( ) );
+        std::ranges::sort( descriptor_sets_,
+                           []( DescriptorSet const* a, DescriptorSet const* b )
+                               {
+                                   return a->offset( ) < b->offset( );
+                               } );
+
+        std::vector<VkDescriptorSetLayout> raw_layouts( descriptor_sets_.size( ) );
         std::ranges::transform(
-            descriptor_layouts_, raw_layouts.begin( ),
-            []( DescriptorSetLayout const* layout ) -> VkDescriptorSetLayout { return layout->handle( ); } );
+            descriptor_sets_, raw_layouts.begin( ),
+            []( DescriptorSet const* set ) -> VkDescriptorSetLayout { return set->layout( ).handle( ); } );
 
         VkPipelineLayoutCreateInfo const layout_create_info{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -45,9 +51,9 @@ namespace cobalt
     }
 
 
-    std::span<DescriptorSetLayout const* const> PipelineLayout::descriptor_layouts( ) const noexcept
+    std::span<DescriptorSet const* const> PipelineLayout::descriptor_sets( ) const noexcept
     {
-        return descriptor_layouts_;
+        return descriptor_sets_;
     }
 
 }

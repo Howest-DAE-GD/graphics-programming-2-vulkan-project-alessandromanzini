@@ -15,10 +15,10 @@ namespace cobalt
 {
     struct ImageSamplerCreateInfo
     {
-        VkFilter filter{ VK_FILTER_MAX_ENUM };
-        VkSamplerAddressMode address_mode{ VK_SAMPLER_ADDRESS_MODE_MAX_ENUM };
-        VkSamplerMipmapMode mipmap_mode{ VK_SAMPLER_MIPMAP_MODE_MAX_ENUM };
-        VkBorderColor border_color{ VK_BORDER_COLOR_MAX_ENUM };
+        VkFilter filter{ VK_FILTER_LINEAR };
+        VkSamplerAddressMode address_mode{ VK_SAMPLER_ADDRESS_MODE_REPEAT };
+        VkSamplerMipmapMode mipmap_mode{ VK_SAMPLER_MIPMAP_MODE_LINEAR };
+        VkBorderColor border_color{ VK_BORDER_COLOR_INT_TRANSPARENT_BLACK };
         bool unnormalized_coordinates{ false };
         bool compare_enable{ false };
         VkCompareOp compare_op{ VK_COMPARE_OP_MAX_ENUM };

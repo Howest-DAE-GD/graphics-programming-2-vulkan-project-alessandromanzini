@@ -138,8 +138,7 @@ namespace cobalt::builder
 
 
     Pipeline GraphicsPipelineBuilder::build(
-        DeviceSet const& device, PipelineLayout const& layout, VkPipelineBindPoint const bind_point,
-        std::span<DescriptorSet const* const> const sets ) const
+        DeviceSet const& device, PipelineLayout const& layout, VkPipelineBindPoint const bind_point ) const
     {
         VkPipelineRenderingCreateInfo const pipeline_rendering_info{
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
@@ -151,7 +150,6 @@ namespace cobalt::builder
         return Pipeline{
             device, layout,
             PipelineCreateInfo{
-                .descriptor_sets = sets,
                 .bind_point = bind_point,
                 .create_info = VkGraphicsPipelineCreateInfo{
                     .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,

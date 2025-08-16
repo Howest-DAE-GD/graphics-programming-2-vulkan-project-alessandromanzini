@@ -21,6 +21,7 @@ namespace cobalt
     using PipelineLayoutHandle = DefaultHandle<class PipelineLayout>;
     using PipelineHandle = DefaultHandle<class Pipeline>;
     using ImageHandle = DefaultHandle<class Image>;
+    using CubeMapImageHandle = DefaultHandle<class CubeMapImage>;
     using ImageSamplerHandle = DefaultHandle<class ImageSampler>;
     using ImageCollectionHandle = DefaultHandle<class ImageCollection>;
     using RendererHandle = DefaultHandle<class Renderer>;

@@ -57,7 +57,7 @@ glm::vec3 const& Camera::view_direction( ) const noexcept
 }
 
 
-glm::vec3 const& Camera::location( ) const noexcept
+glm::vec3 const& Camera::eye( ) const noexcept
 {
     return eye_;
 }

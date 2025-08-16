@@ -17,9 +17,19 @@ namespace cobalt
         : device_ref_{ device }
         , format_{ create_info.format }
         , extent_{ create_info.extent }
+        , layers_{ create_info.layers }
     {
         init_image( create_info );
-        init_view( ImageViewCreateInfo{ image_, create_info.format, create_info.aspect_flags } );
+        for ( uint32_t layer{}; layer < layers_; ++layer )
+        {
+            init_view( ImageViewCreateInfo{
+                .image = image_,
+                .format = create_info.format,
+                .aspect_flags = create_info.aspect_flags,
+                .base_layer = layer,
+                .view_type = create_info.view_type,
+            } );
+        }
     }
 
 
@@ -27,6 +37,7 @@ namespace cobalt
         : device_ref_{ device }
         , format_{ create_info.format }
         , extent_{ extent }
+        , layers_{ 1 }
         , image_{ create_info.image }
     {
         log::logerr<Image>( "Image", "image cannot be VK_NULL_HANDLE!", create_info.image == VK_NULL_HANDLE );
@@ -36,11 +47,8 @@ namespace cobalt
 
     Image::~Image( )
     {
-        // 1. Destroy the dependent image view
-        if ( view_ptr_ )
-        {
-            view_ptr_.reset( );
-        }
+        // 1. Destroy the dependent image views
+        views_.clear( );
 
         // 2. Destroy the image and free its memory (if explicitly created)
         if ( image_ != VK_NULL_HANDLE && image_memory_ != VK_NULL_HANDLE )
@@ -57,11 +65,12 @@ namespace cobalt
         : device_ref_{ other.device_ref_ }
         , format_{ other.format_ }
         , extent_{ other.extent_ }
+        , layers_{ other.layers_ }
         , image_{ other.image_ }
         , image_memory_{ other.image_memory_ }
-        , view_ptr_{ std::move( other.view_ptr_ ) }
+        , views_{ std::move( other.views_ ) }
     {
-        meta::expect_size<Image, 56u>( );
+        meta::expect_size<Image, 80u>( );
         other.image_        = VK_NULL_HANDLE;
         other.image_memory_ = VK_NULL_HANDLE;
     }
@@ -75,7 +84,19 @@ namespace cobalt
 
     ImageView& Image::view( ) const
     {
-        return *view_ptr_;
+        return *views_.front( );
+    }
+
+
+    ImageView& Image::view_at( uint32_t const view_index ) const
+    {
+        return *views_.at( view_index );
+    }
+
+
+    uint32_t Image::view_count( ) const
+    {
+        return static_cast<uint32_t>( views_.size( ) );
     }
 
 
@@ -132,7 +153,7 @@ namespace cobalt
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
-                .layerCount = 1,
+                .layerCount = layers_,
             },
         };
         layout_ = transition.to_layout;
@@ -155,7 +176,7 @@ namespace cobalt
         image_info.extent.height = create_info.extent.height;
         image_info.extent.depth  = 1;
         image_info.mipLevels     = 1;
-        image_info.arrayLayers   = 1;
+        image_info.arrayLayers   = layers_;
 
         // Tell vulkan what kind of texels we are going to use
         image_info.format = create_info.format;
@@ -173,10 +194,10 @@ namespace cobalt
         image_info.usage       = create_info.usage;
         image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         image_info.samples     = VK_SAMPLE_COUNT_1_BIT;
-        image_info.flags       = 0; // Optional
+        image_info.flags       = create_info.create_flags;
 
         validation::throw_on_bad_result( vkCreateImage( device_ref_.logical( ), &image_info, nullptr, &image_ ),
-                                         "Failed to create image!" );
+                                         "failed to create image!" );
 
         VkMemoryRequirements mem_requirements;
         vkGetImageMemoryRequirements( device_ref_.logical( ), image_, &mem_requirements );
@@ -184,13 +205,12 @@ namespace cobalt
         VkMemoryAllocateInfo alloc_info{};
         alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         alloc_info.allocationSize  = mem_requirements.size;
-        alloc_info.memoryTypeIndex = query::find_memory_type( device_ref_.physical( ),
-                                                              mem_requirements.memoryTypeBits,
-                                                              create_info.properties );
+        alloc_info.memoryTypeIndex = query::find_memory_type(
+            device_ref_.physical( ), mem_requirements.memoryTypeBits, create_info.properties );
 
         validation::throw_on_bad_result(
             vkAllocateMemory( device_ref_.logical( ), &alloc_info, nullptr, &image_memory_ ),
-            "Failed to allocate image memory!" );
+            "failed to allocate image memory!" );
 
         vkBindImageMemory( device_ref_.logical( ), image_, image_memory_, 0 );
     }
@@ -200,8 +220,7 @@ namespace cobalt
     {
         if ( create_info.aspect_flags != VK_IMAGE_ASPECT_NONE )
         {
-            // Create an image view for the image
-            view_ptr_ = std::make_unique<ImageView>( device_ref_, create_info );
+            views_.emplace_back( std::make_unique<ImageView>( device_ref_, create_info ) );
         }
     }
 

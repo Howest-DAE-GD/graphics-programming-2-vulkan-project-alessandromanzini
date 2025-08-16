@@ -38,6 +38,7 @@ private:
     static constexpr uint32_t TEXTURES_COUNT_{ 69u };
 
     static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
+    static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };
 
     bool running_{ false };
 
@@ -52,33 +53,39 @@ private:
     cobalt::DescriptorAllocatorHandle descriptor_allocator_{};
 
     cobalt::PipelineLayoutHandle sampling_pipeline_layout_{};
-    cobalt::PipelineLayoutHandle quad_pipeline_layout_{};
+    cobalt::PipelineLayoutHandle processing_pipeline_layout_{};
+    cobalt::PipelineLayoutHandle cubemap_pipeline_layout_{};
     cobalt::PipelineHandle depth_prepass_pipeline_{};
     cobalt::PipelineHandle gbuffer_pass_pipeline_{};
     cobalt::PipelineHandle lighting_pass_pipeline_{};
     cobalt::PipelineHandle post_processing_pass_pipeline_{};
+    cobalt::PipelineHandle cubemap_pass_pipeline_{};
 
     cobalt::RendererHandle renderer_{};
 
     cobalt::ImageSamplerHandle texture_sampler_{};
+    cobalt::ImageSamplerHandle cube_sampler_{};
     cobalt::ImageCollectionHandle albedo_images_{};
     cobalt::ImageCollectionHandle material_images_{};
     cobalt::ImageCollectionHandle hdr_images_{};
+    cobalt::CubeMapImageHandle cubemap_image_{};
     cobalt::ModelHandle model_{};
 
-    std::vector<cobalt::BufferHandle> uniform_buffers_{};
+    std::vector<cobalt::BufferHandle> camera_uniform_buffers_{};
 
     // .CREATION
     void create_descriptor_allocator( );
     void create_gbuffer_images( );
     void create_post_processing_images( );
+    void create_cubemap_image( );
     void create_pipelines( );
 
     void write_descriptor_sets( );
 
     // .RENDERING
     void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index, uint32_t frame_index );
-    void update_uniform_buffer( uint32_t current_image ) const;
+    void render_to_cubemap( );
+    void update_camera_data( uint32_t current_image ) const;
 
     static void configure_relative_path( );
 

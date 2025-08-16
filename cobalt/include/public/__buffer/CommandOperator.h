@@ -48,7 +48,7 @@ namespace cobalt
         void bind_vertex_buffers( Buffer const&, VkDeviceSize offset ) const;
         void bind_index_buffer( Buffer const&, VkDeviceSize offset ) const;
 
-        void push_constants( PipelineLayout const&, VkShaderStageFlags, uint32_t offset, uint32_t size, void const* data ) const;
+        void push_constants( Pipeline const&, VkShaderStageFlags, uint32_t offset, uint32_t size, void const* data ) const;
 
         void draw( int32_t vertex_count, uint32_t instance_count,
                    uint32_t vertex_offset = 0u, uint32_t instance_offset = 0u ) const;
