@@ -20,6 +20,9 @@ namespace cobalt
         VkImageAspectFlags aspect_flags{ VK_IMAGE_ASPECT_NONE };
         uint32_t base_layer{ 0 };
         VkImageViewType view_type{ VK_IMAGE_VIEW_TYPE_2D };
+
+        ImageViewCreateInfo clone( uint32_t base_layer ) const;
+
     };
 
 
@@ -38,7 +41,8 @@ namespace cobalt
         [[nodiscard]] VkImageAspectFlags aspect_flags( ) const;
 
         [[nodiscard]] VkRenderingAttachmentInfo make_color_attachment(
-            VkAttachmentLoadOp load_op, VkAttachmentStoreOp store_op, VkClearColorValue clear = { { 0.f, 0.f, 0.f, 1.f } } ) const;
+            VkAttachmentLoadOp load_op, VkAttachmentStoreOp store_op,
+            VkClearColorValue clear = { { 0.f, 0.f, 0.f, 1.f } } ) const;
         [[nodiscard]] VkRenderingAttachmentInfo make_depth_attachment(
             VkAttachmentLoadOp load_op, VkAttachmentStoreOp store_op, VkClearDepthStencilValue clear = { .depth = 1.f } ) const;
 

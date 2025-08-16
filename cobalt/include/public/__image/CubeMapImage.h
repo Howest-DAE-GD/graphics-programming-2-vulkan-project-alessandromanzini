@@ -35,15 +35,13 @@ namespace cobalt
         CubeMapImage& operator=( CubeMapImage&& ) noexcept = delete;
 
         [[nodiscard]] Image& hdr_image( ) const;
-        [[nodiscard]] Image& cubemap_image( ) const;
+        [[nodiscard]] Image& cube_image( ) const;
 
-        [[nodiscard]] ImageView& cube_view( ) const;
+        [[nodiscard]] std::array<ImageView, 6u> generate_cubic_views( DeviceSet const& ) const;
 
     private:
         std::unique_ptr<Image> hdr_image_ptr_{ nullptr };
-
         std::unique_ptr<Image> cubemap_image_ptr_{ nullptr };
-        std::unique_ptr<ImageView> cube_view_ptr_{ nullptr };
 
         void load_hdr_image( DeviceSet const&, CommandPool&, CubeMapImageCreateInfo const& create_info );
 

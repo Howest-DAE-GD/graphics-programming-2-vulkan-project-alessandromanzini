@@ -7,6 +7,20 @@
 
 namespace cobalt
 {
+    // +---------------------------+
+    // | CREATE INFO               |
+    // +---------------------------+
+    ImageViewCreateInfo ImageViewCreateInfo::clone( uint32_t const base_layer ) const
+    {
+        auto copy       = *this;
+        copy.base_layer = base_layer;
+        return copy;
+    }
+
+
+    // +---------------------------+
+    // | VIEW                      |
+    // +---------------------------+
     ImageView::ImageView( DeviceSet const& device, ImageViewCreateInfo const& create_info )
         : device_ref_{ device }
         , aspect_flags_{ create_info.aspect_flags }

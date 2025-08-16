@@ -20,16 +20,12 @@ namespace cobalt
         , layers_{ create_info.layers }
     {
         init_image( create_info );
-        for ( uint32_t layer{}; layer < layers_; ++layer )
-        {
-            init_view( ImageViewCreateInfo{
-                .image = image_,
-                .format = create_info.format,
-                .aspect_flags = create_info.aspect_flags,
-                .base_layer = layer,
-                .view_type = create_info.view_type,
-            } );
-        }
+        init_view( ImageViewCreateInfo{
+            .image = image_,
+            .format = create_info.format,
+            .aspect_flags = create_info.aspect_flags,
+            .view_type = create_info.view_type,
+        } );
     }
 
 
@@ -48,7 +44,7 @@ namespace cobalt
     Image::~Image( )
     {
         // 1. Destroy the dependent image views
-        views_.clear( );
+        view_ptr_.reset( );
 
         // 2. Destroy the image and free its memory (if explicitly created)
         if ( image_ != VK_NULL_HANDLE && image_memory_ != VK_NULL_HANDLE )
@@ -68,9 +64,9 @@ namespace cobalt
         , layers_{ other.layers_ }
         , image_{ other.image_ }
         , image_memory_{ other.image_memory_ }
-        , views_{ std::move( other.views_ ) }
+        , view_ptr_{ std::move( other.view_ptr_ ) }
     {
-        meta::expect_size<Image, 80u>( );
+        meta::expect_size<Image, 64u>( );
         other.image_        = VK_NULL_HANDLE;
         other.image_memory_ = VK_NULL_HANDLE;
     }
@@ -84,19 +80,7 @@ namespace cobalt
 
     ImageView& Image::view( ) const
     {
-        return *views_.front( );
-    }
-
-
-    ImageView& Image::view_at( uint32_t const view_index ) const
-    {
-        return *views_.at( view_index );
-    }
-
-
-    uint32_t Image::view_count( ) const
-    {
-        return static_cast<uint32_t>( views_.size( ) );
+        return *view_ptr_;
     }
 
 
@@ -220,7 +204,7 @@ namespace cobalt
     {
         if ( create_info.aspect_flags != VK_IMAGE_ASPECT_NONE )
         {
-            views_.emplace_back( std::make_unique<ImageView>( device_ref_, create_info ) );
+            view_ptr_ = std::make_unique<ImageView>( device_ref_, create_info );
         }
     }
 

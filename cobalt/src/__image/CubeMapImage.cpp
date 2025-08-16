@@ -1,6 +1,7 @@
 #include <__image/CubeMapImage.h>
 
 #include <__buffer/Buffer.h>
+#include <__context/DeviceSet.h>
 #include <__image/StbImageLoader.h>
 
 
@@ -21,18 +22,9 @@ namespace cobalt
                 .create_flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
                 .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
                 .layers = 6,
-                .view_type = VK_IMAGE_VIEW_TYPE_2D,
+                .view_type = VK_IMAGE_VIEW_TYPE_CUBE,
             }
         );
-
-        cube_view_ptr_ = std::make_unique<ImageView>(
-            device,
-            ImageViewCreateInfo{
-                .image = cubemap_image_ptr_->handle( ),
-                .format = cubemap_image_ptr_->format( ),
-                .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
-                .view_type = VK_IMAGE_VIEW_TYPE_CUBE,
-            } );
     }
 
 
@@ -42,15 +34,28 @@ namespace cobalt
     }
 
 
-    Image& CubeMapImage::cubemap_image( ) const
+    Image& CubeMapImage::cube_image( ) const
     {
         return *cubemap_image_ptr_;
     }
 
 
-    ImageView& CubeMapImage::cube_view( ) const
+    std::array<ImageView, 6> CubeMapImage::generate_cubic_views( DeviceSet const& device ) const
     {
-        return *cube_view_ptr_;
+        ImageViewCreateInfo const create_info{
+            .image = cubemap_image_ptr_->handle( ),
+            .format = cubemap_image_ptr_->format( ),
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+            .view_type = VK_IMAGE_VIEW_TYPE_2D,
+        };
+        return {
+            ImageView{ device, create_info.clone( 0u ) },
+            ImageView{ device, create_info.clone( 1u ) },
+            ImageView{ device, create_info.clone( 2u ) },
+            ImageView{ device, create_info.clone( 3u ) },
+            ImageView{ device, create_info.clone( 4u ) },
+            ImageView{ device, create_info.clone( 5u ) },
+        };
     }
 
 

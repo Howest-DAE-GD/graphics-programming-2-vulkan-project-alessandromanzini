@@ -64,7 +64,6 @@ private:
     cobalt::RendererHandle renderer_{};
 
     cobalt::ImageSamplerHandle texture_sampler_{};
-    cobalt::ImageSamplerHandle cube_sampler_{};
     cobalt::ImageCollectionHandle albedo_images_{};
     cobalt::ImageCollectionHandle material_images_{};
     cobalt::ImageCollectionHandle hdr_images_{};

@@ -37,8 +37,7 @@ layout ( set = 1, binding = 0 ) uniform sampler shared_sampler;
 layout ( set = 1, binding = 2 ) uniform texture2D depth_texture;
 layout ( set = 1, binding = 3 ) uniform texture2D albedo_texture;
 layout ( set = 1, binding = 4 ) uniform texture2D material_texture;
-layout ( set = 2, binding = 0 ) uniform sampler cube_sampler;
-layout ( set = 2, binding = 2 ) uniform textureCube environment_map;
+layout ( set = 2, binding = 1 ) uniform textureCube environment_map;
 
 
 // FUNCTIONS
@@ -85,7 +84,7 @@ void main( )
     if ( depth >= 1.f )
     {
         const vec3 sample_direction = normalize( world_pos.xyz );
-        const vec3 color = texture( samplerCube( environment_map, cube_sampler ), sample_direction ).rgb;
+        const vec3 color = texture( samplerCube( environment_map, shared_sampler ), sample_direction ).rgb;
         out_color = vec4( color, 1.f );
         return;
     }

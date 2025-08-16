@@ -88,12 +88,6 @@ MyApplication::MyApplication( )
         ImageSamplerCreateInfo{
             .filter = VK_FILTER_LINEAR,
         } );
-    cube_sampler_ = CVK.create_resource<ImageSampler>(
-        context_->device( ),
-        ImageSamplerCreateInfo{
-            .filter = VK_FILTER_LINEAR,
-            .border_color = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
-        } );
     create_gbuffer_images( );
     create_post_processing_images( );
     create_cubemap_image( );
@@ -204,9 +198,6 @@ void MyApplication::create_descriptor_allocator( )
         .define(
             "cubemap_layout",
             {
-                // Cube Sampler
-                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
-
                 // Cubemap HDR Image
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
 
@@ -425,7 +416,7 @@ void MyApplication::create_pipelines( )
                     .blendEnable = VK_FALSE,
                     .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                       VK_COLOR_COMPONENT_A_BIT,
-                }, cubemap_image_->cubemap_image( ).format( ) )
+                }, cubemap_image_->cube_image( ).format( ) )
             .build( context_->device( ), *cubemap_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS ) );
     }
 }
@@ -539,15 +530,6 @@ void MyApplication::write_descriptor_sets( )
     {
         std::array write_ops{
             WriteDescription{
-                VK_DESCRIPTOR_TYPE_SAMPLER,
-                [this]( uint32_t ) -> VkDescriptorImageInfo
-                    {
-                        return {
-                            .sampler = cube_sampler_->handle( ),
-                        };
-                    }
-            },
-            WriteDescription{
                 VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                 [this]( uint32_t ) -> VkDescriptorImageInfo
                     {
@@ -562,7 +544,7 @@ void MyApplication::write_descriptor_sets( )
                 [this]( uint32_t ) -> VkDescriptorImageInfo
                     {
                         return {
-                            .imageView = cubemap_image_->cube_view( ).handle( ),
+                            .imageView = cubemap_image_->cube_image( ).view( ).handle( ),
                             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                         };
                     }
@@ -770,27 +752,28 @@ void MyApplication::render_to_cubemap( )
     glm::mat4 const proj = camera_ptr_->projection( );
 
     glm::vec3 const eye = camera_ptr_->eye( );
-    // glm::mat4 const views[6]{
-    //     lookAt( eye, eye + glm::vec3{ 1.f, 0.f, 0.f }, glm::vec3{ 0.f, -1.f, 0.f } ),  // +X
-    //     lookAt( eye, eye + glm::vec3{ -1.f, 0.f, 0.f }, glm::vec3{ 0.f, -1.f, 0.f } ), // -X
-    //     lookAt( eye, eye + glm::vec3{ 0.f, -1.f, 0.f }, glm::vec3{ 0.f, 0.f, -1.f } ), // -Y
-    //     lookAt( eye, eye + glm::vec3{ 0.f, 1.f, 0.f }, glm::vec3{ 0.f, 0.f, 1.f } ),   // +Y
-    //     lookAt( eye, eye + glm::vec3{ 0.f, 0.f, 1.f }, glm::vec3{ 0.f, -1.f, 0.f } ),  // +Z
-    //     lookAt( eye, eye + glm::vec3{ 0.f, 0.f, -1.f }, glm::vec3{ 0.f, -1.f, 0.f } ), // -Z
-    // };
     glm::mat4 const views[6]{
-            lookAt(eye, eye + glm::vec3{ 1.f,  0.f,  0.f }, glm::vec3{ 0.f, -1.f,  0.f }), // +X
-            lookAt(eye, eye + glm::vec3{-1.f,  0.f,  0.f }, glm::vec3{ 0.f, -1.f,  0.f }), // -X
-            lookAt(eye, eye + glm::vec3{ 0.f, -1.f,  0.f }, glm::vec3{ 0.f,  0.f,  1.f }), // -Y
-            lookAt(eye, eye + glm::vec3{ 0.f,  1.f,  0.f }, glm::vec3{ 0.f,  0.f, -1.f }), // +Y
-            lookAt(eye, eye + glm::vec3{ 0.f,  0.f,  1.f }, glm::vec3{ 0.f, -1.f,  0.f }), // +Z
-            lookAt(eye, eye + glm::vec3{ 0.f,  0.f, -1.f }, glm::vec3{ 0.f, -1.f,  0.f })  // -Z
-        };
-
-    Image& cubemap_image = cubemap_image_->cubemap_image( );
+        lookAt( eye, eye + glm::vec3{ 1.f, 0.f, 0.f }, glm::vec3{ 0.f, -1.f, 0.f } ),  // +X
+        lookAt( eye, eye + glm::vec3{ -1.f, 0.f, 0.f }, glm::vec3{ 0.f, -1.f, 0.f } ), // -X
+        lookAt( eye, eye + glm::vec3{ 0.f, -1.f, 0.f }, glm::vec3{ 0.f, 0.f, -1.f } ), // -Y
+        lookAt( eye, eye + glm::vec3{ 0.f, 1.f, 0.f }, glm::vec3{ 0.f, 0.f, 1.f } ),   // +Y
+        lookAt( eye, eye + glm::vec3{ 0.f, 0.f, 1.f }, glm::vec3{ 0.f, -1.f, 0.f } ),  // +Z
+        lookAt( eye, eye + glm::vec3{ 0.f, 0.f, -1.f }, glm::vec3{ 0.f, -1.f, 0.f } ), // -Z
+    };
+    // glm::mat4 const views[6]{
+    //         lookAt(eye, eye + glm::vec3{ 1.f,  0.f,  0.f }, glm::vec3{ 0.f, -1.f,  0.f }), // +X
+    //         lookAt(eye, eye + glm::vec3{-1.f,  0.f,  0.f }, glm::vec3{ 0.f, -1.f,  0.f }), // -X
+    //         lookAt(eye, eye + glm::vec3{ 0.f, -1.f,  0.f }, glm::vec3{ 0.f,  0.f,  1.f }), // -Y
+    //         lookAt(eye, eye + glm::vec3{ 0.f,  1.f,  0.f }, glm::vec3{ 0.f,  0.f, -1.f }), // +Y
+    //         lookAt(eye, eye + glm::vec3{ 0.f,  0.f,  1.f }, glm::vec3{ 0.f, -1.f,  0.f }), // +Z
+    //         lookAt(eye, eye + glm::vec3{ 0.f,  0.f, -1.f }, glm::vec3{ 0.f, -1.f,  0.f })  // -Z
+    //     };
 
     auto const& cmd_buffer = command_pool_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
     cmd_buffer.reset( );
+
+    Image& cubemap_image                       = cubemap_image_->cube_image( );
+    std::array<ImageView, 6> const image_views = cubemap_image_->generate_cubic_views( context_->device( ) );
 
     // Start recording command buffer
     {
@@ -804,6 +787,7 @@ void MyApplication::render_to_cubemap( )
             .minDepth = 0.f, .maxDepth = 1.f
         } );
 
+
         // UNDEFINED -> COLOR ATTACHMENT OPTIMAL
         cubemap_image.transition_layout(
             ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
@@ -811,12 +795,10 @@ void MyApplication::render_to_cubemap( )
             .to_stage( VK_PIPELINE_STAGE_2_TRANSFER_BIT )
             .from_access( VK_ACCESS_2_NONE )
             .to_access( VK_ACCESS_2_TRANSFER_WRITE_BIT ), command_op );
-
         for ( uint32_t view_index{}; view_index < 6; view_index++ )
         {
             VkRenderingAttachmentInfo const color_attachment =
-                    cubemap_image.view_at( view_index )
-                                 .make_color_attachment( VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE );
+                    image_views[view_index].make_color_attachment( VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE );
 
             command_op.begin_rendering( std::array{ color_attachment }, nullptr );
 
@@ -833,15 +815,16 @@ void MyApplication::render_to_cubemap( )
             command_op.draw( 36, 1 );
 
             command_op.end_rendering( );
+
+            // COLOR ATTACHMENT OPTIMAL -> SHADER READONLY OPTIMAL
+            cubemap_image.transition_layout(
+                ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
+                .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+                .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
+                .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
+                .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ), command_op );
         }
 
-        // COLOR ATTACHMENT OPTIMAL -> SHADER READONLY OPTIMAL
-        cubemap_image.transition_layout(
-            ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
-            .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
-            .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
-            .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
-            .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ), command_op );
     }
 
     sync::Fence const fence{ context_->device( ) };
