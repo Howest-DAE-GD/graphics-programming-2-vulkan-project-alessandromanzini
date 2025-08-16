@@ -49,7 +49,6 @@ namespace cobalt
 
         [[nodiscard]] VkImage handle( ) const;
         [[nodiscard]] ImageView& view( ) const;
-        [[nodiscard]] ImageView& view_at( uint32_t view_index ) const;
 
         [[nodiscard]] uint32_t view_count( ) const;
         [[nodiscard]] VkFormat format( ) const;
@@ -70,7 +69,7 @@ namespace cobalt
         VkImage image_{ VK_NULL_HANDLE };
         VkDeviceMemory image_memory_{ VK_NULL_HANDLE };
 
-        std::vector<std::unique_ptr<ImageView>> views_{};
+        std::unique_ptr<ImageView> view_ptr_{};
 
         void init_image( ImageCreateInfo const& create_info );
         void init_view( ImageViewCreateInfo const& create_info );

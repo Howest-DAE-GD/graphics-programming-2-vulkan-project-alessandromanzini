@@ -2,6 +2,7 @@
 #define LAYOUTSPECS_H
 
 #include <__descriptor/DescriptorSetLayout.h>
+#include <__meta/cstr_comparator.h>
 
 #include <map>
 #include <vector>
@@ -12,7 +13,7 @@ namespace cobalt::descriptor
     class LayoutSpecs final
     {
     public:
-        using layout_map_t = std::map<char const*, std::unique_ptr<DescriptorSetLayout>>;
+        using layout_map_t = std::map<char const*, std::unique_ptr<DescriptorSetLayout>, meta::c_str_less>;
 
         explicit LayoutSpecs( DeviceSet const& );
 

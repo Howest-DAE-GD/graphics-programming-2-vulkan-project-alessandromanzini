@@ -103,6 +103,7 @@ add_library(${PROJECT_NAME}
 		"include/public/cobalt_vk/handle.h"
 		src/__image/CubeMapImage.cpp
 		include/public/__image/CubeMapImage.h
+		include/public/__meta/cstr_comparator.h
 )
 
 # set warning level to W4 and warnings as errors

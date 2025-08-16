@@ -6,6 +6,7 @@
 #include <__descriptor/DescriptorSet.h>
 #include <__descriptor/DescriptorSetLayout.h>
 #include <__descriptor/LayoutSpecs.h>
+#include <__meta/cstr_comparator.h>
 
 #include <span>
 
@@ -30,7 +31,7 @@ namespace cobalt
         DeviceSet const& device_ref_;
 
         descriptor::LayoutSpecs::layout_map_t const layout_map_;
-        std::map<char const*, DescriptorSet> set_map_{};
+        std::map<char const*, DescriptorSet, meta::c_str_less> set_map_{};
 
         VkDescriptorPool pool_{ VK_NULL_HANDLE };
 
