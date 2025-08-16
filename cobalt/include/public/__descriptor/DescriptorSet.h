@@ -4,6 +4,7 @@
 #include <__descriptor/DescriptorSetLayout.h>
 #include <__descriptor/WriteDescription.h>
 
+#include <algorithm>
 #include <cassert>
 
 

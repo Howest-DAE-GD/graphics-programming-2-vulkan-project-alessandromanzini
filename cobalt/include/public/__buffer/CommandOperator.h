@@ -4,6 +4,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include <span>
+#include <optional>
 
 
 namespace cobalt

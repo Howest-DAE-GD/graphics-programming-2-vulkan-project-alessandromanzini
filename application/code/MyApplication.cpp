@@ -72,8 +72,8 @@ MyApplication::MyApplication( )
     // 6. Renderer
     renderer_ = CVK.create_resource<Renderer>( RendererCreateInfo{
         .device = &context_->device( ),
-        .swapchain = swapchain_.get( ),
         .cmd_pool = command_pool_.get( ),
+        .swapchain = swapchain_.get( ),
         .max_frames_in_flight = MAX_FRAMES_IN_FLIGHT_
     } );
     renderer_->set_record_command_buffer_fn(

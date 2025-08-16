@@ -163,9 +163,9 @@ namespace cobalt::builder
                     .pViewportState = &viewport_state_,
                     .pRasterizationState = &rasterization_,
                     .pMultisampleState = &multisampling_,
+                    .pDepthStencilState = &depth_stencil_,
                     .pColorBlendState = &color_blend_state_,
                     .pDynamicState = &dynamic_state_,
-                    .pDepthStencilState = &depth_stencil_,
 
                     .layout = layout.handle( ),
                 }
