@@ -55,18 +55,3 @@ vec3 decode32( in vec4 f32 )
     vec2 f16 = vec2( vec2_to_float( f32.xy, 0.f, 1.f ), vec2_to_float( f32.zw, 0.f, 1.f ) );
     return decode16( f16 );
 }
-
-
-// WORLD POSITION
-// https://stackoverflow.com/questions/32227283/getting-world-position-from-depth-buffer-value
-vec3 get_world_pos_from_depth( in float depth, in vec2 tex_coord, in mat4 proj, in mat4 view )
-{
-    vec4 clip_space_pos = vec4( tex_coord * 2.f - vec2( 1.f, 1.f ), depth, 1.f );
-    vec4 view_space_pos = inverse( proj ) * clip_space_pos;
-
-    // perspective divide
-    view_space_pos /= view_space_pos.w;
-
-    vec4 world_space_pos = inverse( view ) * view_space_pos;
-    return world_space_pos.xyz;
-}

@@ -11,7 +11,6 @@
 #include <xos/info.h>
 
 #include <iostream>
-#include <__image/CubeMapImage.h>
 
 
 using namespace cobalt;
@@ -105,7 +104,7 @@ MyApplication::MyApplication( )
     }
 
     // 11. Update descriptor sets
-    write_descriptor_sets( );
+    write_textures_descriptor_sets( );
 }
 
 
@@ -125,8 +124,9 @@ void MyApplication::run( )
     timer.start( );
     running_ = true;
 
-    // 2. Render skybox
-    render_skybox( );
+    // 2. Render cube maps
+    render_skybox_map( );
+    render_irradiance_map( );
 
     // 3. Start the render loop
     while ( running_ )
@@ -165,7 +165,7 @@ void MyApplication::create_descriptor_allocator( )
     descriptor_allocator_ = CVK.create_resource<DescriptorAllocator>(
         descriptor::LayoutSpecs{ context_->device( ) }
         .define(
-            "buffer_layout",
+            "l_buffer",
             {
                 // Camera uniform buffer
                 { VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
@@ -174,7 +174,7 @@ void MyApplication::create_descriptor_allocator( )
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
             } )
         .define(
-            "g_layout",
+            "l_textures",
             {
                 // Sampler
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
@@ -195,17 +195,23 @@ void MyApplication::create_descriptor_allocator( )
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
             } )
         .define(
-            "cubemap_layout",
+            "l_cube_textures",
             {
-                // Cubemap HDR Image
+                // Cubemap Sampler
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
+
+                // Cubemap HDR Sampling Image
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
 
-                // Cubemap Cube Image
+                // Skybox Cube Image
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+
+                // Diffuse Irradiance Cube Image
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
             } )
-        .alloc( "buffer", "buffer_layout", MAX_FRAMES_IN_FLIGHT_ )
-        .alloc( "g", "g_layout", MAX_FRAMES_IN_FLIGHT_ )
-        .alloc( "cubemap", "cubemap_layout", 1u ) );
+        .alloc( "buffer", "l_buffer", MAX_FRAMES_IN_FLIGHT_ )
+        .alloc( "textures", "l_textures", MAX_FRAMES_IN_FLIGHT_ )
+        .alloc( "cube_textures", "l_cube_textures", 1u ) );
 }
 
 
@@ -247,12 +253,23 @@ void MyApplication::create_pipelines( )
 {
     // Layouts
     {
-        DescriptorSet const* const buffer_set  = &descriptor_allocator_->set_at( "buffer" );
-        DescriptorSet const* const g_set       = &descriptor_allocator_->set_at( "g" );
-        DescriptorSet const* const cubemap_set = &descriptor_allocator_->set_at( "cubemap" );
+        DescriptorSet const* const buffer_set     = &descriptor_allocator_->set_at( "buffer" );
+        DescriptorSet const* const texes_set      = &descriptor_allocator_->set_at( "textures" );
+        DescriptorSet const* const cube_texes_set = &descriptor_allocator_->set_at( "cube_textures" );
+
+        cubemap_sampling_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
+            context_->device( ), std::array{ cube_texes_set },
+            std::array{
+                // Proj / View
+                VkPushConstantRange{
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                    .offset = 0u,
+                    .size = sizeof( glm::mat4 ) * 2u
+                },
+            } );
 
         sampling_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
-            context_->device( ), std::array{ buffer_set, g_set },
+            context_->device( ), std::array{ buffer_set, texes_set },
             std::array{
                 // Surface ID
                 VkPushConstantRange{
@@ -263,7 +280,7 @@ void MyApplication::create_pipelines( )
             } );
 
         processing_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
-            context_->device( ), std::array{ buffer_set, g_set, cubemap_set },
+            context_->device( ), std::array{ buffer_set, texes_set, cube_texes_set },
             std::array{
                 // Camera position
                 VkPushConstantRange{
@@ -271,17 +288,6 @@ void MyApplication::create_pipelines( )
                     .offset = 0u,
                     .size = sizeof( glm::vec3 )
                 }
-            } );
-
-        cubemap_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
-            context_->device( ), std::array{ buffer_set, g_set, cubemap_set },
-            std::array{
-                // Proj / View
-                VkPushConstantRange{
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                    .offset = 0u,
-                    .size = sizeof( glm::mat4 ) * 2u
-                },
             } );
     }
 
@@ -389,7 +395,7 @@ void MyApplication::create_pipelines( )
 }
 
 
-void MyApplication::write_descriptor_sets( )
+void MyApplication::write_textures_descriptor_sets( )
 {
     // Buffer descriptors
     {
@@ -490,7 +496,59 @@ void MyApplication::write_descriptor_sets( )
                     }
             },
         };
-        descriptor_allocator_->set_at( "g" ).update( write_ops );
+        descriptor_allocator_->set_at( "textures" ).update( write_ops );
+    }
+}
+
+
+void MyApplication::write_cube_textures_descriptor_sets( Image const& temp_image )
+{
+    // Update descriptor sets
+    {
+        std::array write_ops{
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLER,
+                [this]( uint32_t ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .sampler = texture_sampler_->handle( )
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [&temp_image]( uint32_t ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .imageView = temp_image.view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this]( uint32_t ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .imageView = cube_skybox_image_->view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this, &temp_image]( uint32_t ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .imageView = cube_diffuse_irradiance_image_.valid( )
+                                             ? cube_diffuse_irradiance_image_->view( ).handle( )
+                                             : temp_image.view( ).handle( ),
+                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        };
+                    }
+            },
+        };
+        descriptor_allocator_->set_at( "cube_textures" ).update( write_ops );
     }
 }
 
@@ -687,49 +745,13 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
 }
 
 
-void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesystem::path const& path_to_image,
-                                       shader::ShaderModule shader_vert, shader::ShaderModule shader_frag )
+void MyApplication::render_to_cubemap( Image& attachment, shader::ShaderModule vert, shader::ShaderModule frag )
 {
-    // Load HDR cubemap image
-    CubeMapImage cubemap_image{
-        context_->device( ), *command_pool_,
-        CubeMapImageCreateInfo{
-            .path_to_img = path_to_image
-        }
-    };
-
-    // Update descriptor sets
-    {
-        std::array write_ops{
-            WriteDescription{
-                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                [&cubemap_image]( uint32_t ) -> VkDescriptorImageInfo
-                    {
-                        return {
-                            .imageView = cubemap_image.hdr_image( ).view( ).handle( ),
-                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                        };
-                    }
-            },
-            WriteDescription{
-                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                [&cubemap_image]( uint32_t ) -> VkDescriptorImageInfo
-                    {
-                        return {
-                            .imageView = cubemap_image.cube_image( ).view( ).handle( ),
-                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                        };
-                    }
-            },
-        };
-        descriptor_allocator_->set_at( "cubemap" ).update( write_ops );
-    }
-
     // Create Cubemap Pipeline
     Pipeline const cubemap_pipeline{
         builder::GraphicsPipelineBuilder{}
-        .add_shader_module( std::move( shader_vert ) )
-        .add_shader_module( std::move( shader_frag ) )
+        .add_shader_module( std::move( vert ) )
+        .add_shader_module( std::move( frag ) )
         .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
         .set_depth_stencil_mode( VK_FALSE, VK_FALSE )
         .set_cull_mode( VK_CULL_MODE_NONE )
@@ -738,8 +760,8 @@ void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesyst
                 .blendEnable = VK_FALSE,
                 .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
                                   VK_COLOR_COMPONENT_A_BIT,
-            }, cubemap_image.cube_image( ).format( ) )
-        .build( context_->device( ), *cubemap_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS )
+            }, attachment.format( ) )
+        .build( context_->device( ), *cubemap_sampling_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS )
     };
 
     // Render pass
@@ -760,28 +782,44 @@ void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesyst
         auto const& cmd_buffer = command_pool_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
         cmd_buffer.reset( );
 
-        std::array<ImageView, 6> const image_views = cubemap_image.generate_cubic_views( context_->device( ) );
+        auto const image_views = [&attachment]( DeviceSet const& device ) -> std::array<ImageView, 6>
+            {
+                ImageViewCreateInfo const create_info{
+                    .image = attachment.handle( ),
+                    .format = attachment.format( ),
+                    .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .view_type = VK_IMAGE_VIEW_TYPE_2D,
+                };
+                return {
+                    ImageView{ device, create_info.clone( 0u ) },
+                    ImageView{ device, create_info.clone( 1u ) },
+                    ImageView{ device, create_info.clone( 2u ) },
+                    ImageView{ device, create_info.clone( 3u ) },
+                    ImageView{ device, create_info.clone( 4u ) },
+                    ImageView{ device, create_info.clone( 5u ) },
+                };
+            }( context_->device( ) );
 
         // Start recording command buffer
         {
             CommandOperator command_op = cmd_buffer.command_operator( 0 );
 
-            command_op.store_render_area( VkRect2D{ .offset = { 0u, 0u }, .extent = cubemap_image.cube_image( ).extent( ) } );
+            command_op.store_render_area( VkRect2D{ .offset = { 0u, 0u }, .extent = attachment.extent( ) } );
             command_op.store_viewport( VkViewport{
                 .x = 0.f, .y = 0.f,
-                .width = static_cast<float>( cubemap_image.cube_image( ).extent( ).width ),
-                .height = static_cast<float>( cubemap_image.cube_image( ).extent( ).height ),
+                .width = static_cast<float>( attachment.extent( ).width ),
+                .height = static_cast<float>( attachment.extent( ).height ),
                 .minDepth = 0.f, .maxDepth = 1.f
             } );
 
-
             // UNDEFINED -> COLOR ATTACHMENT OPTIMAL
-            cubemap_image.cube_image( ).transition_layout(
+            attachment.transition_layout(
                 ImageLayoutTransition{ VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
                 .from_stage( VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT )
                 .to_stage( VK_PIPELINE_STAGE_2_TRANSFER_BIT )
                 .from_access( VK_ACCESS_2_NONE )
                 .to_access( VK_ACCESS_2_TRANSFER_WRITE_BIT ), command_op );
+
             for ( uint32_t view_index{}; view_index < 6; view_index++ )
             {
                 VkRenderingAttachmentInfo const color_attachment =
@@ -803,7 +841,7 @@ void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesyst
                 command_op.end_rendering( );
             }
             // COLOR ATTACHMENT OPTIMAL -> SHADER READONLY OPTIMAL
-            cubemap_image.cube_image( ).transition_layout(
+            attachment.transition_layout(
                 ImageLayoutTransition{ VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }
                 .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
                 .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
@@ -818,18 +856,68 @@ void MyApplication::render_to_cubemap( ImageHandle& render_target, std::filesyst
         fence.wait( );
         cmd_buffer.unlock( );
     }
-
-    // Transfer image ownership
-    render_target = CVK.create_resource<Image>( cubemap_image.steal_cubemap_image( ) );
 }
 
 
-void MyApplication::render_skybox( )
+void MyApplication::render_skybox_map( )
 {
-    render_to_cubemap( cube_skybox_image_, SKYBOX_PATH_,
-        shader::ShaderModule{ context_->device( ), "shaders/cubemap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT },
-        shader::ShaderModule{ context_->device( ), "shaders/cubemap.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } );
+    // Load skybox HDR image
+    TextureImage const skybox_hdr{
+        context_->device( ), *command_pool_,
+        TextureImageCreateInfo{ .path_to_img = SKYBOX_PATH_, .image_format = VK_FORMAT_R32G32B32A32_SFLOAT }
+    };
 
+    // Create cubemap image
+    cube_skybox_image_ = CVK.create_resource<Image>(
+        context_->device( ),
+        ImageCreateInfo{
+            .extent = { skybox_hdr.image( ).extent( ).width / 4u, skybox_hdr.image( ).extent( ).height / 2u },
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .create_flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layers = 6u,
+            .view_type = VK_IMAGE_VIEW_TYPE_CUBE,
+        } );
+
+    // Update descriptor sets
+    write_cube_textures_descriptor_sets( skybox_hdr.image( ) );
+
+    // Render the skybox to cubemap
+    render_to_cubemap(
+        *cube_skybox_image_,
+        shader::ShaderModule{ context_->device( ), "shaders/cubemap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT },
+        shader::ShaderModule{ context_->device( ), "shaders/spherical_sampling.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } );
+}
+
+
+void MyApplication::render_irradiance_map( )
+{
+    // Create cubemap image
+    cube_diffuse_irradiance_image_ = CVK.create_resource<Image>(
+        context_->device( ),
+        ImageCreateInfo{
+            .extent = { 512u, 512u },
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .create_flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layers = 6u,
+            .view_type = VK_IMAGE_VIEW_TYPE_CUBE,
+        } );
+
+    // Update descriptor sets
+    write_cube_textures_descriptor_sets( *cube_skybox_image_ );
+
+    // Sample the skybox cubemap to diffuse irradiance cubemap
+    render_to_cubemap(
+        *cube_diffuse_irradiance_image_,
+        shader::ShaderModule{ context_->device( ), "shaders/cubemap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT },
+        shader::ShaderModule{ context_->device( ), "shaders/irradiance_sampling.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } );
 }
 
 
@@ -848,7 +936,7 @@ void MyApplication::viewport_changed( VkExtent2D const extent )
 {
     create_render_images( extent );
     context_->device( ).wait_idle( );
-    write_descriptor_sets( );
+    write_textures_descriptor_sets( );
 }
 
 

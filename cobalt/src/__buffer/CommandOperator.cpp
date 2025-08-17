@@ -104,11 +104,12 @@ namespace cobalt
     {
         vkCmdBindPipeline( command_buffer_, pipeline.bind_point( ), pipeline.handle( ) );
 
+        uint32_t set_offset{ 0u };
         for ( DescriptorSet const* const set : pipeline.layout( ).descriptor_sets( ) )
         {
             VkDescriptorSet const vk_set = set->handle_at( frame_index % set->parallel_set_count( ) );
             vkCmdBindDescriptorSets( command_buffer_, pipeline.bind_point( ), pipeline.layout( ).handle( ),
-                                     set->offset( ), 1, &vk_set, 0, nullptr );
+                                     set_offset++, 1u, &vk_set, 0u, nullptr );
         }
     }
 

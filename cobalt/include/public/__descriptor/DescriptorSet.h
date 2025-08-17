@@ -12,13 +12,12 @@ namespace cobalt
 {
     struct DescriptorSet final
     {
-        explicit DescriptorSet( DeviceSet const&, DescriptorSetLayout const&, std::vector<VkDescriptorSet>, uint32_t offset );
+        explicit DescriptorSet( DeviceSet const&, DescriptorSetLayout const&, std::vector<VkDescriptorSet> );
 
         [[nodiscard]] VkDescriptorSet handle_at( uint32_t index ) const;
         [[nodiscard]] DescriptorSetLayout const& layout( ) const;
 
         [[nodiscard]] uint32_t parallel_set_count( ) const;
-        [[nodiscard]] uint32_t offset( ) const;
 
         void update( std::span<WriteDescription> descriptions );
         void update_at( std::span<WriteDescription> descriptions, uint32_t index );
@@ -28,19 +27,16 @@ namespace cobalt
         DescriptorSetLayout const& layout_ref_;
         std::vector<VkDescriptorSet> const sets_;
 
-        uint32_t const offset_;
-
         std::vector<VkWriteDescriptorSet> descriptor_writes_{};
 
     };
 
 
     inline DescriptorSet::DescriptorSet(
-        DeviceSet const& device, DescriptorSetLayout const& layout, std::vector<VkDescriptorSet> sets, uint32_t offset )
+        DeviceSet const& device, DescriptorSetLayout const& layout, std::vector<VkDescriptorSet> sets )
         : device_ref_{ device }
         , layout_ref_{ layout }
         , sets_{ std::move( sets ) }
-        , offset_{ offset }
         , descriptor_writes_( layout_ref_.total_bindings( ) ) { }
 
 
@@ -59,12 +55,6 @@ namespace cobalt
     inline uint32_t DescriptorSet::parallel_set_count( ) const
     {
         return static_cast<uint32_t>( sets_.size( ) );
-    }
-
-
-    inline uint32_t DescriptorSet::offset( ) const
-    {
-        return offset_;
     }
 
 

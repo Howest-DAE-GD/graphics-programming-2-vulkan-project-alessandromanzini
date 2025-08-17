@@ -28,12 +28,14 @@ namespace cobalt
 
     DescriptorSetLayout const& DescriptorAllocator::layout_at( char const* const layout_name ) const noexcept
     {
+        assert( layout_map_.contains( layout_name ) && "DescriptorAllocator::layout_at: Layout name not found in the map!" );
         return *layout_map_.at( layout_name );
     }
 
 
     DescriptorSet& DescriptorAllocator::set_at( char const* const set_name ) noexcept
     {
+        assert( set_map_.contains( set_name ) && "DescriptorAllocator::set_at: Set name not found in the map!" );
         return set_map_.at( set_name );
     }
 
@@ -109,16 +111,11 @@ namespace cobalt
 
         // 4. Store the sets in the map.
         auto it = sets.begin( );
-        uint32_t set_offset{ 0u };
         for ( auto const& [layout_name, set_name, set_count] : specs.view_alloc_requests( ) )
         {
             auto const& layout = *layout_map_.at( layout_name );
             set_map_.emplace(
-                set_name,
-                DescriptorSet{
-                    device_ref_, layout, std::vector<VkDescriptorSet>{ it, std::next( it, set_count ) },
-                    set_offset++
-                } );
+                set_name, DescriptorSet{ device_ref_, layout, std::vector<VkDescriptorSet>{ it, std::next( it, set_count ) } } );
             std::advance( it, set_count );
         }
     }

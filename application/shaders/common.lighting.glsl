@@ -1,3 +1,6 @@
+#include "common.math.glsl"
+
+
 // STRUCTS
 struct Light {
     vec3 position;
@@ -5,10 +8,6 @@ struct Light {
     float lumen;
     float range;
 };
-
-
-// CONSTANTS
-const float PI = 3.14159265358979323846f;
 
 
 // GEOMETRY
@@ -24,19 +23,34 @@ float distribution_ggx( in vec3 N, in vec3 H, in float roughness )
     return a / denom;
 }
 
-float geometry_schlick_ggx( in float cos_theta_half, in float roughness )
+
+float geometry_schlick_ggx_direct( in float cos_theta_half, in float roughness )
 {
-    const float r = roughness + 1.0;
-    const float k = r * r / 8.0;
-    return cos_theta_half / ( cos_theta_half * ( 1.0 - k ) + k );
+    const float r = roughness + 1.f;
+    const float k = ( r * r ) / 8.f;
+    return cos_theta_half / ( cos_theta_half * ( 1.f - k ) + k );
 }
 
-float geometry_smith( in vec3 N, in vec3 V, in vec3 L, in float roughness )
+
+float geometry_schlick_ggx_indirect( in float cos_theta_half, in float roughness )
+{
+    const float a = roughness;
+    const float k = ( a * a ) / 2.f;
+    return cos_theta_half / ( cos_theta_half * ( 1.f - k ) + k );
+}
+
+
+float geometry_smith( in vec3 N, in vec3 V, in vec3 L, in float roughness, in bool indirect )
 {
     const float cos_theta_V = max( dot( N, V ), 0.f );
     const float cos_theta_L = max( dot( N, L ), 0.f );
-    return geometry_schlick_ggx( cos_theta_V, roughness ) * geometry_schlick_ggx( cos_theta_L, roughness );
+    if ( indirect )
+    {
+        return geometry_schlick_ggx_indirect( cos_theta_V, roughness ) * geometry_schlick_ggx_indirect( cos_theta_L, roughness );
+    }
+    return geometry_schlick_ggx_direct( cos_theta_V, roughness ) * geometry_schlick_ggx_direct( cos_theta_L, roughness );
 }
+
 
 vec3 fresnel_schlick( in float cos_theta, in vec3 F0 )
 {

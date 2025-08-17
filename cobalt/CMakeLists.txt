@@ -64,6 +64,7 @@ add_library(${PROJECT_NAME}
 		"include/public/__meta/index_of.h"
 		"include/public/__meta/enum_traits.h"
 		"include/public/__meta/expect_size.h"
+		"include/public/__meta/cstr_comparator.h"
 
 		"src/__model/Model.cpp"
 		"src/__model/AssimpModelLoader.cpp"
@@ -101,9 +102,6 @@ add_library(${PROJECT_NAME}
 		"src/log.cpp"
 		"include/public/cobalt_vk/core.h"
 		"include/public/cobalt_vk/handle.h"
-		src/__image/CubeMapImage.cpp
-		include/public/__image/CubeMapImage.h
-		include/public/__meta/cstr_comparator.h
 )
 
 # set warning level to W4 and warnings as errors

@@ -7,6 +7,9 @@
 
 namespace cobalt
 {
+    // +---------------------------+
+    // | UTILITY                   |
+    // +---------------------------+
     uint32_t image::to_channel_count( VkFormat const format )
     {
         switch ( format )
@@ -40,6 +43,28 @@ namespace cobalt
     }
 
 
+    bool image::is_float_texel( VkFormat const format )
+    {
+        switch ( format )
+        {
+            case VK_FORMAT_R16G16B16A16_SFLOAT:
+            case VK_FORMAT_R32G32B32A32_SFLOAT:
+            case VK_FORMAT_R16G16B16_SFLOAT:
+            case VK_FORMAT_R16G16_SFLOAT:
+            case VK_FORMAT_D32_SFLOAT:
+            case VK_FORMAT_R32_SFLOAT:
+            case VK_FORMAT_R16_SFLOAT:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+
+    // +---------------------------+
+    // | STB IMAGE LOADER          |
+    // +---------------------------+
     StbImageLoader::StbImageLoader( std::filesystem::path const& path, uint32_t const channels, bool const f_load )
     {
         if ( f_load )

@@ -14,7 +14,10 @@ namespace cobalt
     // +---------------------------+
     TextureImage::TextureImage( DeviceSet const& device, CommandPool& cmd_pool, TextureImageCreateInfo const& create_info )
     {
-        StbImageLoader const loader{ create_info.path_to_img, image::to_channel_count( create_info.image_format ) };
+        StbImageLoader const loader{
+            create_info.path_to_img, image::to_channel_count( create_info.image_format ),
+            image::is_float_texel( create_info.image_format ),
+        };
 
         texture_image_ptr_ = std::make_unique<Image>(
             device,
@@ -24,7 +27,8 @@ namespace cobalt
                 .tiling = VK_IMAGE_TILING_OPTIMAL,
                 .usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                 .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT
+                .aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+                .view_type = VK_IMAGE_VIEW_TYPE_2D,
             } );
 
         Buffer staging_buffer = buffer::make_staging_buffer( device, loader.img_size( ) );
@@ -36,12 +40,6 @@ namespace cobalt
         staging_buffer.copy_to( *texture_image_ptr_, cmd_pool );
         texture_image_ptr_->transition_layout( { VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL }, cmd_pool );
     }
-
-
-    // TextureImage::~TextureImage( ) noexcept
-    // {
-    //     texture_image_ptr_.reset( );
-    // }
 
 
     TextureImage::TextureImage( TextureImage&& other ) noexcept

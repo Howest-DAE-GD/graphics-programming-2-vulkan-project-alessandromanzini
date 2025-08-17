@@ -16,6 +16,8 @@ namespace cobalt
         explicit ResourceHandle( HandleTable<table_resource_t>&, memory::RedirectionInfo );
         ResourceHandle( ) = default;
 
+        [[nodiscard]] bool valid( ) const;
+
         resource_t* get( );
         resource_t const* get( ) const;
 
@@ -37,6 +39,13 @@ namespace cobalt
                                                                   memory::RedirectionInfo const handle_info )
         : table_ptr_{ &table }
         , handle_info_{ handle_info } { }
+
+
+    template <typename resource_t, typename table_resource_t>
+    bool ResourceHandle<resource_t, table_resource_t>::valid( ) const
+    {
+        return table_ptr_ != nullptr && handle_info_.index != NULL_HANDLE_INDEX;
+    }
 
 
     template <typename resource_t, typename table_resource_t>

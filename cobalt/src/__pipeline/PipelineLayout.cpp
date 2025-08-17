@@ -12,12 +12,6 @@ namespace cobalt
         : device_ref_{ device }
         , descriptor_sets_{ descriptor_sets.begin( ), descriptor_sets.end( ) }
     {
-        std::ranges::sort( descriptor_sets_,
-                           []( DescriptorSet const* a, DescriptorSet const* b )
-                               {
-                                   return a->offset( ) < b->offset( );
-                               } );
-
         std::vector<VkDescriptorSetLayout> raw_layouts( descriptor_sets_.size( ) );
         std::ranges::transform(
             descriptor_sets_, raw_layouts.begin( ),

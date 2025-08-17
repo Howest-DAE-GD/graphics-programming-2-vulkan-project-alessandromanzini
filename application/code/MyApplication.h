@@ -43,7 +43,7 @@ private:
     static constexpr uint32_t TEXTURES_COUNT_{ 69u };
 
     static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
-    static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };
+    static constexpr std::string_view SKYBOX_PATH_{ "resources/circus_arena_4k.hdr" };
 
     bool running_{ false };
 
@@ -57,9 +57,9 @@ private:
     cobalt::CommandPoolHandle command_pool_{};
     cobalt::DescriptorAllocatorHandle descriptor_allocator_{};
 
+    cobalt::PipelineLayoutHandle cubemap_sampling_pipeline_layout_{};
     cobalt::PipelineLayoutHandle sampling_pipeline_layout_{};
     cobalt::PipelineLayoutHandle processing_pipeline_layout_{};
-    cobalt::PipelineLayoutHandle cubemap_pipeline_layout_{};
     cobalt::PipelineHandle depth_prepass_pipeline_{};
     cobalt::PipelineHandle gbuffer_pass_pipeline_{};
     cobalt::PipelineHandle lighting_pass_pipeline_{};
@@ -72,6 +72,7 @@ private:
     cobalt::ImageCollectionHandle material_images_{};
     cobalt::ImageCollectionHandle post_processing_images_{};
     cobalt::ImageHandle cube_skybox_image_{};
+    cobalt::ImageHandle cube_diffuse_irradiance_image_{};
     cobalt::ModelHandle model_{};
 
     std::vector<cobalt::BufferHandle> camera_uniform_buffers_{};
@@ -81,13 +82,14 @@ private:
     void create_render_images( VkExtent2D extent );
     void create_pipelines( );
 
-    void write_descriptor_sets( );
+    void write_textures_descriptor_sets( );
+    void write_cube_textures_descriptor_sets( cobalt::Image const& temp_image );
 
     // .RENDERING
     void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index, uint32_t frame_index );
-    void render_to_cubemap( cobalt::ImageHandle& render_target, std::filesystem::path const& path_to_image,
-                            cobalt::shader::ShaderModule shader_vert, cobalt::shader::ShaderModule shader_frag );
-    void render_skybox( );
+    void render_to_cubemap( cobalt::Image& attachment, cobalt::shader::ShaderModule vert, cobalt::shader::ShaderModule frag );
+    void render_skybox_map( );
+    void render_irradiance_map( );
     void update_camera_data( uint32_t current_image ) const;
 
     // .UTILITIES

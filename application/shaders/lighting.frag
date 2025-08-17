@@ -5,8 +5,7 @@
 
 
 // CONSTANTS
-//const vec3 AMBIENT_LIGHT = vec3( 0.03f );
-const vec3 AMBIENT_LIGHT = vec3( 0.0002f );
+const float EXPOSURE_COMPENSATION = .005f;
 const bool ENABLE_RANGE_FALLOFF = true;
 
 const int LIGHT_COUNT = 3;
@@ -37,7 +36,8 @@ layout ( set = 1, binding = 0 ) uniform sampler shared_sampler;
 layout ( set = 1, binding = 2 ) uniform texture2D depth_texture;
 layout ( set = 1, binding = 3 ) uniform texture2D albedo_texture;
 layout ( set = 1, binding = 4 ) uniform texture2D material_texture;
-layout ( set = 2, binding = 1 ) uniform textureCube environment_map;
+layout ( set = 2, binding = 2 ) uniform textureCube environment_map;
+layout ( set = 2, binding = 3 ) uniform textureCube diffuse_irradiance_map;
 
 
 // FUNCTIONS
@@ -114,7 +114,7 @@ void main( )
 
         // cook-torrance brdf
         const float NDF = distribution_ggx( N, H, roughness );
-        const float G = geometry_smith( N, V, L, roughness );
+        const float G = geometry_smith( N, V, L, roughness, false );
         const vec3 F = fresnel_schlick( max( dot( H, V ), 0.f ), F0 );
 
         // diffuse and specular components
@@ -130,7 +130,11 @@ void main( )
         Lo += ( kD * albedo / PI + specular ) * E * cos_law;
     }
 
-    const vec3 ambient = albedo.rgb * ( AMBIENT_LIGHT * ao );
+    // calculate ambient diffuse irradiance
+    const vec3 prefiltered_diffuse_E = texture( samplerCube( diffuse_irradiance_map, shared_sampler ),
+                                                vec3( world_pos.x, -world_pos.y, world_pos.z ) ).rgb;
+
+    const vec3 ambient = albedo.rgb * prefiltered_diffuse_E.rgb * EXPOSURE_COMPENSATION * ao;
     const vec3 color = pow( ( ambient + Lo ) / ( ambient + Lo + vec3( 1.f ) ), vec3( 1.f / 2.2f ) );
 
     out_color = vec4( color.rgb, 1.f );

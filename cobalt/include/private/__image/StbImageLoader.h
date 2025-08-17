@@ -9,6 +9,7 @@
 namespace cobalt::image
 {
     [[nodiscard]] uint32_t to_channel_count( VkFormat format );
+    [[nodiscard]] bool is_float_texel( VkFormat format );
 }
 
 namespace cobalt
