@@ -5,14 +5,15 @@
 
 
 // CONSTANTS
-const float EXPOSURE_COMPENSATION = .005f;
+const float EXPOSURE_COMPENSATION = 0.35f;
 const bool ENABLE_RANGE_FALLOFF = true;
 
 const int LIGHT_COUNT = 3;
 const Light lights[LIGHT_COUNT] = Light[](
-    Light( vec3( -8.4f, 0.5f, 0.f ), vec3( 200.f, 100.f, 0.f ), .2f, 4.f ),
-    Light( vec3( 0.f, 0.5f, 0.f ), vec3( 0.f, 200.f, 0.f ), .5f, 5.f ),
-    Light( vec3( 8.4f, 0.5f, 0.f ), vec3( 0.f, 0.f, 200.f ), .2f, 4.f ) );
+    //Light( vec3( 1.f, 0.f, 0.f ), vec3( 200.f, 100.f, 0.f ), 10.f, 4.f, 1 ),
+    Light( vec3( -8.4f, 0.5f, 0.f ), vec3( 200.f, 100.f, 0.f ), 10.f, 4.f, 0 ),
+    Light( vec3( 0.f, 0.5f, 0.f ), vec3( 0.f, 200.f, 0.f ), .5f, 5.f, 0 ),
+    Light( vec3( 8.4f, 0.5f, 0.f ), vec3( 0.f, 0.f, 200.f ), .2f, 4.f, 0 ) );
 
 
 // INPUT
@@ -70,6 +71,32 @@ vec3 calculate_directional_light_irradiance( const Light light, const vec3 world
     return light.color.rgb * I;
 }
 
+void calculate_direct_diffuse_specular(
+in vec3 N, in vec3 V, in vec3 L, in vec3 H, in vec3 albedo, in float metallic, in float roughness, in vec3 F0, out vec3 diffuse, out vec3 specular )
+{
+    // cook-torrance brdf
+    const float NDF = distribution_ggx( N, H, roughness );
+    const float G = geometry_smith( N, V, L, roughness, false );
+    const vec3 F = fresnel_schlick( max( dot( H, V ), 0.f ), F0 );
+
+    // diffuse and specular components
+    const vec3 kS = F;
+    const vec3 kD = ( vec3( 1.f ) - kS ) * ( 1.f - metallic );
+
+    const vec3 numerator = NDF * G * F;
+    const float denominator = 4.f * max( dot( N, V ), 0.f ) * max( dot( N, L ), 0.f ) + 0.001f;
+    specular = numerator / denominator;
+    diffuse = kD * albedo.rgb / PI;
+}
+
+vec3 calculate_ambient_light( in vec3 N, in vec3 V, in vec3 albedo, in float metallic, in float roughness, in vec3 F0 )
+{
+    const vec3 F = fresnel_schlick_roughness( max( dot( V, N ), 0.f ), F0, roughness );
+    const vec3 prefiltered_diffuse_E = texture( samplerCube( diffuse_irradiance_map, shared_sampler ), vec3( N.x, -N.y, N.z ) ).rgb;
+    const vec3 kD = ( 1.f - F ) * ( 1.f - metallic );
+    return kD * prefiltered_diffuse_E * albedo.rgb;
+}
+
 
 // SHADER ENTRY POINT
 void main( )
@@ -89,7 +116,7 @@ void main( )
         return;
     }
 
-    // extract material values
+    // fetch material values
     const vec3 albedo = texelFetch( sampler2D( albedo_texture, shared_sampler ), ifrag_coord, 0 ).rgb;
     const float ao = texelFetch( sampler2D( albedo_texture, shared_sampler ), ifrag_coord, 0 ).r;
     const float metallic = texelFetch( sampler2D( material_texture, shared_sampler ), ifrag_coord, 0 ).b;
@@ -106,36 +133,41 @@ void main( )
     vec3 Lo = vec3( 0.f );
     for ( int i = 0; i < LIGHT_COUNT; ++i )
     {
-        const vec3 L = normalize( lights[i].position - world_pos );
+        vec3 E; vec3 L;
+        switch ( lights[i].type )
+        {
+            case 0: // point light
+                E = calculate_point_light_irradiance( lights[i], world_pos.xyz );
+                L = normalize( lights[i].position - world_pos );
+                break;
+
+            case 1: // directional light
+                E = calculate_directional_light_irradiance( lights[i], world_pos.xyz );
+                L = normalize( lights[i].position );
+                break;
+
+            default: // unsupported light type
+                continue;
+        }
+
         const vec3 H = normalize( L + V );
 
-        // irradiance
-        const vec3 E = calculate_point_light_irradiance( lights[i], world_pos.xyz );
-
-        // cook-torrance brdf
-        const float NDF = distribution_ggx( N, H, roughness );
-        const float G = geometry_smith( N, V, L, roughness, false );
-        const vec3 F = fresnel_schlick( max( dot( H, V ), 0.f ), F0 );
-
         // diffuse and specular components
-        const vec3 kS = F;
-        const vec3 kD = ( vec3( 1.f ) - kS ) * ( 1.f - metallic );
+        vec3 diffuse; vec3 specular;
+        calculate_direct_diffuse_specular( N, V, L, H, albedo, metallic, roughness, F0, diffuse, specular );
 
-        const vec3 numerator = NDF * G * F;
-        const float denominator = 4.f * max( dot( N, V ), 0.f ) * max( dot( N, L ), 0.f ) + 0.001f;
-        const vec3 specular = numerator / denominator;
+        // lambertian cosine law
+        const float cos_law = max( dot( N, L ), 0.f );
 
         // accumulate outgoing radiance
-        const float cos_law = max( dot( N, L ), 0.f );
-        Lo += ( kD * albedo / PI + specular ) * E * cos_law;
+        Lo += ( diffuse + specular ) * E * cos_law;
     }
 
-    // calculate ambient diffuse irradiance
-    const vec3 prefiltered_diffuse_E = texture( samplerCube( diffuse_irradiance_map, shared_sampler ),
-                                                vec3( world_pos.x, -world_pos.y, world_pos.z ) ).rgb;
+    // calculate indirect irradiance
+    const vec3 ambient = calculate_ambient_light( N, V, albedo, metallic, roughness, F0 );
 
-    const vec3 ambient = albedo.rgb * prefiltered_diffuse_E.rgb * EXPOSURE_COMPENSATION * ao;
-    const vec3 color = pow( ( ambient + Lo ) / ( ambient + Lo + vec3( 1.f ) ), vec3( 1.f / 2.2f ) );
+    vec3 final_color = ( Lo + ambient ) * ao * EXPOSURE_COMPENSATION;
+    final_color = pow( final_color / ( final_color + vec3( 1.f ) ), vec3( 1.f / 2.2f ) );
 
-    out_color = vec4( color.rgb, 1.f );
+    out_color = vec4( final_color.rgb, 1.f );
 }

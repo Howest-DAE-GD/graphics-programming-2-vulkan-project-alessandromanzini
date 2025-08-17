@@ -4,8 +4,6 @@
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
 # Project files
-*/!circus_arena_4k.hdr
-*/!night_test_4k.hdr
 
 # User-specific files
 *.rsuser

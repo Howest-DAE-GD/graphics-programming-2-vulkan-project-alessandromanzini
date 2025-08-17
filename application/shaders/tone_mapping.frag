@@ -25,5 +25,5 @@ void main( )
     const float EV100 = 0.f;
     const float exposure = EV100_to_exposure( EV100, 1.2f );
 
-    out_color = vec4( uncharted2_tone_mapping( hdr_color.rgb * exposure ).rgb, 1.f );
+    out_color = vec4( ACES_film_tone_mapping( hdr_color.rgb * exposure ).rgb, 1.f );
 }

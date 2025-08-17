@@ -7,6 +7,7 @@ struct Light {
     vec3 color;
     float lumen;
     float range;
+    uint type; // 0: point, 1: directional
 };
 
 
@@ -55,6 +56,12 @@ float geometry_smith( in vec3 N, in vec3 V, in vec3 L, in float roughness, in bo
 vec3 fresnel_schlick( in float cos_theta, in vec3 F0 )
 {
     return F0 + ( 1.f - F0 ) * pow( clamp( 1.f - cos_theta, 0.f, 1.f ), 5.f );
+}
+
+
+vec3 fresnel_schlick_roughness( in float cos_theta, in vec3 F0, in float roughness )
+{
+    return F0 + ( max( vec3( 1.f - roughness ), F0 ) - F0 ) * pow( clamp( 1.f - cos_theta, 0.f, 1.f ), 5.f );
 }
 
 

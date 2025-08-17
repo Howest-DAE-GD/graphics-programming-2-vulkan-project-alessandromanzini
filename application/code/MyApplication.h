@@ -43,7 +43,7 @@ private:
     static constexpr uint32_t TEXTURES_COUNT_{ 69u };
 
     static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
-    static constexpr std::string_view SKYBOX_PATH_{ "resources/circus_arena_4k.hdr" };
+    static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };
 
     bool running_{ false };
 
