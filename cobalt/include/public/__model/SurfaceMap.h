@@ -10,10 +10,10 @@ namespace cobalt
 {
     struct SurfaceMap
     {
-        union BaseMaterialUnion
+        union
         {
             glm::uvec4 indices{ UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX };
-            struct BaseMaterialIndices
+            struct
             {
                 uint32_t base_color_index;
                 uint32_t normal_map_index;
@@ -22,10 +22,10 @@ namespace cobalt
             } value;
         } base;
 
-        union ExtraMaterialUnion
+        union
         {
             glm::uvec4 indices{ UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX };
-            struct ExtraMaterialIndices
+            struct
             {
                 uint32_t ao_index;
                 uint32_t padding[3];

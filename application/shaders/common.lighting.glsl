@@ -3,8 +3,8 @@
 
 // STRUCTS
 struct Light {
-    vec3 position;
-    vec3 color;
+    vec4 position;
+    vec4 color;
     float lumen;
     float range;
     uint type; // 0: point, 1: directional

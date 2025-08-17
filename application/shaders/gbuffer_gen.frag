@@ -17,7 +17,6 @@ layout ( location = 1 ) out vec4 out_material;
 
 // BINDINGS
 layout ( push_constant ) uniform SurfaceDescription { uint surface_id; } SD;
-
 layout ( set = 0, binding = 1 ) readonly buffer SurfaceBufferData { SurfaceMap maps[]; } surface_buffer;
 
 layout ( constant_id = 0 ) const uint TEXTURE_COUNT = 1u;

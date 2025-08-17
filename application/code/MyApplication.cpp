@@ -3,7 +3,6 @@
 #include "Camera.h"
 #include "debug_callback.h"
 #include "Timer.h"
-#include "UniformBufferObject.h"
 
 #include <cobalt_vk/core.h>
 
@@ -14,6 +13,7 @@
 
 
 using namespace cobalt;
+using namespace dae;
 
 
 // +---------------------------+
@@ -96,12 +96,8 @@ MyApplication::MyApplication( )
     // 9. Model
     model_ = CVK.create_resource<Model>( context_->device( ), *command_pool_, loader::AssimpModelLoader{ MODEL_PATH_ } );
 
-    // 10. Uniform buffers
-    for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
-    {
-        camera_uniform_buffers_.emplace_back(
-            CVK.create_resource<Buffer>( buffer::make_uniform_buffer( context_->device( ), sizeof( CameraData ) ) ) );
-    }
+    // 10. Buffers
+    create_uniform_buffers( );
 
     // 11. Update descriptor sets
     write_textures_descriptor_sets( );
@@ -172,6 +168,9 @@ void MyApplication::create_descriptor_allocator( )
 
                 // Surface Maps Buffer
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER },
+
+                // Lights Buffer
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
             } )
         .define(
             "l_textures",
@@ -180,7 +179,7 @@ void MyApplication::create_descriptor_allocator( )
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
 
                 // Textures
-                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, TEXTURES_COUNT_ },
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, TEXTURE_COUNT_ },
 
                 // Swapchain Depth Image
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
@@ -249,6 +248,22 @@ void MyApplication::create_render_images( VkExtent2D const extent )
 }
 
 
+void MyApplication::create_uniform_buffers( )
+{
+    // camera
+    for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
+    {
+        camera_uniform_buffers_.emplace_back(
+            CVK.create_resource<Buffer>( buffer::make_uniform_buffer( context_->device( ), sizeof( CameraData ) * MAX_FRAMES_IN_FLIGHT_ ) ) );
+    }
+
+    // lights
+    lights_buffer_ = CVK.create_resource<Buffer>(
+        buffer::make_uniform_buffer( context_->device( ), sizeof( LightData ) * LIGHT_COUNT_ ) );
+    lights_buffer_->write( LIGHTS.data( ), sizeof( LightData ) * LIGHT_COUNT_ );
+}
+
+
 void MyApplication::create_pipelines( )
 {
     // Layouts
@@ -296,14 +311,14 @@ void MyApplication::create_pipelines( )
         constexpr VkSpecializationMapEntry specialization_entry{
             .constantID = 0u,
             .offset = 0u,
-            .size = sizeof( TEXTURES_COUNT_ ),
+            .size = sizeof( TEXTURE_COUNT_ ),
         };
 
         VkSpecializationInfo const specialization_info{
             .mapEntryCount = 1u,
             .pMapEntries = &specialization_entry,
-            .dataSize = sizeof( TEXTURES_COUNT_ ),
-            .pData = &TEXTURES_COUNT_
+            .dataSize = sizeof( TEXTURE_COUNT_ ),
+            .pData = &TEXTURE_COUNT_
         };
 
         depth_prepass_pipeline_ = CVK.create_resource<Pipeline>(
@@ -323,14 +338,14 @@ void MyApplication::create_pipelines( )
         constexpr VkSpecializationMapEntry specialization_entry{
             .constantID = 0u,
             .offset = 0u,
-            .size = sizeof( TEXTURES_COUNT_ ),
+            .size = sizeof( TEXTURE_COUNT_ ),
         };
 
         VkSpecializationInfo const specialization_info{
             .mapEntryCount = 1u,
             .pMapEntries = &specialization_entry,
-            .dataSize = sizeof( TEXTURES_COUNT_ ),
-            .pData = &TEXTURES_COUNT_
+            .dataSize = sizeof( TEXTURE_COUNT_ ),
+            .pData = &TEXTURE_COUNT_
         };
 
         gbuffer_pass_pipeline_ = CVK.create_resource<Pipeline>(
@@ -359,10 +374,24 @@ void MyApplication::create_pipelines( )
 
     // Lighting pass pipeline
     {
+        constexpr VkSpecializationMapEntry specialization_entry{
+            .constantID = 0u,
+            .offset = 0u,
+            .size = sizeof( LIGHT_COUNT_ ),
+        };
+
+        VkSpecializationInfo const specialization_info{
+            .mapEntryCount = 1u,
+            .pMapEntries = &specialization_entry,
+            .dataSize = sizeof( LIGHT_COUNT_ ),
+            .pData = &LIGHT_COUNT_
+        };
+
         lighting_pass_pipeline_ = CVK.create_resource<Pipeline>(
             builder::GraphicsPipelineBuilder{}
             .add_shader_module( { context_->device( ), "shaders/quad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
-            .add_shader_module( { context_->device( ), "shaders/lighting.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } )
+            .add_shader_module( { context_->device( ), "shaders/lighting.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
+                                &specialization_info )
             .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
             .set_depth_stencil_mode( VK_FALSE, VK_FALSE )
             .set_cull_mode( VK_CULL_MODE_NONE )
@@ -407,7 +436,7 @@ void MyApplication::write_textures_descriptor_sets( )
                         return {
                             .buffer = camera_uniform_buffers_[frame_index]->handle( ),
                             .offset = 0u,
-                            .range = sizeof( CameraData ),
+                            .range = camera_uniform_buffers_[frame_index]->buffer_size( ),
                         };
                     }
             },
@@ -419,6 +448,17 @@ void MyApplication::write_textures_descriptor_sets( )
                             .buffer = model_->surface_buffer( ).handle( ),
                             .offset = 0u,
                             .range = model_->surface_buffer( ).memory_size( )
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                [this]( uint32_t ) -> VkDescriptorBufferInfo
+                    {
+                        return {
+                            .buffer = lights_buffer_->handle( ),
+                            .offset = 0u,
+                            .range = lights_buffer_->memory_size( )
                         };
                     }
             },

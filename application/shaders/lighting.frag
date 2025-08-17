@@ -8,13 +8,6 @@
 const float EXPOSURE_COMPENSATION = 0.35f;
 const bool ENABLE_RANGE_FALLOFF = true;
 
-const int LIGHT_COUNT = 3;
-const Light lights[LIGHT_COUNT] = Light[](
-    //Light( vec3( 1.f, 0.f, 0.f ), vec3( 200.f, 100.f, 0.f ), 10.f, 4.f, 1 ),
-    Light( vec3( -8.4f, 0.5f, 0.f ), vec3( 200.f, 100.f, 0.f ), 10.f, 4.f, 0 ),
-    Light( vec3( 0.f, 0.5f, 0.f ), vec3( 0.f, 200.f, 0.f ), .5f, 5.f, 0 ),
-    Light( vec3( 8.4f, 0.5f, 0.f ), vec3( 0.f, 0.f, 200.f ), .2f, 4.f, 0 ) );
-
 
 // INPUT
 layout ( location = 0 ) in vec2 in_uv;
@@ -40,11 +33,14 @@ layout ( set = 1, binding = 4 ) uniform texture2D material_texture;
 layout ( set = 2, binding = 2 ) uniform textureCube environment_map;
 layout ( set = 2, binding = 3 ) uniform textureCube diffuse_irradiance_map;
 
+layout ( constant_id = 0 ) const uint LIGHT_COUNT = 1u;
+layout ( set = 0, binding = 2 ) uniform LightBufferData { Light lights[LIGHT_COUNT]; } light_buffer;
+
 
 // FUNCTIONS
 vec3 calculate_point_light_irradiance( const Light light, const vec3 world_pos )
 {
-    const float distance_to_light = length( light.position - world_pos );
+    const float distance_to_light = length( light.position.xyz - world_pos );
 
     // calculate attenuation
     float range_falloff = 1.f;
@@ -58,7 +54,7 @@ vec3 calculate_point_light_irradiance( const Light light, const vec3 world_pos )
     const float I = light.lumen / ( 4.f * PI );
 
     // spectral illuminance/irradiance -> E = rgb * I * attenuation
-    return light.color.rgb * I * attenuation;
+    return clamp( light.color.rgb, 0.f, 1.f ) * I * attenuation;
 }
 
 vec3 calculate_directional_light_irradiance( const Light light, const vec3 world_pos )
@@ -68,7 +64,7 @@ vec3 calculate_directional_light_irradiance( const Light light, const vec3 world
 
     // spectral illuminance/irradiance -> E = rgb * I
     // since the light is directional, we don't need to consider attenuation.
-    return light.color.rgb * I;
+    return clamp( light.color.rgb, 0.f, 1.f ) * I;
 }
 
 void calculate_direct_diffuse_specular(
@@ -134,16 +130,16 @@ void main( )
     for ( int i = 0; i < LIGHT_COUNT; ++i )
     {
         vec3 E; vec3 L;
-        switch ( lights[i].type )
+        switch ( light_buffer.lights[i].type )
         {
             case 0: // point light
-                E = calculate_point_light_irradiance( lights[i], world_pos.xyz );
-                L = normalize( lights[i].position - world_pos );
+                E = calculate_point_light_irradiance( light_buffer.lights[i], world_pos.xyz );
+                L = normalize( light_buffer.lights[i].position.xyz - world_pos );
                 break;
 
             case 1: // directional light
-                E = calculate_directional_light_irradiance( lights[i], world_pos.xyz );
-                L = normalize( lights[i].position );
+                E = calculate_directional_light_irradiance( light_buffer.lights[i], world_pos.xyz );
+                L = normalize( light_buffer.lights[i].position.xyz );
                 break;
 
             default: // unsupported light type

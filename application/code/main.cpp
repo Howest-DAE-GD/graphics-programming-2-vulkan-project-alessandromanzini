@@ -7,7 +7,7 @@ int main( )
 {
     try
     {
-        MyApplication app{};
+        dae::MyApplication app{};
         app.run( );
     }
     catch ( std::exception const& e )

@@ -7,7 +7,7 @@
 #include <string_view>
 
 
-namespace debug
+namespace dae::debug
 {
     static VKAPI_ATTR VkBool32 VKAPI_CALL debug_callback( VkDebugUtilsMessageSeverityFlagBitsEXT const message_severity,
                                                           VkDebugUtilsMessageTypeFlagsEXT /* message_type */,
