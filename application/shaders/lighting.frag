@@ -54,7 +54,7 @@ vec3 calculate_point_light_irradiance( const Light light, const vec3 world_pos )
     const float I = light.lumen / ( 4.f * PI );
 
     // spectral illuminance/irradiance -> E = rgb * I * attenuation
-    return clamp( light.color.rgb, 0.f, 1.f ) * I * attenuation;
+    return clamp( kelvin_to_rgb( light.kelvin ), 0.f, 1.f ) * I * attenuation;
 }
 
 vec3 calculate_directional_light_irradiance( const Light light, const vec3 world_pos )
@@ -64,7 +64,7 @@ vec3 calculate_directional_light_irradiance( const Light light, const vec3 world
 
     // spectral illuminance/irradiance -> E = rgb * I
     // since the light is directional, we don't need to consider attenuation.
-    return clamp( light.color.rgb, 0.f, 1.f ) * I;
+    return clamp( kelvin_to_rgb( light.kelvin ), 0.f, 1.f ) * I;
 }
 
 void calculate_direct_diffuse_specular(
@@ -159,7 +159,7 @@ void main( )
         Lo += ( diffuse + specular ) * E * cos_law;
     }
 
-    // calculate indirect irradiance
+    // calculate global illumination
     const vec3 ambient = calculate_ambient_light( N, V, albedo, metallic, roughness, F0 );
 
     vec3 final_color = ( Lo + ambient ) * ao * EXPOSURE_COMPENSATION;

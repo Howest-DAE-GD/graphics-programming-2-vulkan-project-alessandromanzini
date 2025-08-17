@@ -56,26 +56,32 @@ namespace dae
 
         static constexpr std::array<LightData, LIGHT_COUNT_> LIGHTS{
             LightData{
-                .spatial = { .position = { -8.4f, 0.5f, 0.f, 0.f } },
-                .color = { 0.8f, 0.6f, 0.f, 1.f },
+                .spatial = { .direction = glm::vec4{ -0.15f, 0.f, 1.f, 0.f } },
                 .params = {
-                    .info = { .lumen = 1000.f, .range = 4.f, .type = LightType::POINT }
+                    .info = { .kelvin = 10'000.f, .lumen = 60.f, .type = LightType::DIRECTIONAL }
                 }
             },
-            LightData{
-                .spatial = { .position = { 0.f, 0.5f, 0.f, 0.f } },
-                .color = { 0.f, 0.6f, 0.f, 1.f },
-                .params = {
-                    .info = { .lumen = 500.f, .range = 3.f, .type = LightType::POINT }
-                }
-            },
-            LightData{
-                .spatial = { .position = { 8.4f, 0.5f, 0.f, 0.f } },
-                .color = { 0.f, 0.2f, 0.6f, 1.f },
-                .params = {
-                    .info = { .lumen = 200.f, .range = 3.f, .type = LightType::POINT }
-                }
-            }
+            // LightData{
+            //     .spatial = { .position = { -8.4f, 0.5f, 0.f, 0.f } },
+            //     .color = { 0.8f, 0.6f, 0.f, 1.f },
+            //     .params = {
+            //         .info = { .lumen = 1000.f, .range = 4.f, .type = LightType::POINT }
+            //     }
+            // },
+            // LightData{
+            //     .spatial = { .position = { 0.f, 0.5f, 0.f, 0.f } },
+            //     .color = { 0.f, 0.6f, 0.f, 1.f },
+            //     .params = {
+            //         .info = { .lumen = 500.f, .range = 3.f, .type = LightType::POINT }
+            //     }
+            // },
+            // LightData{
+            //     .spatial = { .position = { 8.4f, 0.5f, 0.f, 0.f } },
+            //     .color = { 0.f, 0.2f, 0.6f, 1.f },
+            //     .params = {
+            //         .info = { .lumen = 200.f, .range = 3.f, .type = LightType::POINT }
+            //     }
+            // }
         };
 
         bool running_{ false };

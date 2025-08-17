@@ -22,7 +22,7 @@ void main( )
 {
     const vec3 hdr_color = texture( sampler2D( hdr_color_texture, shared_sampler ), in_uv ).rgb;
 
-    const float EV100 = 0.f;
+    const float EV100 = 1.f;
     const float exposure = EV100_to_exposure( EV100, 1.2f );
 
     out_color = vec4( ACES_film_tone_mapping( hdr_color.rgb * exposure ).rgb, 1.f );

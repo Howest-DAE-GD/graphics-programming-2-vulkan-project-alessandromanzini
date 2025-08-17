@@ -34,17 +34,15 @@ namespace dae
             glm::vec4 direction;
         } spatial;
 
-        glm::vec4 color{ 1.f };
-
         union
         {
             glm::vec4 data{ 0.f, 0.f, 0.f, 0.f };
             struct
             {
+                float kelvin;
                 float lumen;
                 float range;
                 LightType type;
-                float padding;
             } info;
         } params;
     };

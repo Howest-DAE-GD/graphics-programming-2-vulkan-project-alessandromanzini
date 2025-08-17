@@ -4,7 +4,7 @@
 // STRUCTS
 struct Light {
     vec4 position;
-    vec4 color;
+    float kelvin;
     float lumen;
     float range;
     uint type; // 0: point, 1: directional
@@ -70,4 +70,16 @@ float radiance_to_luminance( in vec3 Lo )
 {
     // human eye’s photopic response curve mapping
     return dot( Lo, vec3( 0.2126f, 0.7152f, 0.0722f ) );
+}
+
+
+// COLOR
+vec3 kelvin_to_rgb( in float kelvin )
+{
+    const float temp = kelvin / 100.f;
+    const float r = ( temp <= 66.f ) ? 1.f : clamp( 1.29293618606f * pow( temp - 60.f, -0.1332047592f ), 0.f, 1.f );
+    const float g = ( temp <= 66.f ) ?
+    clamp( 0.390081578769f * log( temp ) - 0.63184144378f, 0.f, 1.f ) : clamp( 1.12989086089f * pow( temp - 60.f, -0.0755148492f ), 0.f, 1.f );
+    const float b = ( temp >= 66.f ) ? 1.f : temp <= 19.f ? 0.f : clamp( 0.54320678911f * log( temp - 10.f ) - 1.19625408914f, 0.f, 1.f );
+    return vec3( r, g, b );
 }
