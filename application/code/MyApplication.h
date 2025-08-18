@@ -49,14 +49,13 @@ namespace dae
         // In general, we don't want more than 2 frames in flight at a time. That might cause the CPU to get ahead of the GPU.
         static constexpr uint32_t MAX_FRAMES_IN_FLIGHT_{ 2u };
         static constexpr uint32_t TEXTURE_COUNT_{ 69u };
-        static constexpr uint32_t LIGHT_COUNT_{ 3u };
 
         static constexpr uint32_t SHADOW_MAP_SIZE_{ 1024u };
 
         static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
         static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };
 
-        std::array<LightData, LIGHT_COUNT_> lights_{
+        std::array<LightData, 1u> lights_{
             LightData{
                 .spatial = { .direction = glm::vec4{ 0.f, -1.f, 0.f, 0.f } },
                 .params = {

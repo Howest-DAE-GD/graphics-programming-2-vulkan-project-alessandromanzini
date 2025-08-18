@@ -232,7 +232,10 @@ void MyApplication::create_descriptor_allocator( )
                      { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
 
                      // Shadow Map Depth Images
-                     { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, LIGHT_COUNT_ }
+                     {
+                         VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                         static_cast<uint32_t>( lights_.size( ) )
+                     }
                  } )
         .alloc( "buffer", "l_buffer", MAX_FRAMES_IN_FLIGHT_ )
         .alloc( "textures", "l_textures", MAX_FRAMES_IN_FLIGHT_ )
@@ -286,7 +289,7 @@ void MyApplication::create_shadow_map_images( uint32_t const size )
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT,
             .view_type = VK_IMAGE_VIEW_TYPE_2D,
-        }, LIGHT_COUNT_ );
+        }, static_cast<uint32_t>( lights_.size( ) ) );
 }
 
 
@@ -298,9 +301,7 @@ void MyApplication::create_uniform_buffers( )
         camera_uniform_buffers_.emplace_back(
             CVK.create_resource<Buffer>(
                 buffer::make_uniform_buffer( context_->device( ), sizeof( CameraData ) * MAX_FRAMES_IN_FLIGHT_ ) ) );
-    }
-
-    {
+    } {
         // Calculate light views and projections
         auto const [aabb_min, aabb_max] = model_->aabb( );
         for ( LightData& light : lights_ )
@@ -309,8 +310,8 @@ void MyApplication::create_uniform_buffers( )
         }
 
         lights_buffer_ = CVK.create_resource<Buffer>(
-            buffer::make_uniform_buffer( context_->device( ), sizeof( LightData ) * LIGHT_COUNT_ ) );
-        lights_buffer_->write( lights_.data( ), sizeof( LightData ) * LIGHT_COUNT_ );
+            buffer::make_uniform_buffer( context_->device( ), sizeof( LightData ) * lights_.size( ) ) );
+        lights_buffer_->write( lights_.data( ), sizeof( LightData ) * lights_.size( ) );
     }
 }
 
@@ -437,17 +438,18 @@ void MyApplication::create_pipelines( )
 
     // Lighting pass pipeline
     {
+        auto const lights_count = static_cast<uint32_t>( lights_.size( ) );
         constexpr VkSpecializationMapEntry specialization_entry{
             .constantID = 0u,
             .offset = 0u,
-            .size = sizeof( LIGHT_COUNT_ ),
+            .size = sizeof( lights_count ),
         };
 
         VkSpecializationInfo const specialization_info{
             .mapEntryCount = 1u,
             .pMapEntries = &specialization_entry,
-            .dataSize = sizeof( LIGHT_COUNT_ ),
-            .pData = &LIGHT_COUNT_
+            .dataSize = sizeof( lights_count ),
+            .pData = &lights_count
         };
 
         lighting_pass_pipeline_ = CVK.create_resource<Pipeline>(
@@ -1076,7 +1078,6 @@ void MyApplication::render_shadow_maps( )
 
     // Render pass
     {
-
         auto const& cmd_buffer = command_pool_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
         cmd_buffer.reset( );
 
@@ -1120,7 +1121,8 @@ void MyApplication::render_shadow_maps( )
                 command_op.push_constants(
                     shadow_mapping_pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0u, sizeof( glm::mat4 ), &lights_[image_index].view );
                 command_op.push_constants(
-                    shadow_mapping_pipeline, VK_SHADER_STAGE_VERTEX_BIT, sizeof( glm::mat4 ), sizeof( glm::mat4 ), &lights_[image_index].proj );
+                    shadow_mapping_pipeline, VK_SHADER_STAGE_VERTEX_BIT, sizeof( glm::mat4 ), sizeof( glm::mat4 ),
+                    &lights_[image_index].proj );
                 command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
             }
 
