@@ -93,11 +93,11 @@ MyApplication::MyApplication( )
     shadow_map_sampler_ = CVK.create_resource<ImageSampler>(
         context_->device( ),
         ImageSamplerCreateInfo{
-            .filter = VK_FILTER_NEAREST,
+            .filter = VK_FILTER_LINEAR,
             .address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
             .border_color = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
             .compare_enable = VK_TRUE,
-            .compare_op = VK_COMPARE_OP_LESS_OR_EQUAL,
+            .compare_op = VK_COMPARE_OP_LESS,
         } );
 
     create_render_images( swapchain_->extent( ) );
