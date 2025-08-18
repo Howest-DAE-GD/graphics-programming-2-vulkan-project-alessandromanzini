@@ -18,6 +18,13 @@ using namespace cobalt;
 using namespace dae;
 
 
+constexpr VkSpecializationMapEntry UINT32_SPEC_ENTRY{
+    .constantID = 0u,
+    .offset = 0u,
+    .size = sizeof( uint32_t ),
+};
+
+
 // +---------------------------+
 // | PUBLIC                    |
 // +---------------------------+
@@ -94,7 +101,7 @@ MyApplication::MyApplication( )
         context_->device( ),
         ImageSamplerCreateInfo{
             .filter = VK_FILTER_LINEAR,
-            .address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .address_mode = VK_SAMPLER_ADDRESS_MODE_REPEAT,
             .border_color = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
             .compare_enable = VK_TRUE,
             .compare_op = VK_COMPARE_OP_LESS,
@@ -232,10 +239,7 @@ void MyApplication::create_descriptor_allocator( )
                      { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
 
                      // Shadow Map Depth Images
-                     {
-                         VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                         static_cast<uint32_t>( lights_.size( ) )
-                     }
+                     { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, LIGHT_COUNT_ }
                  } )
         .alloc( "buffer", "l_buffer", MAX_FRAMES_IN_FLIGHT_ )
         .alloc( "textures", "l_textures", MAX_FRAMES_IN_FLIGHT_ )
@@ -289,7 +293,7 @@ void MyApplication::create_shadow_map_images( uint32_t const size )
             .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT,
             .view_type = VK_IMAGE_VIEW_TYPE_2D,
-        }, static_cast<uint32_t>( lights_.size( ) ) );
+        }, LIGHT_COUNT_ );
 }
 
 
@@ -301,7 +305,10 @@ void MyApplication::create_uniform_buffers( )
         camera_uniform_buffers_.emplace_back(
             CVK.create_resource<Buffer>(
                 buffer::make_uniform_buffer( context_->device( ), sizeof( CameraData ) * MAX_FRAMES_IN_FLIGHT_ ) ) );
-    } {
+    }
+
+    // lights
+    {
         // Calculate light views and projections
         auto const [aabb_min, aabb_max] = model_->aabb( );
         for ( LightData& light : lights_ )
@@ -328,22 +335,11 @@ void MyApplication::create_pipelines( )
         cubemap_sampling_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
             context_->device( ), std::array{ cube_texes_set },
             std::array{
-                // View / Proj
+                // ViewProj
                 VkPushConstantRange{
                     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
                     .offset = 0u,
-                    .size = sizeof( glm::mat4 ) * 2u
-                },
-            } );
-
-        shadow_mapping_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
-            context_->device( ), std::array{ shadow_texes_set },
-            std::array{
-                // View / Proj
-                VkPushConstantRange{
-                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-                    .offset = 0u,
-                    .size = sizeof( glm::mat4 ) * 2u
+                    .size = sizeof( ViewProj )
                 },
             } );
 
@@ -355,7 +351,7 @@ void MyApplication::create_pipelines( )
                     .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
                     .offset = 0u,
                     .size = sizeof( uint32_t )
-                }
+                },
             } );
 
         processing_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
@@ -370,26 +366,28 @@ void MyApplication::create_pipelines( )
             } );
     }
 
+    // Specialization infos
+    VkSpecializationInfo const tex_spec{
+        .mapEntryCount = 1u,
+        .pMapEntries = &UINT32_SPEC_ENTRY,
+        .dataSize = sizeof( TEXTURE_COUNT_ ),
+        .pData = &TEXTURE_COUNT_
+    };
+
+    VkSpecializationInfo const light_spec{
+        .mapEntryCount = 1u,
+        .pMapEntries = &UINT32_SPEC_ENTRY,
+        .dataSize = sizeof( LIGHT_COUNT_ ),
+        .pData = &LIGHT_COUNT_
+    };
+
     // Depth pre-pass pipeline
     {
-        constexpr VkSpecializationMapEntry specialization_entry{
-            .constantID = 0u,
-            .offset = 0u,
-            .size = sizeof( TEXTURE_COUNT_ ),
-        };
-
-        VkSpecializationInfo const specialization_info{
-            .mapEntryCount = 1u,
-            .pMapEntries = &specialization_entry,
-            .dataSize = sizeof( TEXTURE_COUNT_ ),
-            .pData = &TEXTURE_COUNT_
-        };
-
         depth_prepass_pipeline_ = CVK.create_resource<Pipeline>(
             builder::GraphicsPipelineBuilder{}
             .add_shader_module( { context_->device( ), "shaders/transform.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
             .add_shader_module( { context_->device( ), "shaders/alpha_discard.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
-                                &specialization_info )
+                                &tex_spec )
             .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
             .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
             .set_depth_stencil_mode( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS )
@@ -399,24 +397,11 @@ void MyApplication::create_pipelines( )
 
     // G-Buffer generation pipeline
     {
-        constexpr VkSpecializationMapEntry specialization_entry{
-            .constantID = 0u,
-            .offset = 0u,
-            .size = sizeof( TEXTURE_COUNT_ ),
-        };
-
-        VkSpecializationInfo const specialization_info{
-            .mapEntryCount = 1u,
-            .pMapEntries = &specialization_entry,
-            .dataSize = sizeof( TEXTURE_COUNT_ ),
-            .pData = &TEXTURE_COUNT_
-        };
-
         gbuffer_pass_pipeline_ = CVK.create_resource<Pipeline>(
             builder::GraphicsPipelineBuilder{}
             .add_shader_module( { context_->device( ), "shaders/transform.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
             .add_shader_module( { context_->device( ), "shaders/gbuffer_gen.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
-                                &specialization_info )
+                                &tex_spec )
             .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
             .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
             .set_depth_stencil_mode( VK_TRUE, VK_FALSE, VK_COMPARE_OP_EQUAL )
@@ -438,25 +423,11 @@ void MyApplication::create_pipelines( )
 
     // Lighting pass pipeline
     {
-        auto const lights_count = static_cast<uint32_t>( lights_.size( ) );
-        constexpr VkSpecializationMapEntry specialization_entry{
-            .constantID = 0u,
-            .offset = 0u,
-            .size = sizeof( lights_count ),
-        };
-
-        VkSpecializationInfo const specialization_info{
-            .mapEntryCount = 1u,
-            .pMapEntries = &specialization_entry,
-            .dataSize = sizeof( lights_count ),
-            .pData = &lights_count
-        };
-
         lighting_pass_pipeline_ = CVK.create_resource<Pipeline>(
             builder::GraphicsPipelineBuilder{}
             .add_shader_module( { context_->device( ), "shaders/quad.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
             .add_shader_module( { context_->device( ), "shaders/lighting.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
-                                &specialization_info )
+                                &light_spec )
             .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
             .set_depth_stencil_mode( VK_FALSE, VK_FALSE )
             .set_cull_mode( VK_CULL_MODE_NONE )
@@ -738,8 +709,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
 
         for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
         {
-            command_op.push_constants(
-                *depth_prepass_pipeline_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof( uint32_t ), &material_index );
+            command_op.push_constants( *depth_prepass_pipeline_, VK_SHADER_STAGE_FRAGMENT_BIT, 0u, sizeof( uint32_t ),
+                                       &material_index );
             command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
         }
 
@@ -791,8 +762,8 @@ void MyApplication::record_command_buffer( CommandBuffer const& buffer, Swapchai
 
         for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
         {
-            command_op.push_constants(
-                *gbuffer_pass_pipeline_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof( uint32_t ), &material_index );
+            command_op.push_constants( *gbuffer_pass_pipeline_, VK_SHADER_STAGE_FRAGMENT_BIT, 0u, sizeof( uint32_t ),
+                                       &material_index );
             command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
         }
 
@@ -906,8 +877,10 @@ void MyApplication::render_to_cubemap( Image& attachment, shader::ShaderModule v
 
     // Render pass
     {
-        glm::mat4 proj = glm::perspective( glm::radians( 90.f ), 1.f, .01f, 10.f );
-        proj[1][1] *= -1.f;
+        ViewProj vp;
+
+        vp.proj = glm::perspective( glm::radians( 90.f ), 1.f, .01f, 10.f );
+        vp.proj[1][1] *= -1.f;
 
         constexpr glm::vec3 eye{ 0.f };
         glm::mat4 const views[6]{
@@ -973,9 +946,8 @@ void MyApplication::render_to_cubemap( Image& attachment, shader::ShaderModule v
 
                 command_op.bind_pipeline( cubemap_pipeline, 0u );
 
-                command_op.push_constants( cubemap_pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0u, sizeof( glm::mat4 ), &proj );
-                command_op.push_constants(
-                    cubemap_pipeline, VK_SHADER_STAGE_VERTEX_BIT, sizeof( glm::mat4 ), sizeof( glm::mat4 ), &views[view_index] );
+                vp.view = views[view_index];
+                command_op.push_constants( cubemap_pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0u, sizeof( ViewProj ), &vp );
                 command_op.draw( 36, 1 );
 
                 command_op.end_rendering( );
@@ -1064,16 +1036,24 @@ void MyApplication::render_irradiance_map( )
 void MyApplication::render_shadow_maps( )
 {
     // Pipeline
+    VkSpecializationInfo const tex_spec{
+        .mapEntryCount = 1u,
+        .pMapEntries = &UINT32_SPEC_ENTRY,
+        .dataSize = sizeof( TEXTURE_COUNT_ ),
+        .pData = &TEXTURE_COUNT_
+    };
+
     Pipeline const shadow_mapping_pipeline{
         builder::GraphicsPipelineBuilder{}
         .add_shader_module( { context_->device( ), "shaders/simple_transform.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
-        .add_shader_module( { context_->device( ), "shaders/empty.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } )
+        .add_shader_module( { context_->device( ), "shaders/alpha_discard.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
+                            &tex_spec )
         .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
         .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
         .set_depth_stencil_mode( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS )
-        .set_depth_bias( 1.5f, 2.f )
+        .set_depth_bias( 1.25f, 1.75f )
         .set_depth_image_description( shadow_map_depth_images_->image_format( ) )
-        .build( context_->device( ), *shadow_mapping_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS )
+        .build( context_->device( ), *sampling_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS )
     };
 
     // Render pass
@@ -1093,6 +1073,13 @@ void MyApplication::render_shadow_maps( )
 
         for ( uint32_t image_index{}; image_index < shadow_map_depth_images_->image_count( ); image_index++ )
         {
+            CameraData ubo{
+                .model = glm::mat4( 1.0f ),
+                .view = lights_[image_index].vp.view,
+                .proj = lights_[image_index].vp.proj
+            };
+            camera_uniform_buffers_[0]->write( &ubo, sizeof( ubo ) );
+
             Image& image = shadow_map_depth_images_->image_at( image_index );
 
             // UNDEFINED -> DEPTH STENCIL ATTACHMENT OPTIMAL
@@ -1118,11 +1105,8 @@ void MyApplication::render_shadow_maps( )
 
             for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
             {
-                command_op.push_constants(
-                    shadow_mapping_pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0u, sizeof( glm::mat4 ), &lights_[image_index].view );
-                command_op.push_constants(
-                    shadow_mapping_pipeline, VK_SHADER_STAGE_VERTEX_BIT, sizeof( glm::mat4 ), sizeof( glm::mat4 ),
-                    &lights_[image_index].proj );
+                command_op.push_constants( shadow_mapping_pipeline, VK_SHADER_STAGE_FRAGMENT_BIT,  0u, sizeof( uint32_t ),
+                                           &material_index );
                 command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
             }
 

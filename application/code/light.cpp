@@ -51,7 +51,7 @@ namespace dae::light
                                  : glm::vec3{ 0.f, 1.f, 0.f };
 
         // use light position with center to generate view matrix - inverted Y-axis for up
-        light.view = lookAt( light_position, scene_center, up );
+        light.vp.view = lookAt( light_position, scene_center, up );
 
         // now go over the AABB corners again to find the min and max extents
         auto const [min_light_space, max_light_space] = [&]
@@ -60,7 +60,7 @@ namespace dae::light
                 glm::vec3 max{ -FLT_MAX };
                 for ( glm::vec3 const& corner : corners )
                 {
-                    glm::vec3 const transformed_corner{ light.view * glm::vec4{ corner, 1.f } };
+                    glm::vec3 const transformed_corner{ light.vp.view * glm::vec4{ corner, 1.f } };
                     min = glm::min( min, transformed_corner );
                     max = glm::max( max, transformed_corner );
                 }
@@ -70,7 +70,7 @@ namespace dae::light
         // with min-max create the orthographic projection matrix
         float const far_z = max_light_space.z - min_light_space.z;
 
-        light.proj = glm::ortho( min_light_space.x, max_light_space.x, min_light_space.y, max_light_space.y, 0.f, far_z );
+        light.vp.proj = glm::ortho( min_light_space.x, max_light_space.x, min_light_space.y, max_light_space.y, 0.f, far_z );
     }
 
 }

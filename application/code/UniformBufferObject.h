@@ -26,6 +26,12 @@ namespace dae
         DIRECTIONAL = 1u
     };
 
+    struct ViewProj
+    {
+        glm::mat4 view{};
+        glm::mat4 proj{};
+    };
+
     struct LightData
     {
         union
@@ -46,8 +52,7 @@ namespace dae
             } info;
         } params;
 
-        glm::mat4 view{};
-        glm::mat4 proj{};
+        ViewProj vp;
     };
 
 }

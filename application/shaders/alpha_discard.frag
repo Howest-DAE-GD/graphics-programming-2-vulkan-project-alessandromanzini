@@ -5,11 +5,13 @@
 
 
 // INPUT
-layout ( location = 0 ) in vec2 frag_uv;
+layout ( location = 0 ) in vec2 in_uv;
 
 
 // BINDINGS
-layout ( push_constant ) uniform SurfaceDescription { uint surface_id; } SD;
+layout ( push_constant ) uniform SurfaceDescription {
+    uint surface_id;
+} SD;
 
 layout ( set = 0, binding = 1 ) readonly buffer SurfaceBufferData { SurfaceMap maps[]; } surface_buffer;
 
@@ -23,7 +25,7 @@ void main( )
 {
     SurfaceMap map = surface_buffer.maps[SD.surface_id];
 
-    float alpha = texture( sampler2D( textures[nonuniformEXT( map.base_color_id )], shared_sampler ), frag_uv ).a;
+    float alpha = texture( sampler2D( textures[nonuniformEXT( map.base_color_id )], shared_sampler ), in_uv ).a;
     if ( alpha < 0.95f )
     {
         discard;

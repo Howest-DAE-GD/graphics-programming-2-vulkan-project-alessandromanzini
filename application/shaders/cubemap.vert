@@ -7,9 +7,9 @@ layout ( location = 0 ) out vec3 out_local_position;
 
 // INPUT
 layout ( push_constant ) uniform Push {
-    mat4 proj;
     mat4 view;
-} pc;
+    mat4 proj;
+} vp;
 
 
 const vec3 VERTEX_POSITIONS[36] = vec3[](
@@ -43,5 +43,5 @@ void main( )
 {
     const vec3 position = VERTEX_POSITIONS[gl_VertexIndex].rgb;
     out_local_position = position;
-    gl_Position = pc.proj * pc.view * vec4( position, 1.f );
+    gl_Position = vp.proj * vp.view * vec4( position, 1.f );
 }

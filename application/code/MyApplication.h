@@ -55,9 +55,10 @@ namespace dae
         static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
         static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };
 
-        std::array<LightData, 1u> lights_{
+        static constexpr uint32_t LIGHT_COUNT_{ 1u };
+        std::array<LightData, LIGHT_COUNT_> lights_{
             LightData{
-                .spatial = { .direction = glm::vec4{ 0.f, -1.f, 0.f, 0.f } },
+                .spatial = { .direction = glm::vec4{ 0.f, -1.f, -.1f, 0.f } },
                 .params = {
                     .info = { .kelvin = 12'000.f, .lumen = 800.f, .type = LightType::DIRECTIONAL }
                 },
@@ -77,7 +78,6 @@ namespace dae
         cobalt::DescriptorAllocatorHandle descriptor_allocator_{};
 
         cobalt::PipelineLayoutHandle cubemap_sampling_pipeline_layout_{};
-        cobalt::PipelineLayoutHandle shadow_mapping_pipeline_layout_{};
         cobalt::PipelineLayoutHandle sampling_pipeline_layout_{};
         cobalt::PipelineLayoutHandle processing_pipeline_layout_{};
         cobalt::PipelineHandle depth_prepass_pipeline_{};
