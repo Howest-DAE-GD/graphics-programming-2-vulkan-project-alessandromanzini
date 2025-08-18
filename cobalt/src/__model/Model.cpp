@@ -27,6 +27,7 @@ namespace cobalt
 
         create_texture_images( device, cmd_pool, textures );
         create_materials_buffer( device, cmd_pool, surface_maps );
+        calculate_aabb( vertices );
     }
 
 
@@ -57,6 +58,12 @@ namespace cobalt
     std::span<TextureImage const> Model::textures( ) const
     {
         return textures_;
+    }
+
+
+    std::pair<glm::vec3, glm::vec3> Model::aabb( ) const
+    {
+        return { aabb_min_, aabb_max_ };
     }
 
 
@@ -105,6 +112,16 @@ namespace cobalt
                                                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT );
 
         staging_buffer.copy_to( *surface_buffer_ptr_, cmd_pool );
+    }
+
+
+    void Model::calculate_aabb( std::span<Vertex const> const vertices )
+    {
+        for ( auto const& vertex : vertices )
+        {
+            aabb_min_ = min( aabb_min_, vertex.position );
+            aabb_max_ = max( aabb_max_, vertex.position );
+        }
     }
 
 }

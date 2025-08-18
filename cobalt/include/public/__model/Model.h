@@ -43,6 +43,8 @@ namespace cobalt
 
         [[nodiscard]] std::span<TextureImage const> textures( ) const;
 
+        [[nodiscard]] std::pair<glm::vec3, glm::vec3> aabb( ) const;
+
     private:
         std::vector<Mesh> meshes_{};
 
@@ -52,8 +54,12 @@ namespace cobalt
         std::unique_ptr<Buffer> surface_buffer_ptr_{ nullptr };
         std::vector<TextureImage> textures_{};
 
+        glm::vec3 aabb_min_{ 0.0f };
+        glm::vec3 aabb_max_{ 0.0f };
+
         void create_texture_images( DeviceSet const&, CommandPool&, std::span<TextureGroup const> textures );
         void create_materials_buffer( DeviceSet const&, CommandPool&, std::span<SurfaceMap const> materials );
+        void calculate_aabb( std::span<Vertex const> vertices );
 
     };
 

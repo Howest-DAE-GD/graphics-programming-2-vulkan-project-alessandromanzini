@@ -11,6 +11,8 @@
 
 #include <iostream>
 
+#include "light.h"
+
 
 using namespace cobalt;
 using namespace dae;
@@ -88,7 +90,18 @@ MyApplication::MyApplication( )
         ImageSamplerCreateInfo{
             .filter = VK_FILTER_LINEAR,
         } );
+    shadow_map_sampler_ = CVK.create_resource<ImageSampler>(
+        context_->device( ),
+        ImageSamplerCreateInfo{
+            .filter = VK_FILTER_NEAREST,
+            .address_mode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER,
+            .border_color = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+            .compare_enable = VK_TRUE,
+            .compare_op = VK_COMPARE_OP_LESS_OR_EQUAL,
+        } );
+
     create_render_images( swapchain_->extent( ) );
+    create_shadow_map_images( SHADOW_MAP_SIZE_ );
 
     // 8. Graphic pipelines
     create_pipelines( );
@@ -101,6 +114,7 @@ MyApplication::MyApplication( )
 
     // 11. Update descriptor sets
     write_textures_descriptor_sets( );
+    write_shadow_map_textures_descriptor_sets( );
 }
 
 
@@ -120,9 +134,10 @@ void MyApplication::run( )
     timer.start( );
     running_ = true;
 
-    // 2. Render cube maps
+    // 2. Render maps
     render_skybox_map( );
     render_irradiance_map( );
+    render_shadow_maps( );
 
     // 3. Start the render loop
     while ( running_ )
@@ -175,7 +190,7 @@ void MyApplication::create_descriptor_allocator( )
         .define(
             "l_textures",
             {
-                // Sampler
+                // Default Shared Sampler
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
 
                 // Textures
@@ -188,6 +203,9 @@ void MyApplication::create_descriptor_allocator( )
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
 
                 // Material Image Buffer
+                { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
+
+                // HDR Post Processing Image
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
 
                 // HDR Post Processing Image
@@ -208,9 +226,18 @@ void MyApplication::create_descriptor_allocator( )
                 // Diffuse Irradiance Cube Image
                 { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE },
             } )
+        .define( "l_shadow_textures",
+                 {
+                     // Shadow Map Depth Sampler
+                     { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLER },
+
+                     // Shadow Map Depth Images
+                     { VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, LIGHT_COUNT_ }
+                 } )
         .alloc( "buffer", "l_buffer", MAX_FRAMES_IN_FLIGHT_ )
         .alloc( "textures", "l_textures", MAX_FRAMES_IN_FLIGHT_ )
-        .alloc( "cube_textures", "l_cube_textures", 1u ) );
+        .alloc( "cube_textures", "l_cube_textures", 1u )
+        .alloc( "shadow_textures", "l_shadow_textures", 1u ) );
 }
 
 
@@ -248,19 +275,43 @@ void MyApplication::create_render_images( VkExtent2D const extent )
 }
 
 
+void MyApplication::create_shadow_map_images( uint32_t const size )
+{
+    shadow_map_depth_images_ = CVK.create_resource<ImageCollection>(
+        context_->device( ), ImageCreateInfo{
+            .extent = VkExtent2D{ .width = size, .height = size },
+            .format = swapchain_->depth_image( ).format( ),
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            .aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT,
+            .view_type = VK_IMAGE_VIEW_TYPE_2D,
+        }, LIGHT_COUNT_ );
+}
+
+
 void MyApplication::create_uniform_buffers( )
 {
     // camera
     for ( uint32_t i{}; i < MAX_FRAMES_IN_FLIGHT_; i++ )
     {
         camera_uniform_buffers_.emplace_back(
-            CVK.create_resource<Buffer>( buffer::make_uniform_buffer( context_->device( ), sizeof( CameraData ) * MAX_FRAMES_IN_FLIGHT_ ) ) );
+            CVK.create_resource<Buffer>(
+                buffer::make_uniform_buffer( context_->device( ), sizeof( CameraData ) * MAX_FRAMES_IN_FLIGHT_ ) ) );
     }
 
-    // lights
-    lights_buffer_ = CVK.create_resource<Buffer>(
-        buffer::make_uniform_buffer( context_->device( ), sizeof( LightData ) * LIGHT_COUNT_ ) );
-    lights_buffer_->write( LIGHTS.data( ), sizeof( LightData ) * LIGHT_COUNT_ );
+    {
+        // Calculate light views and projections
+        auto const [aabb_min, aabb_max] = model_->aabb( );
+        for ( LightData& light : lights_ )
+        {
+            light::populate_directional_shadow_map_data( light, aabb_min, aabb_max );
+        }
+
+        lights_buffer_ = CVK.create_resource<Buffer>(
+            buffer::make_uniform_buffer( context_->device( ), sizeof( LightData ) * LIGHT_COUNT_ ) );
+        lights_buffer_->write( lights_.data( ), sizeof( LightData ) * LIGHT_COUNT_ );
+    }
 }
 
 
@@ -268,14 +319,26 @@ void MyApplication::create_pipelines( )
 {
     // Layouts
     {
-        DescriptorSet const* const buffer_set     = &descriptor_allocator_->set_at( "buffer" );
-        DescriptorSet const* const texes_set      = &descriptor_allocator_->set_at( "textures" );
-        DescriptorSet const* const cube_texes_set = &descriptor_allocator_->set_at( "cube_textures" );
+        DescriptorSet const* const buffer_set       = &descriptor_allocator_->set_at( "buffer" );
+        DescriptorSet const* const texes_set        = &descriptor_allocator_->set_at( "textures" );
+        DescriptorSet const* const cube_texes_set   = &descriptor_allocator_->set_at( "cube_textures" );
+        DescriptorSet const* const shadow_texes_set = &descriptor_allocator_->set_at( "shadow_textures" );
 
         cubemap_sampling_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
             context_->device( ), std::array{ cube_texes_set },
             std::array{
-                // Proj / View
+                // View / Proj
+                VkPushConstantRange{
+                    .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+                    .offset = 0u,
+                    .size = sizeof( glm::mat4 ) * 2u
+                },
+            } );
+
+        shadow_mapping_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
+            context_->device( ), std::array{ shadow_texes_set },
+            std::array{
+                // View / Proj
                 VkPushConstantRange{
                     .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
                     .offset = 0u,
@@ -295,7 +358,7 @@ void MyApplication::create_pipelines( )
             } );
 
         processing_pipeline_layout_ = CVK.create_resource<PipelineLayout>(
-            context_->device( ), std::array{ buffer_set, texes_set, cube_texes_set },
+            context_->device( ), std::array{ buffer_set, texes_set, cube_texes_set, shadow_texes_set },
             std::array{
                 // Camera position
                 VkPushConstantRange{
@@ -324,7 +387,7 @@ void MyApplication::create_pipelines( )
         depth_prepass_pipeline_ = CVK.create_resource<Pipeline>(
             builder::GraphicsPipelineBuilder{}
             .add_shader_module( { context_->device( ), "shaders/transform.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
-            .add_shader_module( { context_->device( ), "shaders/depth.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
+            .add_shader_module( { context_->device( ), "shaders/alpha_discard.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT },
                                 &specialization_info )
             .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
             .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
@@ -466,7 +529,7 @@ void MyApplication::write_textures_descriptor_sets( )
         descriptor_allocator_->set_at( "buffer" ).update( write_ops );
     }
 
-    // Sampled descriptors
+    // Textures descriptors
     {
         std::array write_ops{
             WriteDescription{
@@ -589,6 +652,41 @@ void MyApplication::write_cube_textures_descriptor_sets( Image const& temp_image
             },
         };
         descriptor_allocator_->set_at( "cube_textures" ).update( write_ops );
+    }
+}
+
+
+void MyApplication::write_shadow_map_textures_descriptor_sets( )
+{
+    // Update descriptor sets
+    {
+        std::array write_ops{
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLER,
+                [this]( uint32_t ) -> VkDescriptorImageInfo
+                    {
+                        return {
+                            .sampler = shadow_map_sampler_->handle( )
+                        };
+                    }
+            },
+            WriteDescription{
+                VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                [this]( uint32_t ) -> std::vector<VkDescriptorImageInfo>
+                    {
+                        std::vector<VkDescriptorImageInfo> infos( shadow_map_depth_images_->image_count( ) );
+                        for ( uint32_t i{}; i < shadow_map_depth_images_->image_count( ); i++ )
+                        {
+                            infos[i] = VkDescriptorImageInfo{
+                                .imageView = shadow_map_depth_images_->image_at( i ).view( ).handle( ),
+                                .imageLayout = VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL
+                            };
+                        }
+                        return infos;
+                    }
+            },
+        };
+        descriptor_allocator_->set_at( "shadow_textures" ).update( write_ops );
     }
 }
 
@@ -958,6 +1056,94 @@ void MyApplication::render_irradiance_map( )
         *cube_diffuse_irradiance_image_,
         shader::ShaderModule{ context_->device( ), "shaders/cubemap.vert.spv", VK_SHADER_STAGE_VERTEX_BIT },
         shader::ShaderModule{ context_->device( ), "shaders/irradiance_sampling.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } );
+}
+
+
+void MyApplication::render_shadow_maps( )
+{
+    // Pipeline
+    Pipeline const shadow_mapping_pipeline{
+        builder::GraphicsPipelineBuilder{}
+        .add_shader_module( { context_->device( ), "shaders/simple_transform.vert.spv", VK_SHADER_STAGE_VERTEX_BIT } )
+        .add_shader_module( { context_->device( ), "shaders/empty.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT } )
+        .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
+        .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
+        .set_depth_stencil_mode( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS )
+        .set_depth_bias( 1.5f, 2.f )
+        .set_depth_image_description( shadow_map_depth_images_->image_format( ) )
+        .build( context_->device( ), *shadow_mapping_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS )
+    };
+
+    // Render pass
+    {
+
+        auto const& cmd_buffer = command_pool_->acquire( VK_COMMAND_BUFFER_LEVEL_PRIMARY );
+        cmd_buffer.reset( );
+
+        CommandOperator command_op = cmd_buffer.command_operator( 0 );
+
+        command_op.store_render_area( VkRect2D{ .offset = { 0u, 0u }, .extent = shadow_map_depth_images_->image_extent( ) } );
+        command_op.store_viewport( VkViewport{
+            .x = 0.f, .y = 0.f,
+            .width = static_cast<float>( shadow_map_depth_images_->image_extent( ).width ),
+            .height = static_cast<float>( shadow_map_depth_images_->image_extent( ).height ),
+            .minDepth = 0.f, .maxDepth = 1.f
+        } );
+
+        for ( uint32_t image_index{}; image_index < shadow_map_depth_images_->image_count( ); image_index++ )
+        {
+            Image& image = shadow_map_depth_images_->image_at( image_index );
+
+            // UNDEFINED -> DEPTH STENCIL ATTACHMENT OPTIMAL
+            image.transition_layout(
+                ImageLayoutTransition{ VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL }
+                .from_stage( VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT )
+                .to_stage( VK_PIPELINE_STAGE_2_TRANSFER_BIT )
+                .from_access( VK_ACCESS_2_NONE )
+                .to_access( VK_ACCESS_2_TRANSFER_WRITE_BIT ), command_op );
+
+            VkRenderingAttachmentInfo const depth_attachment =
+                    image.view( ).make_depth_attachment( VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE );
+
+            command_op.begin_rendering( {}, &depth_attachment );
+
+            command_op.set_viewport( );
+            command_op.set_scissor( );
+
+            command_op.bind_pipeline( shadow_mapping_pipeline, 0u );
+
+            command_op.bind_vertex_buffers( model_->vertex_buffer( ), 0 );
+            command_op.bind_index_buffer( model_->index_buffer( ), 0 );
+
+            for ( auto const& [index_count, index_offset, vertex_offset, material_index] : model_->meshes( ) )
+            {
+                command_op.push_constants(
+                    shadow_mapping_pipeline, VK_SHADER_STAGE_VERTEX_BIT, 0u, sizeof( glm::mat4 ), &lights_[image_index].view );
+                command_op.push_constants(
+                    shadow_mapping_pipeline, VK_SHADER_STAGE_VERTEX_BIT, sizeof( glm::mat4 ), sizeof( glm::mat4 ), &lights_[image_index].proj );
+                command_op.draw_indexed( index_count, 1, index_offset, vertex_offset );
+            }
+
+            command_op.end_rendering( );
+
+            // DEPTH STENCIL ATTACHMENT OPTIMAL -> SHADER READONLY OPTIMAL
+            image.transition_layout(
+                ImageLayoutTransition{ VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL }
+                .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+                .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
+                .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
+                .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ), command_op );
+        }
+
+        command_op.end_recording( );
+
+        sync::Fence const fence{ context_->device( ) };
+        context_->device( ).graphics_queue( ).submit(
+            sync::SubmitInfo{ context_->device( ).device_index( ) }.execute( cmd_buffer ), &fence );
+
+        fence.wait( );
+        cmd_buffer.unlock( );
+    }
 }
 
 

@@ -2,6 +2,10 @@
 #define COBALTVK_CORE_H
 
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+
+
 #include <cobalt_vk/handle.h>
 
 #include <__buffer/Buffer.h>

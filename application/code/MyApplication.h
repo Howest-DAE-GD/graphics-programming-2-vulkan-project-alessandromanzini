@@ -51,37 +51,18 @@ namespace dae
         static constexpr uint32_t TEXTURE_COUNT_{ 69u };
         static constexpr uint32_t LIGHT_COUNT_{ 3u };
 
+        static constexpr uint32_t SHADOW_MAP_SIZE_{ 1024u };
+
         static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
         static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };
 
-        static constexpr std::array<LightData, LIGHT_COUNT_> LIGHTS{
+        std::array<LightData, LIGHT_COUNT_> lights_{
             LightData{
-                .spatial = { .direction = glm::vec4{ -0.15f, 0.f, 1.f, 0.f } },
+                .spatial = { .direction = glm::vec4{ 0.f, -1.f, 0.f, 0.f } },
                 .params = {
-                    .info = { .kelvin = 10'000.f, .lumen = 60.f, .type = LightType::DIRECTIONAL }
-                }
+                    .info = { .kelvin = 12'000.f, .lumen = 800.f, .type = LightType::DIRECTIONAL }
+                },
             },
-            // LightData{
-            //     .spatial = { .position = { -8.4f, 0.5f, 0.f, 0.f } },
-            //     .color = { 0.8f, 0.6f, 0.f, 1.f },
-            //     .params = {
-            //         .info = { .lumen = 1000.f, .range = 4.f, .type = LightType::POINT }
-            //     }
-            // },
-            // LightData{
-            //     .spatial = { .position = { 0.f, 0.5f, 0.f, 0.f } },
-            //     .color = { 0.f, 0.6f, 0.f, 1.f },
-            //     .params = {
-            //         .info = { .lumen = 500.f, .range = 3.f, .type = LightType::POINT }
-            //     }
-            // },
-            // LightData{
-            //     .spatial = { .position = { 8.4f, 0.5f, 0.f, 0.f } },
-            //     .color = { 0.f, 0.2f, 0.6f, 1.f },
-            //     .params = {
-            //         .info = { .lumen = 200.f, .range = 3.f, .type = LightType::POINT }
-            //     }
-            // }
         };
 
         bool running_{ false };
@@ -97,6 +78,7 @@ namespace dae
         cobalt::DescriptorAllocatorHandle descriptor_allocator_{};
 
         cobalt::PipelineLayoutHandle cubemap_sampling_pipeline_layout_{};
+        cobalt::PipelineLayoutHandle shadow_mapping_pipeline_layout_{};
         cobalt::PipelineLayoutHandle sampling_pipeline_layout_{};
         cobalt::PipelineLayoutHandle processing_pipeline_layout_{};
         cobalt::PipelineHandle depth_prepass_pipeline_{};
@@ -107,9 +89,11 @@ namespace dae
         cobalt::RendererHandle renderer_{};
 
         cobalt::ImageSamplerHandle texture_sampler_{};
+        cobalt::ImageSamplerHandle shadow_map_sampler_{};
         cobalt::ImageCollectionHandle albedo_images_{};
         cobalt::ImageCollectionHandle material_images_{};
         cobalt::ImageCollectionHandle post_processing_images_{};
+        cobalt::ImageCollectionHandle shadow_map_depth_images_{};
         cobalt::ImageHandle cube_skybox_image_{};
         cobalt::ImageHandle cube_diffuse_irradiance_image_{};
         cobalt::ModelHandle model_{};
@@ -120,18 +104,21 @@ namespace dae
         // .CREATION
         void create_descriptor_allocator( );
         void create_render_images( VkExtent2D extent );
+        void create_shadow_map_images( uint32_t size );
         void create_uniform_buffers( );
         void create_pipelines( );
 
         void write_textures_descriptor_sets( );
         void write_cube_textures_descriptor_sets( cobalt::Image const& temp_image );
+        void write_shadow_map_textures_descriptor_sets( );
 
         // .RENDERING
-        void record_command_buffer( cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index,
-                                    uint32_t frame_index );
+        void record_command_buffer(
+            cobalt::CommandBuffer const&, cobalt::Swapchain&, uint32_t image_index, uint32_t frame_index );
         void render_to_cubemap( cobalt::Image& attachment, cobalt::shader::ShaderModule vert, cobalt::shader::ShaderModule frag );
         void render_skybox_map( );
         void render_irradiance_map( );
+        void render_shadow_maps( );
         void update_camera_data( uint32_t current_image ) const;
 
         // .UTILITIES

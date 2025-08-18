@@ -28,11 +28,14 @@ namespace cobalt
 
         [[nodiscard]] uint32_t image_count( ) const;
         [[nodiscard]] VkFormat image_format( ) const;
+        [[nodiscard]] VkExtent2D image_extent( ) const;
 
         [[nodiscard]] Image& image_at( size_t index );
 
     private:
         VkFormat const image_format_;
+        VkExtent2D const image_extent_;
+
         std::vector<Image> images_{};
 
     };

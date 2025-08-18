@@ -100,6 +100,16 @@ namespace cobalt::builder
     }
 
 
+    GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_depth_bias( float const constant_factor, float const slope_factor )
+    {
+        rasterization_.depthBiasEnable         = VK_TRUE;
+        rasterization_.depthBiasConstantFactor = constant_factor;
+        rasterization_.depthBiasSlopeFactor    = slope_factor;
+
+        return *this;
+    }
+
+
     GraphicsPipelineBuilder& GraphicsPipelineBuilder::add_shader_module( shader::ShaderModule&& shader,
                                                                          VkSpecializationInfo const* specialization_info,
                                                                          char const* entry_point )

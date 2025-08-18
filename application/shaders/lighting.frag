@@ -1,11 +1,12 @@
 #version 450
+#extension GL_EXT_samplerless_texture_functions: enable
 
 #include "common.transcode.glsl"
 #include "common.lighting.glsl"
 
 
 // CONSTANTS
-const float EXPOSURE_COMPENSATION = 0.35f;
+const float EXPOSURE_COMPENSATION = 0.6f;
 const bool ENABLE_RANGE_FALLOFF = true;
 
 
@@ -35,10 +36,12 @@ layout ( set = 2, binding = 3 ) uniform textureCube diffuse_irradiance_map;
 
 layout ( constant_id = 0 ) const uint LIGHT_COUNT = 1u;
 layout ( set = 0, binding = 2 ) uniform LightBufferData { Light lights[LIGHT_COUNT]; } light_buffer;
+layout ( set = 3, binding = 0 ) uniform sampler shadow_sampler;
+layout ( set = 3, binding = 1 ) uniform texture2D shadow_map_texures[LIGHT_COUNT];
 
 
 // FUNCTIONS
-vec3 calculate_point_light_irradiance( const Light light, const vec3 world_pos )
+vec3 calculate_point_light_irradiance( in const Light light, in const vec3 world_pos )
 {
     const float distance_to_light = length( light.position.xyz - world_pos );
 
@@ -57,7 +60,8 @@ vec3 calculate_point_light_irradiance( const Light light, const vec3 world_pos )
     return clamp( kelvin_to_rgb( light.kelvin ), 0.f, 1.f ) * I * attenuation;
 }
 
-vec3 calculate_directional_light_irradiance( const Light light, const vec3 world_pos )
+
+vec3 calculate_directional_light_irradiance( in const Light light, in const vec3 world_pos )
 {
     // we interpret lumen directly as illuminance (lux) for directional lights.
     const float I = light.lumen;
@@ -66,6 +70,22 @@ vec3 calculate_directional_light_irradiance( const Light light, const vec3 world
     // since the light is directional, we don't need to consider attenuation.
     return clamp( kelvin_to_rgb( light.kelvin ), 0.f, 1.f ) * I;
 }
+
+
+// DIRECTIONAL LIGHT SHADOW TERM
+float calculate_shadow_term( in const Light light, in const texture2D shadow_map, in const vec3 world_pos )
+{
+    // get light space position and perspective divide
+    vec4 light_space_position = light.proj * light.view * vec4( world_pos, 1.f );
+    light_space_position /= light_space_position.w;
+
+    // get uv coordinates in shadow map and flip y-axis
+    vec3 shadow_map_uv = vec3( light_space_position.xy * 0.5f + 0.5f, light_space_position.z );
+    // shadow_map_uv.y = 1.f - shadow_map_uv.y;
+
+    return texture( sampler2DShadow( shadow_map, shadow_sampler ), shadow_map_uv );
+}
+
 
 void calculate_direct_diffuse_specular(
 in vec3 N, in vec3 V, in vec3 L, in vec3 H, in vec3 albedo, in float metallic, in float roughness, in vec3 F0, out vec3 diffuse, out vec3 specular )
@@ -84,6 +104,7 @@ in vec3 N, in vec3 V, in vec3 L, in vec3 H, in vec3 albedo, in float metallic, i
     specular = numerator / denominator;
     diffuse = kD * albedo.rgb / PI;
 }
+
 
 vec3 calculate_ambient_light( in vec3 N, in vec3 V, in vec3 albedo, in float metallic, in float roughness, in vec3 F0 )
 {
@@ -129,17 +150,20 @@ void main( )
     vec3 Lo = vec3( 0.f );
     for ( int i = 0; i < LIGHT_COUNT; ++i )
     {
-        vec3 E; vec3 L;
+        vec3 E; vec3 L; float shadow_term;
         switch ( light_buffer.lights[i].type )
         {
             case 0: // point light
                 E = calculate_point_light_irradiance( light_buffer.lights[i], world_pos.xyz );
                 L = normalize( light_buffer.lights[i].position.xyz - world_pos );
+                shadow_term = 1.f;
                 break;
 
             case 1: // directional light
                 E = calculate_directional_light_irradiance( light_buffer.lights[i], world_pos.xyz );
                 L = normalize( light_buffer.lights[i].position.xyz );
+                L.y *= -1.f;
+                shadow_term = calculate_shadow_term( light_buffer.lights[i], shadow_map_texures[i], world_pos.xyz );
                 break;
 
             default: // unsupported light type
@@ -156,8 +180,12 @@ void main( )
         const float cos_law = max( dot( N, L ), 0.f );
 
         // accumulate outgoing radiance
-        Lo += ( diffuse + specular ) * E * cos_law;
+        Lo += ( diffuse + specular ) * E * cos_law * shadow_term;
     }
+
+    vec3 shadow_depth = texture( sampler2D( shadow_map_texures[0], shared_sampler ), in_uv ).rrr;
+    out_color = vec4( shadow_depth, 1.f );
+    return;
 
     // calculate global illumination
     const vec3 ambient = calculate_ambient_light( N, V, albedo, metallic, roughness, F0 );

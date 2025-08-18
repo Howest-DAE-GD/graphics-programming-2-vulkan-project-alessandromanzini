@@ -138,12 +138,11 @@ namespace cobalt
         // 5. Create the depth image
         if ( create_info_.create_depth_image )
         {
-            VkFormat const depth_format = query::find_depth_format( context_ref_.device( ).physical( ) );
-            depth_image_ptr_            = std::make_unique<Image>(
+            depth_image_ptr_ = std::make_unique<Image>(
                 context_ref_.device( ),
                 ImageCreateInfo{
                     .extent = extent_,
-                    .format = depth_format,
+                    .format = query::find_depth_format( context_ref_.device( ).physical( ) ),
                     .tiling = VK_IMAGE_TILING_OPTIMAL,
                     .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                     .properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,

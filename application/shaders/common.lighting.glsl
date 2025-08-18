@@ -2,12 +2,20 @@
 
 
 // STRUCTS
-struct Light {
+struct Light
+{
+    // position for point lights, direction for directional lights
     vec4 position;
+
     float kelvin;
     float lumen;
     float range;
-    uint type; // 0: point, 1: directional
+
+    // 0: point, 1: directional
+    uint type;
+
+    mat4 view;
+    mat4 proj;
 };
 
 
