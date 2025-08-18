@@ -7,7 +7,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include <filesystem>
-#include <vector>
+#include <array>
 
 
 namespace cobalt::shader

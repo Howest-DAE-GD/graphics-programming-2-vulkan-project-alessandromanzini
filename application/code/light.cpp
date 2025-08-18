@@ -2,6 +2,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <array>
+
 
 namespace dae::light
 {
@@ -12,7 +14,7 @@ namespace dae::light
         glm::vec3 const light_direction = normalize( light.spatial.direction );
 
         // create 8 AABB corners for light projection
-        std::array const corners{
+        std::array<glm::vec3, 8> const corners{
             glm::vec3{ aabb_min.x, aabb_min.y, aabb_min.z },
             glm::vec3{ aabb_max.x, aabb_min.y, aabb_min.z },
             glm::vec3{ aabb_min.x, aabb_max.y, aabb_min.z },
