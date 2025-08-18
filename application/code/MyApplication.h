@@ -50,7 +50,7 @@ namespace dae
         static constexpr uint32_t MAX_FRAMES_IN_FLIGHT_{ 2u };
         static constexpr uint32_t TEXTURE_COUNT_{ 69u };
 
-        static constexpr uint32_t SHADOW_MAP_SIZE_{ 1024u };
+        static constexpr uint32_t SHADOW_MAP_SIZE_{ 1024u * 4 };
 
         static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
         static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };

@@ -38,7 +38,7 @@ namespace cobalt::builder
         GraphicsPipelineBuilder& set_depth_image_description( VkFormat depth_image_format );
         GraphicsPipelineBuilder& set_depth_stencil_mode(
             VkBool32 depth_testing, VkBool32 depth_writing, VkCompareOp compare_op = VK_COMPARE_OP_MAX_ENUM );
-        GraphicsPipelineBuilder& set_depth_bias( float constant_factor, float slope_factor );
+        GraphicsPipelineBuilder& set_depth_bias( float constant_factor, float clamp, float slope_factor );
 
         GraphicsPipelineBuilder& add_shader_module(
             shader::ShaderModule&& shader, VkSpecializationInfo const* = nullptr, char const* entry_point = "main" );

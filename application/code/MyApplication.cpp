@@ -1051,7 +1051,7 @@ void MyApplication::render_shadow_maps( )
         .set_dynamic_state( std::array{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR } )
         .set_binding_description( Vertex::get_binding_description( ), Vertex::get_attribute_descriptions( ) )
         .set_depth_stencil_mode( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS )
-        .set_depth_bias( 1.25f, 1.75f )
+        .set_depth_bias( 1.25f, 0.f, 1.75f )
         .set_depth_image_description( shadow_map_depth_images_->image_format( ) )
         .build( context_->device( ), *sampling_pipeline_layout_, VK_PIPELINE_BIND_POINT_GRAPHICS )
     };
