@@ -101,12 +101,13 @@ namespace cobalt::builder
 
 
     GraphicsPipelineBuilder& GraphicsPipelineBuilder::set_depth_bias(
-        float const constant_factor, float const clamp, float const slope_factor )
+        float const constant_factor, float const /* clamp */, float const slope_factor)
     {
+        //todo: manage depth clamp
         rasterization_.depthBiasEnable         = VK_TRUE;
-        rasterization_.depthClampEnable        = VK_TRUE;
+        //rasterization_.depthClampEnable        = VK_TRUE;
         rasterization_.depthBiasConstantFactor = constant_factor;
-        rasterization_.depthBiasClamp          = clamp;
+        //rasterization_.depthBiasClamp          = clamp;
         rasterization_.depthBiasSlopeFactor    = slope_factor;
 
         return *this;

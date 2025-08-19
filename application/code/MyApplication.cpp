@@ -483,7 +483,7 @@ void MyApplication::write_textures_descriptor_sets( )
                         return {
                             .buffer = model_->surface_buffer( ).handle( ),
                             .offset = 0u,
-                            .range = model_->surface_buffer( ).memory_size( )
+                            .range = model_->surface_buffer( ).buffer_size( )
                         };
                     }
             },
@@ -494,7 +494,7 @@ void MyApplication::write_textures_descriptor_sets( )
                         return {
                             .buffer = lights_buffer_->handle( ),
                             .offset = 0u,
-                            .range = lights_buffer_->memory_size( )
+                            .range = lights_buffer_->buffer_size( )
                         };
                     }
             },
