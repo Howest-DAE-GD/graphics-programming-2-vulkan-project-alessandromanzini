@@ -1,66 +1,57 @@
 #include <__validation/selector/PhysicalDeviceSelector.h>
 
-#include <__command/ValidationCommandBind.h>
+#include <__command/FeatureCommand.h>
 #include <__context/InstanceBundle.h>
-#include <__validation/device_features.h>
-
-#include <map>
 
 
 namespace cobalt::validation
 {
-    using validation_bind_t = exe::ValidationCommandBind<validation_fn_t, validation_arg_t>;
-
-    std::map<DeviceFeatureFlags, validation_fn_t> validation_fn_map{
-        { DeviceFeatureFlags::FAMILIES_INDICES_SUITABLE, &is_family_indices_suitable },
-        { DeviceFeatureFlags::ANISOTROPIC_SAMPLING, &is_anisotropy_sampler_supported },
-        { DeviceFeatureFlags::INDEPENDENT_BLEND, &is_independent_blend_supported },
-        { DeviceFeatureFlags::SWAPCHAIN_EXT, &is_swapchain_adequate },
-        { DeviceFeatureFlags::SWAPCHAIN_MAINTENANCE_1_EXT, &is_swapchain_maintenance_1_supported },
-        { DeviceFeatureFlags::DYNAMIC_RENDERING_EXT, &is_dynamic_rendering_supported },
-        { DeviceFeatureFlags::SYNCHRONIZATION_2_EXT, &is_synchronization_2_supported },
-        { DeviceFeatureFlags::VERTEX_INPUT_DYNAMIC_STATE_EXT, &is_vertex_input_dynamic_state_supported },
-        { DeviceFeatureFlags::CUBIC_FILTER_EXT, &is_cubic_filter_supported },
-        { DeviceFeatureFlags::SHADER_IMAGE_ARRAY_NON_UNIFORM_INDEXING, &is_image_array_non_uniform_indexing_supported },
-    };
-
-
     PhysicalDeviceSelector::PhysicalDeviceSelector( InstanceBundle const& instance, DeviceFeatureFlags const features )
         : instance_ref_{ instance }
+        , features_{ features } { }
+
+
+    bool PhysicalDeviceSelector::select( VkPhysicalDevice const device ) const
     {
-        for ( auto const& [flag, fn] : validation_fn_map )
+        // 1. fetch the physical device features and extensions
+        exe::ValidationData data{
+            .instance = &instance_ref_,
+            .device = device,
+            .features = { .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 },
+            .extensions = {}
+        };
+        vkGetPhysicalDeviceFeatures2( device, &data.features );
+        get_extensions( device, data.extensions );
+
+        // 2. cross-check with the validation map
+        for ( auto const& [flag, command] : FEATURE_COMMAND_MAP )
         {
-            if ( any( features & flag ) )
+            // If any validation fails, the device is not suitable
+            if ( any( features_ & flag ) && not command->validate( data ) )
             {
-                validators_.emplace_back( std::make_unique<validation_bind_t>( fn ) );
+                return false;
             }
         }
+        return true;
     }
 
 
-    std::pair<bool, std::vector<char const*>> PhysicalDeviceSelector::select( VkPhysicalDevice const device ) const
+    exe::EnableData PhysicalDeviceSelector::require( ) const
     {
-        ValidationCallbackData data{
-            .instance = instance_ref_,
-            .device = device,
-            .extensions = {},
-            .extensions_selection = {}
-        };
-        get_extensions( device, data.extensions );
-
+        exe::EnableData data{};
         data.features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        vkGetPhysicalDeviceFeatures2( device, &data.features );
+        data.features11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+        data.features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        data.features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 
-        for ( auto& validator : validators_ )
+        for ( auto const& [flag, command] : FEATURE_COMMAND_MAP )
         {
-            static_cast<validation_bind_t*>( validator.get( ) )->set_parameter( data );
-            validator->execute( );
-            if ( not validator->is_valid( ) )
+            if ( any( features_ & flag ) )
             {
-                return { false, {} };
+                command->enable( data );
             }
         }
-        return { true, data.extensions_selection };
+        return data;
     }
 
 

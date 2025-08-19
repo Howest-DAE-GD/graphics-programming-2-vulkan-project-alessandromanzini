@@ -45,7 +45,6 @@ namespace cobalt
     private:
         InstanceBundle const& instance_ref_;
         DeviceFeatureFlags feature_flags_{};
-        std::vector<char const*> extensions_{};
 
         uint32_t device_index_{ UINT32_MAX };
 

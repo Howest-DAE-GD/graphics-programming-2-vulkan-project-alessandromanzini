@@ -18,7 +18,7 @@ endforeach ()
 
 # print the shaders found
 list(LENGTH MY_SHADERS SHADER_COUNT)
-if ( ${SHADER_COUNT} GREATER 0 )
+if (${SHADER_COUNT} GREATER 0)
     message(STATUS "Watching shader files:")
     foreach (F ${MY_SHADERS})
         get_filename_component(PARENT_DIR "${F}" DIRECTORY)
@@ -46,8 +46,7 @@ if (MY_SHADERS)
                 VERBATIM)
     endforeach ()
 
-    add_custom_target(${COMPILE_SHADERS_COMMAND} ALL
-            DEPENDS ${SHADER_OUTPUTS})
+    add_custom_target(${COMPILE_SHADERS_COMMAND} ALL DEPENDS ${SHADER_OUTPUTS})
 
     # ensure your main project depends on the custom command
     add_dependencies(${PROJECT_NAME} ${COMPILE_SHADERS_COMMAND})

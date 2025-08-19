@@ -12,6 +12,9 @@
 
 namespace cobalt
 {
+    // +---------------------------+
+    // | DEVICE SET                |
+    // +---------------------------+
     DeviceSet::DeviceSet( InstanceBundle const& instance, DeviceFeatureFlags const features,
                           ValidationLayers const* validation_layers )
         : instance_ref_{ instance }
@@ -89,31 +92,31 @@ namespace cobalt
     void DeviceSet::pick_physical_device( )
     {
         // The physical device gets implicitly destroyed when we destroy the instance.
-        uint32_t device_count{ 0 };
+        uint32_t device_count{ 0u };
         vkEnumeratePhysicalDevices( instance_ref_.instance( ), &device_count, nullptr );
 
-        if ( device_count == 0 )
+        if ( device_count == 0u )
         {
             log::logerr<DeviceSet>( "pick_physical_device", "failed to find GPUs with Vulkan support!" );
         }
 
-        // Fetch the physical devices
+        // fetch all physical devices
         std::vector<VkPhysicalDevice> devices( device_count );
         vkEnumeratePhysicalDevices( instance_ref_.instance( ), &device_count, devices.data( ) );
 
-        // Check if any of the physical devices meet the requirements
+        // check if any of the physical devices meet the requirements
         for ( validation::PhysicalDeviceSelector const selector{ instance_ref_, feature_flags_ };
-              auto const& device : devices )
+              VkPhysicalDevice const device : devices )
         {
-            if ( auto [adequate, extensions] = selector.select( device ); adequate )
+            if ( selector.select( device ) )
             {
                 physical_device_ = device;
-                device_index_    = 0;
-                extensions_      = std::move( extensions );
+                device_index_    = 0u;
                 break;
             }
         }
 
+        // if we didn't find a suitable physical device, we log an error.
         if ( physical_device_ == VK_NULL_HANDLE )
         {
             log::logerr<DeviceSet>( "pick_physical_device", "failed to find a suitable GPU!" );
@@ -135,66 +138,25 @@ namespace cobalt
         auto const [graphics_family, present_family] = query::find_queue_families( physical_device_, instance_ref_ );
 
         // Get the unique queue families to load once.
-        std::set unique_queue_families{ graphics_family.value( ), present_family.value( ) };
+        std::set const unique_queue_families{ graphics_family.value( ), present_family.value( ) };
 
         // Vulkan lets you assign priorities to queues to influence the scheduling of command buffer execution using
-        // floating point numbers between 0.0 and 1.0.
-        constexpr float queue_priority{ 1.0f };
+        // floating point numbers between 0.f and 1.f
+        constexpr float queue_priority{ 1.f };
         std::vector<VkDeviceQueueCreateInfo> queue_create_infos{};
-        for ( uint32_t queue_family : unique_queue_families )
+        for ( uint32_t const queue_family : unique_queue_families )
         {
-            VkDeviceQueueCreateInfo queue_create_info{};
-            queue_create_info.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queue_create_info.queueFamilyIndex = queue_family;
-            queue_create_info.queueCount       = 1;
-            queue_create_info.pQueuePriorities = &queue_priority;
-            queue_create_infos.push_back( queue_create_info );
+            queue_create_infos.emplace_back( VkDeviceQueueCreateInfo{
+                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .queueFamilyIndex = queue_family,
+                .queueCount = 1u,
+                .pQueuePriorities = &queue_priority
+            } );
         }
 
-        // The next information to specify is the set of device features that we'll be using.
-        // These are the features that we queried support for with vkGetPhysicalDeviceFeatures.
-        VkPhysicalDeviceFeatures2 device_features{};
-        device_features.sType                      = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        device_features.features.samplerAnisotropy = VK_TRUE;
-        if ( any( feature_flags_ & DeviceFeatureFlags::INDEPENDENT_BLEND ) )
-        {
-            device_features.features.independentBlend = VK_TRUE;
-        }
-
-        // Set additional Vulkan 1+ features that we want to use.
-        VkPhysicalDeviceVulkan12Features device_features12{};
-        device_features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-        device_features.pNext   = &device_features12;
-        if ( any( feature_flags_ & DeviceFeatureFlags::SHADER_IMAGE_ARRAY_NON_UNIFORM_INDEXING ) )
-        {
-            device_features12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
-        }
-
-        VkPhysicalDeviceVulkan13Features device_features13{};
-        device_features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-        device_features12.pNext = &device_features13;
-
-        // todo: refactor flag checking and extension checking into the validation class that gets passed to the physical selector.
-        if ( any( feature_flags_ & DeviceFeatureFlags::DYNAMIC_RENDERING_EXT ) )
-        {
-            device_features13.dynamicRendering = VK_TRUE;
-        }
-        if ( any( feature_flags_ & DeviceFeatureFlags::SYNCHRONIZATION_2_EXT ) )
-        {
-            device_features13.synchronization2 = VK_TRUE;
-        }
-
-        VkPhysicalDeviceVertexInputDynamicStateFeaturesEXT dynamic_state_features{};
-        dynamic_state_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_INPUT_DYNAMIC_STATE_FEATURES_EXT;
-        dynamic_state_features.vertexInputDynamicState = VK_TRUE;
-        if ( any( feature_flags_ & DeviceFeatureFlags::VERTEX_INPUT_DYNAMIC_STATE_EXT ) )
-        {
-            device_features13.pNext = &dynamic_state_features;
-        }
-        else
-        {
-            device_features13.pNext = nullptr;
-        }
+        // Extract the required features and extensions
+        exe::EnableData device_features = validation::PhysicalDeviceSelector{ instance_ref_, feature_flags_ }.require( );
+        device_features.map_data( );
 
         // Create the logical device
         VkDeviceCreateInfo create_info{};
@@ -202,17 +164,17 @@ namespace cobalt
 
         create_info.queueCreateInfoCount = static_cast<uint32_t>( queue_create_infos.size( ) );
         create_info.pQueueCreateInfos    = queue_create_infos.data( );
-        create_info.pNext                = &device_features;
+        create_info.pNext                = &device_features.features;
 
         // The remainder of the information bears a resemblance to the VkInstanceCreateInfo struct and requires you
         // to specify extensions and validation layers. The difference is that these are device specific this time.
 #ifdef __APPLE__
         // Device specific extensions are necessary on macOS to allow MoltenVK to function properly.
-        extensions_.push_back( "VK_KHR_portability_subset" );
+        device_features.extensions.push_back( "VK_KHR_portability_subset" );
 #endif
 
-        create_info.enabledExtensionCount   = static_cast<uint32_t>( extensions_.size( ) );
-        create_info.ppEnabledExtensionNames = extensions_.data( );
+        create_info.enabledExtensionCount   = static_cast<uint32_t>( device_features.extensions.size( ) );
+        create_info.ppEnabledExtensionNames = device_features.extensions.data( );
 
         // Previous implementations of Vulkan made a distinction between instance and device specific validation layers,
         // but this is no longer the case. We're still doing it for backwards compatibility.
@@ -224,7 +186,7 @@ namespace cobalt
         }
         else
         {
-            create_info.enabledLayerCount = 0;
+            create_info.enabledLayerCount = 0u;
         }
 
         // Create instance and validate the result
