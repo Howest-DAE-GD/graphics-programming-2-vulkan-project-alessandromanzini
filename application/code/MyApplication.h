@@ -6,8 +6,12 @@
 #include <cobalt_vk/handle.h>
 #include <vulkan/vulkan_core.h>
 
-#include <filesystem>
 #include <array>
+#include <filesystem>
+
+
+#define SCENE_1
+// #define SCENE_2
 
 
 namespace cobalt::shader
@@ -53,6 +57,8 @@ namespace dae
         static constexpr uint32_t SHADOW_MAP_SIZE_{ 1024u * 4 };
 
         static constexpr std::string_view MODEL_PATH_{ "resources/Sponza.gltf" };
+
+#if defined( SCENE_1 )
         static constexpr std::string_view SKYBOX_PATH_{ "resources/skybox_4k.hdr" };
 
         static constexpr uint32_t LIGHT_COUNT_{ 1u };
@@ -64,6 +70,31 @@ namespace dae
                 },
             },
         };
+#elif defined( SCENE_2 )
+        static constexpr std::string_view SKYBOX_PATH_{ "resources/night_skybox_4k.hdr" };
+
+        static constexpr uint32_t LIGHT_COUNT_{ 3u };
+        std::array<LightData, LIGHT_COUNT_> lights_{
+            LightData{
+                .spatial = { .position = glm::vec4{ 8.4f, 1.f, 0.f, 0.f } },
+                .params = {
+                    .info = { .kelvin = 2'000.f, .lumen = 800.f, .type = LightType::POINT, .range = 10.f }
+                },
+            },
+            LightData{
+                .spatial = { .position = glm::vec4{ 0.f, 1.f, 0.f, 0.f } },
+                .params = {
+                    .info = { .kelvin = 100.f, .lumen = 800.f, .type = LightType::POINT, .range = 5.f }
+                },
+            },
+            LightData{
+                .spatial = { .position = glm::vec4{ -8.4f, 1.f, 0.f, 0.f } },
+                .params = {
+                    .info = { .kelvin = 1'000.f, .lumen = 800.f, .type = LightType::POINT, .range = 3.f }
+                },
+            },
+        };
+#endif
 
         bool running_{ false };
 

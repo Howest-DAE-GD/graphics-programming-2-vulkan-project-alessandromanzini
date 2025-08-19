@@ -183,10 +183,6 @@ void main( )
         Lo += ( diffuse + specular ) * E * cos_law * shadow_term;
     }
 
-//    vec3 shadow_depth = texture( sampler2D( shadow_map_texures[0], shared_sampler ), in_uv ).rrr;
-//    out_color = vec4( shadow_depth, 1.f );
-//    return;
-
     // calculate global illumination
     const vec3 ambient = calculate_ambient_light( N, V, albedo, metallic, roughness, F0 );
 

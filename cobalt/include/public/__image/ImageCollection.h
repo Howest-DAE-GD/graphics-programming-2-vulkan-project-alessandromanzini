@@ -15,6 +15,7 @@ namespace cobalt
 
 namespace cobalt
 {
+    // todo: add iterators
     class ImageCollection final : public memory::Resource
     {
     public:

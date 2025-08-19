@@ -1073,14 +1073,27 @@ void MyApplication::render_shadow_maps( )
 
         for ( uint32_t image_index{}; image_index < shadow_map_depth_images_->image_count( ); image_index++ )
         {
+            Image& image = shadow_map_depth_images_->image_at( image_index );
+
+            // todo: generate point light shadow maps
+            if ( lights_[image_index].params.info.type != LightType::DIRECTIONAL )
+            {
+                // UNDEFINED -> SHADER READONLY OPTIMAL
+                image.transition_layout(
+                    ImageLayoutTransition{ VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL }
+                    .from_stage( VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT )
+                    .to_stage( VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT )
+                    .from_access( VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT )
+                    .to_access( VK_ACCESS_2_SHADER_SAMPLED_READ_BIT ), command_op );
+                continue; // only render shadow maps for directional lights
+            }
+
             CameraData ubo{
                 .model = glm::mat4( 1.0f ),
                 .view = lights_[image_index].vp.view,
                 .proj = lights_[image_index].vp.proj
             };
             camera_uniform_buffers_[0]->write( &ubo, sizeof( ubo ) );
-
-            Image& image = shadow_map_depth_images_->image_at( image_index );
 
             // UNDEFINED -> DEPTH STENCIL ATTACHMENT OPTIMAL
             image.transition_layout(
